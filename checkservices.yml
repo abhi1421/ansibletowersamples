@@ -1,6 +1,7 @@
 ---
 - name: Hello World Sample
   hosts: all
+  become: true:
   tasks:
       - name: Check httpd service
         service:
