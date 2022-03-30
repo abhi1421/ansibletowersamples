@@ -4,8 +4,8 @@
   become: yes
   become_user: root
   tasks:
-      - name: Check httpd service
+      - name: Check sshd service
         service:
-            name=httpd
+            name=sshd
             state=started
             enabled=yes
