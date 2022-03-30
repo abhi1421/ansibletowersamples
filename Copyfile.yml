@@ -1,0 +1,8 @@
+---
+- name: Copy files to /tmp
+  hosts: all
+  tasks:
+      - name: To check SELinux status
+        copy:
+            src:=/etc/ssh/sshd_config
+            dest:/tmp
