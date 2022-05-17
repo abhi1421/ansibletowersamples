@@ -1,0 +1,19 @@
+---
+- name: test yum checkmode
+  hosts: localhost
+  become: yes
+
+  tasks:
+  - name: lets test and rescue
+    block:
+      - name: yum update | checkmode yes | check yum errors
+        ansible.builtin.yum:
+          name: 
+            - vsftpd
+          state: latest
+        register: stat_yum_checkmode_output
+    
+    rescue:
+      - name: yum update ERROR
+        ansible.builtin.debug:
+          msg: "{{ stat_yum_checkmode_output.msg }}"
