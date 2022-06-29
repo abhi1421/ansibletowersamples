@@ -1,6 +1,5 @@
 ---
 - name: Email test
-  hosts: localhost
   become: true
 
   tasks:
