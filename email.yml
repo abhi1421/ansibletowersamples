@@ -1,5 +1,8 @@
 ---
 - name: Email test
+  hosts: all
+  become:true
+  
   tasks:
     - name: Send email
       mail:
