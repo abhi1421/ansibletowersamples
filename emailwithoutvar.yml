@@ -1,5 +1,6 @@
 ---
 - name: Email test
+  hosts: all
   become: true
 
   tasks:
