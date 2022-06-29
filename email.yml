@@ -1,7 +1,5 @@
 ---
 - name: Email test
-  become: true
-
   tasks:
     - name: Send email
       mail:
