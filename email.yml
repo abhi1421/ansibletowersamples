@@ -1,0 +1,12 @@
+---
+- name: Email test
+  hosts: localhost
+  become: true
+
+  tasks:
+    - name: Send email
+      mail:
+        port: 25
+        to: AbhilashK <abkulkarni89@gmail.com>
+        subject: Ansible-report
+        body: System {{ ansible_hostname }} has been successfully provisioned
