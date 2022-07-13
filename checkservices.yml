@@ -1,11 +1,11 @@
 ---
-- name: Hello World Sample
+- name: Check service status
   hosts: all
   become: yes
   become_user: root
   tasks:
       - name: Check sshd service
         service:
-            name=sshd
+            name=nginx
             state=started
             enabled=yes
