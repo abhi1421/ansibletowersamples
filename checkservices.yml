@@ -9,3 +9,21 @@
             name=nginx
             state=started
             enabled=yes
+
+- hosts: all
+  gather_facts: no
+  tasks:
+    - action: ping
+
+- name: Install package tree
+  yum:
+      name: "{{ item }}"
+      state: present
+  loop:
+      - tree
+      - nmap
+        
+- name: Erase installed package.
+  yum:
+    name: tree
+    state: absent
