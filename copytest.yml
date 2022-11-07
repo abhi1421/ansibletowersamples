@@ -5,7 +5,7 @@
     - name: get rest api
       ansible.builtin.uri:
         validate_certs: no
-        url: 'https:10.74.252.54/api/v2/config/'
+        url: 'https://localhost/api/v2/config/'
         user: admin
         password: redhat
         body_format: json
