@@ -3,7 +3,7 @@
   hosts:  10.74.252.54
   tasks:
     - name: get rest api
-      uri:
+      ansible.builtin.uri:
         validate_certs: no
         url: 'https:10.74.252.54/api/v2/config/'
         user: admin
