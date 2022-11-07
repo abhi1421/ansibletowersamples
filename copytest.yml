@@ -1,0 +1,24 @@
+---
+- name: content copy
+  hosts:  10.74.252.54
+  tasks:
+    - name: get rest api
+      uri:
+        validate_certs: no
+        url: 'https:10.74.252.54/api/v2/config/'
+        user: admin
+        password: redhat
+        body_format: json
+        force_basic_auth: yes
+        return_content: yes
+        method: GET
+      register: response_pa_config
+
+    - debug: 
+        msg: "{{ response_pa_config.content }}"
+
+ 
+    - name: Save config
+      copy:
+        content: '{{ response_pa_config.content }}'
+        dest: '/tmp/backupgui.txt'
