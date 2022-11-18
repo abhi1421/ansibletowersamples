@@ -1,6 +1,6 @@
 ---
 - name: Set Fact test
-  hosts: all
+  hosts: 10.74.252.188
   become: true
 
   tasks:
