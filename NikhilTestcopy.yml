@@ -1,5 +1,5 @@
 --- 
- - hosts: all
+ - hosts: localhost
    tasks:
      - file:
          path: /var/lib/awx/projects/nikhil.txt
