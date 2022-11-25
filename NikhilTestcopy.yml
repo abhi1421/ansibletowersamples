@@ -1,0 +1,8 @@
+--- 
+ - hosts: all
+   tasks:
+     - file:
+         path: /var/lib/awx/projects/nikhil.txt
+         mode: '0644'
+         state: touch
+       delegate_to: localhost
