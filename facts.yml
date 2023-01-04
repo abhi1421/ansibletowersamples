@@ -1,0 +1,7 @@
+- name: Gather facts and debug the issue
+  hosts: all
+  gather_facts: yes
+
+  tasks:
+  - debug:
+      msg: "Gathered facts are {{ ansible_facts }}"
