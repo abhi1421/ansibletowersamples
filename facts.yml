@@ -1,7 +1,5 @@
-- name: Gather facts and debug the issue
-  hosts: all
-  gather_facts: yes
-
-  tasks:
-  - debug:
-      msg: "Gathered facts are {{ ansible_facts }}"
+- name: Collect only facts returned by facter
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - facter
