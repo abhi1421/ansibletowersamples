@@ -1,5 +1,5 @@
 - name: Collect only facts returned by facter
-  hosts: win
+  hosts: all
   tasks:
  
     - name: Something
