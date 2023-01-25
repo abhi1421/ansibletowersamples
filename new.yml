@@ -1,0 +1,11 @@
+- name: Collect only facts returned by facter
+  hosts: win
+  tasks:
+ 
+    - name: Something
+      ansible.builtin.setup:
+        var: just_facts
+        gather_subset:
+          - '!all'
+          - '!<any valid subset>'
+          - facter
