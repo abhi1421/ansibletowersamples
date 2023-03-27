@@ -5,4 +5,4 @@
       - name: To check SELinux status
         shell: getenforce
         register: result
-  debug: var=result.stdout_lines
+        debug: var=result.stdout_lines
