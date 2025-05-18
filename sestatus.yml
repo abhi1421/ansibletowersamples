@@ -1,9 +1,0 @@
----
-- name: Check sestatus
-  hosts: all
-  tasks:
-      - name: To check SELinux status
-        shell: getenforce
-        register: result
-        
-      - debug: var=result.stdout_lines

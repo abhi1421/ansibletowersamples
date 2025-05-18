@@ -1,9 +1,0 @@
----
-- hosts: localhost
-  tasks:
-    - name: Subscribe to RHN and attach needed pool_ids
-      community.general.redhat_subscription:
-        state: present
-        username: rhn-support-
-        password:
-        auto_attach: true
