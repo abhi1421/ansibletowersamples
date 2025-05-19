@@ -1,0 +1,18 @@
+System Health Report - {{ inventory_hostname }}
+
+CPU Load        : {{ cpu_load.stdout }}
+Memory Usage    : {{ mem_usage.stdout }}%
+Disk Usage      : {{ disk_usage.stdout }}%
+I/O Wait        : {{ iowait.stdout | default('N/A') }}%
+
+Thresholds:
+  CPU Load      > {{ cpu_load_threshold }}
+  Memory Usage  > {{ memory_usage_threshold }}%
+  Disk Usage    > {{ disk_usage_threshold }}%
+  I/O Wait      > {{ iowait_threshold }}%
+
+{% if alert %}
+ALERT: One or more thresholds exceeded.
+{% else %}
+Status: All metrics within normal range.
+{% endif %}
