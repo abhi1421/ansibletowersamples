@@ -1,30 +1,28 @@
----
-# tasks file for sslcert_validation
 - name: Prepare report directory
   file:
     path: /tmp/ssl_cert_reports
     state: directory
     mode: '0755'
 
-- name: Check SSL certificates for URLs
+- name: Retrieve certificate details for each URL
   vars:
-    url: "{{ item }}"
-    hostname: "{{ url | regex_replace('https?://', '') | regex_replace('/.*', '') }}"
+    hostname: "{{ item | regex_replace('https?://', '') | regex_replace('/.*', '') }}"
+  shell: |
+    echo | openssl s_client -servername {{ hostname }} -connect {{ hostname }}:443 2>/dev/null \
+    | openssl x509 -noout -dates -subject -issuer -serial -fingerprint
   loop: "{{ ssl_urls }}"
   register: cert_check_results
   ignore_errors: yes
-  block:
-    - name: Retrieve certificate details
-      shell: |
-        echo | openssl s_client -servername {{ hostname }} -connect {{ hostname }}:443 2>/dev/null \
-        | openssl x509 -noout -dates -subject -issuer -serial -fingerprint
-      register: cert_info
-      changed_when: false
-    - name: Set cert info fact for {{ hostname }}
-      set_fact:
-        "cert_{{ hostname }}": "{{ cert_info.stdout }}"
+  changed_when: false
 
-- name: Create SSL certificate report
-  template:
-    src: cert_report.j2
-    dest: /tmp/ssl_cert_reports/ssl_cert_report.txt
+- name: Set cert facts for all URLs
+  set_fact:
+    certs: >-
+      {{
+        dict(
+          cert_check_results.results
+          | zip(ssl_urls)
+          | map('last', 'first.stdout')
+          | list
+        )
+      }}
