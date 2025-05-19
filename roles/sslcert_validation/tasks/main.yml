@@ -1,28 +1,43 @@
-- name: Prepare report directory
-  file:
-    path: /tmp/ssl_cert_reports
-    state: directory
-    mode: '0755'
+- name: Ensure openssl is installed
+  package:
+    name: openssl
+    state: present
 
-- name: Retrieve certificate details for each URL
-  vars:
-    hostname: "{{ item | regex_replace('https?://', '') | regex_replace('/.*', '') }}"
-  shell: |
-    echo | openssl s_client -servername {{ hostname }} -connect {{ hostname }}:443 2>/dev/null \
-    | openssl x509 -noout -dates -subject -issuer -serial -fingerprint
-  loop: "{{ ssl_urls }}"
+- name: Extract hostname and port
+  set_fact:
+    parsed_ssl_urls: "{{ ssl_urls | map('regex_replace', '^https://([^:/]+)(?::([0-9]+))?', '\\1:\\2') | list }}"
+
+- name: Check SSL certificates for URLs
+  command: >
+    openssl s_client -connect {{ item }} -servername {{ item.split(':')[0] }} -verify 5 </dev/null 2>/dev/null |
+    openssl x509 -noout -dates
   register: cert_check_results
-  ignore_errors: yes
+  loop: "{{ parsed_ssl_urls }}"
   changed_when: false
+  failed_when: false
 
 - name: Set cert facts for all URLs
   set_fact:
     certs: >-
       {{
         dict(
-          zip(
-            ssl_urls,
-            cert_check_results.results | map(attribute='stdout') | list
-          )
+          ssl_urls
+          | zip(cert_check_results.results | map(attribute='stdout') | list)
         )
       }}
+
+- name: Display certificate info
+  debug:
+    msg: "{{ item.key }}: {{ item.value }}"
+  loop: "{{ certs | dict2items }}"
+
+- name: Generate SSL report
+  copy:
+    dest: "/tmp/ssl_report.txt"
+    content: |
+      {% for url, cert in certs.items() %}
+      {{ url }}
+      {{ '-' * url|length }}
+      {{ cert }}
+
+      {% endfor %}
