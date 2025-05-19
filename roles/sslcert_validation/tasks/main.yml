@@ -23,5 +23,5 @@
 
 - name: Create the SSL report
   template:
-    src: report.j2
-    dest: /tmp/ssl_report.txt
+    src: cert_report.j2
+    dest: /tmp/cert_report.txt
