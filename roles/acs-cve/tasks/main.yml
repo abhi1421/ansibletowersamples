@@ -1,0 +1,35 @@
+---
+# tasks file for acs-cve
+- name: Create working directory
+  ansible.builtin.file:
+    path: "{{ scanner_bundle_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Download latest scanner definitions via roxctl
+  ansible.builtin.shell: |
+    roxctl central generate offline-updates \
+      --license {{ acs_license_file }} \
+      --output {{ scanner_bundle_dir }}/scanner_bundle.zip
+  args:
+    creates: "{{ scanner_bundle_dir }}/scanner_bundle.zip"
+
+- name: Rename scanner bundle with timestamp
+  ansible.builtin.copy:
+    src: "{{ scanner_bundle_dir }}/scanner_bundle.zip"
+    dest: "/tmp/{{ scanner_bundle_name }}"
+
+- name: Copy scanner bundle to ACS DMZ node
+  ansible.builtin.copy:
+    src: "/tmp/{{ scanner_bundle_name }}"
+    dest: "{{ acs_dmz_import_path }}/{{ scanner_bundle_name }}"
+  delegate_to: "{{ acs_dmz_host }}"
+
+- name: Import scanner definitions into ACS Central
+  ansible.builtin.shell: |
+    roxctl central upload offline-updates \
+      --endpoint {{ acs_central_api }} \
+      --insecure-skip-tls-verify \
+      --token "{{ acs_admin_token }}" \
+      --bundle {{ acs_dmz_import_path }}/{{ scanner_bundle_name }}
+  delegate_to: "{{ acs_dmz_host }}"

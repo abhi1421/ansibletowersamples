@@ -1,0 +1,13 @@
+---
+# vars file for Quay-cve
+# URL or source to download CVEs
+cve_source_url: "https://cve.circl.lu/api/last"
+
+# Paths
+local_cve_dir: "/tmp/quay_cves"
+cve_archive_name: "quay_cves_{{ ansible_date_time.date }}.tar.gz"
+
+# Remote Quay Hosts
+quay_dmz_host: "quay.dmz.internal"
+quay_mz_host: "quay.mz.internal"
+remote_cve_dir: "/opt/quay/cves"
