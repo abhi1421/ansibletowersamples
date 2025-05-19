@@ -4,4 +4,4 @@ cpu_load_threshold: 2.0        # Average load
 memory_usage_threshold: 80     # %
 disk_usage_threshold: 80       # %
 iowait_threshold: 10           # %
-alert_email: "abkulkar@redhat.com"
+alert_email: "abkulkarni89@gmail.com"
