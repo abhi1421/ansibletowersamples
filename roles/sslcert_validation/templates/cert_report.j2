@@ -1,0 +1,17 @@
+SSL Certificate Report
+======================
+
+{% for url in ssl_urls %}
+Hostname: {{ url | regex_replace('https?://', '') | regex_replace('/.*', '') }}
+
+{% set cert = hostvars[inventory_hostname]['cert_' + (url | regex_replace('https?://', '') | regex_replace('/.*', '')) ] %}
+
+{% if cert is defined and cert != '' %}
+{{ cert }}
+{% else %}
+Certificate details could not be retrieved.
+{% endif %}
+
+--------------------------------------------------
+
+{% endfor %}

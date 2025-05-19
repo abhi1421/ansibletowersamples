@@ -1,0 +1,5 @@
+- name: ssl_cert_check
+  hosts: all
+  become: yes
+  roles:
+    - sslcert_validation

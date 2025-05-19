@@ -1,2 +1,8 @@
 ---
 # vars file for sslcert_validation
+ssl_urls:
+  - https://www.google.com
+  - https://www.github.com
+  - https://www.redhat.com
+  - https://expired.badssl.com
+  - https://self-signed.badssl.com
