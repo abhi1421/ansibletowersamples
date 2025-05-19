@@ -20,9 +20,9 @@
     certs: >-
       {{
         dict(
-          cert_check_results.results
-          | zip(ssl_urls)
-          | map('last', 'first.stdout')
-          | list
+          zip(
+            ssl_urls,
+            cert_check_results.results | map(attribute='stdout') | list
+          )
         )
       }}
