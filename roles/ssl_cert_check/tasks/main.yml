@@ -31,7 +31,7 @@
         ssl_cert_results.results
         | zip(epoch_result.results)
         | map('list')
-        | map('combine', ['cert', 'epoch'])
+        | map('combine', [{'cert': 0, 'epoch': 1}])
         | list
       }}
 
