@@ -2,3 +2,10 @@ ssl_check_urls_file: "/etc/ssl_urls.txt"
 ssl_check_report_file: "/tmp/ssl_cert_report.txt"
 ssl_check_email_to: "security-team@example.com"
 ssl_check_email_subject: "Daily SSL Certificate Expiry Report"
+
+#smtp_host: smtp.yourbankdomain.com
+#smtp_port: 587
+#smtp_secure: starttls     # could be 'none', 'starttls', or 'ssl'
+#smtp_username: your_smtp_username
+#smtp_password: your_smtp_password
+#smtp_from: "ssl-monitor@yourbankdomain.com"
