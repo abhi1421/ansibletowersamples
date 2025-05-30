@@ -5,7 +5,7 @@
 
 - name: Set URL list from file content
   set_fact:
-    ssl_check_urls: "{{ url_file.content | b64decode | splitlines() }}"
+    ssl_check_urls: "{{ url_file.content | b64decode | split('\n') | select('match', '.+') | list }}"
 
 - name: Get SSL certificate expiry dates
   shell: |
