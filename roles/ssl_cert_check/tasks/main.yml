@@ -1,14 +1,21 @@
----
-# tasks file for ssl_cert_check
+- name: Read URL list from file
+  slurp:
+    src: /etc/ssl_urls.txt
+  register: url_file
+
+- name: Set URL list from file content
+  set_fact:
+    ssl_check_urls: "{{ url_file.content | b64decode | splitlines() }}"
+
 - name: Check SSL certificate expiry for each host
   shell: |
     echo | openssl s_client -servername {{ item.split(':')[0] }} -connect {{ item }} 2>/dev/null \
-    | openssl x509 -noout -enddate \
-    | cut -d= -f2
+    | openssl x509 -noout -enddate | cut -d= -f2
   register: ssl_cert_results
   loop: "{{ ssl_check_urls }}"
   changed_when: false
   failed_when: false
+  throttle: 5
 
 - name: Create certificate expiry report
   copy:
@@ -16,13 +23,13 @@
     content: "SSL Certificate Expiry Report\n\n"
     force: true
 
-- name: Append each certificate result to report file 
+- name: Append each certificate result to report file
   block:
     - name: Calculate expiry days
       set_fact:
         cert_expiry_date: "{{ item.stdout | trim }}"
-        cert_expiry_epoch: "{{ (item.stdout | trim | strftime('%s')) | int }}"
-        days_remaining: "{{ ((cert_expiry_epoch - ansible_date_time.epoch | int) // 86400) }}"
+        cert_expiry_epoch: "{{ item.stdout | trim | strftime('%s') | int }}"
+        days_remaining: "{{ (cert_expiry_epoch - ansible_date_time.epoch | int) // 86400 }}"
       when: item.stdout != ""
 
     - name: Add valid result to report
@@ -40,9 +47,9 @@
       when: item.stdout == ""
   loop: "{{ ssl_cert_results.results }}"
 
-#- name: Send report via email
-#  mail:
-#    subject: "{{ ssl_check_email_subject }}"
-#    to: "{{ ssl_check_email_to }}"
-#    body: "{{ lookup('file', ssl_check_report_file) }}"
-#  delegate_to: localhost
+- name: Send report via email
+  mail:
+    subject: "{{ ssl_check_email_subject }}"
+    to: "{{ ssl_check_email_to }}"
+    body: "{{ lookup('file', ssl_check_report_file) }}"
+  delegate_to: localhost
