@@ -64,3 +64,16 @@
 #    to: "{{ ssl_check_email_to }}"
 #    body: "{{ lookup('file', ssl_check_report_file) }}"
 #  delegate_to: localhost
+
+#- name: Send SSL cert expiry report via email
+#  mail:
+#    host: "{{ smtp_host }}"
+#    port: "{{ smtp_port }}"
+#    secure: "{{ smtp_secure }}"
+#    username: "{{ smtp_username }}"
+#    password: "{{ smtp_password }}"
+#    to: "{{ ssl_check_email_to }}"
+#    from: "{{ smtp_from }}"
+#    subject: "{{ ssl_check_email_subject }}"
+#    body: "{{ lookup('file', ssl_check_report_file) }}"
+#  delegate_to: localhost
