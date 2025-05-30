@@ -7,7 +7,7 @@
   set_fact:
     ssl_check_urls: "{{ url_file.content | b64decode | split('\n') | select('match', '.+') | list }}"
 
-- name: Get SSL certificate expiry dates
+- name: Check SSL certificate expiry for each host
   shell: |
     echo | openssl s_client -servername {{ item.split(':')[0] }} -connect {{ item }} 2>/dev/null \
     | openssl x509 -noout -enddate \
@@ -20,9 +20,20 @@
 - name: Convert expiry date to epoch
   shell: "date -d '{{ item.stdout | trim }}' +%s"
   loop: "{{ ssl_cert_results.results }}"
-  when: item.stdout != ""
   register: epoch_result
   changed_when: false
+  when: item.stdout != ""
+
+- name: Combine cert results and epoch results
+  set_fact:
+    combined_results: >-
+      {{
+        ssl_cert_results.results
+        | zip(epoch_result.results)
+        | map('list')
+        | map('combine', ['cert', 'epoch'])
+        | list
+      }}
 
 - name: Create report file
   copy:
@@ -34,13 +45,11 @@
   lineinfile:
     path: "{{ ssl_check_report_file }}"
     line: >-
-      {{ ssl_cert_results.results[loop.index0].item }} => Expiry: {{ ssl_cert_results.results[loop.index0].stdout | trim }}
-      | Days Left: {{ ((epoch_result.results[loop.index0].stdout | int) - (ansible_date_time.epoch | int)) // 86400 }}
+      {{ item.cert.item }} => Expiry: {{ item.cert.stdout | trim }}
+      | Days Left: {{ ((item.epoch.stdout | int) - (ansible_date_time.epoch | int)) // 86400 }}
     create: yes
-  loop: "{{ epoch_result.results }}"
-  loop_control:
-    label: "{{ ssl_cert_results.results[loop.index0].item }}"
-  when: ssl_cert_results.results[loop.index0].stdout != ""
+  loop: "{{ combined_results }}"
+  when: item.cert.stdout != ""
 
 - name: Add failed results to report
   lineinfile:
