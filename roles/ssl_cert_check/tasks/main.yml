@@ -16,7 +16,7 @@
     content: "SSL Certificate Expiry Report\n\n"
     force: true
 
-- name: Append each certificate result to report file
+- name: Append each certificate result to report file 
   block:
     - name: Calculate expiry days
       set_fact:
