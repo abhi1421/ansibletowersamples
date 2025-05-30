@@ -23,29 +23,35 @@
     content: "SSL Certificate Expiry Report\n\n"
     force: true
 
-- name: Append each certificate result to report file
-  block:
-    - name: Calculate expiry days
-      set_fact:
-        cert_expiry_date: "{{ item.stdout | trim }}"
-        cert_expiry_epoch: "{{ item.stdout | trim | strftime('%s') | int }}"
-        days_remaining: "{{ (cert_expiry_epoch - ansible_date_time.epoch | int) // 86400 }}"
-      when: item.stdout != ""
-
-    - name: Add valid result to report
-      lineinfile:
-        path: "{{ ssl_check_report_file }}"
-        line: "{{ item.item }} => Expiry: {{ cert_expiry_date }} | Days Left: {{ days_remaining }}"
-        create: yes
-      when: item.stdout != ""
-
-    - name: Add error to report if no expiry found
-      lineinfile:
-        path: "{{ ssl_check_report_file }}"
-        line: "{{ item.item }} => ERROR: Unable to fetch certificate"
-        create: yes
-      when: item.stdout == ""
+- name: Calculate expiry days
+  set_fact:
+    cert_expiry_date: "{{ item.stdout | trim }}"
+    cert_expiry_epoch: "{{ item.stdout | trim | strftime('%s') | int }}"
+    days_remaining: "{{ (cert_expiry_epoch - ansible_date_time.epoch | int) // 86400 }}"
   loop: "{{ ssl_cert_results.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout != ""
+
+- name: Add valid result to report
+  lineinfile:
+    path: "{{ ssl_check_report_file }}"
+    line: "{{ item.item }} => Expiry: {{ item.stdout | trim }} | Days Left: {{ ((item.stdout | trim | strftime('%s') | int - ansible_date_time.epoch | int) // 86400) }}"
+    create: yes
+  loop: "{{ ssl_cert_results.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout != ""
+
+- name: Add error to report if no expiry found
+  lineinfile:
+    path: "{{ ssl_check_report_file }}"
+    line: "{{ item.item }} => ERROR: Unable to fetch certificate"
+    create: yes
+  loop: "{{ ssl_cert_results.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stdout == ""
 
 - name: Send report via email
   mail:
