@@ -24,15 +24,14 @@
   changed_when: false
   when: item.stdout != ""
 
-- name: Combine cert results and epoch results
+- name: Combine cert results and epoch results (pure Jinja2)
   set_fact:
     combined_results: >-
       {{
-        ssl_cert_results.results
-        | zip(epoch_result.results)
-        | map('list')
-        | map('combine', [{'cert': 0, 'epoch': 1}])
-        | list
+        [
+          {'cert': c, 'epoch': e}
+          for c, e in ssl_cert_results.results | zip(epoch_result.results)
+        ]
       }}
 
 - name: Create report file
@@ -49,7 +48,7 @@
       | Days Left: {{ ((item.epoch.stdout | int) - (ansible_date_time.epoch | int)) // 86400 }}
     create: yes
   loop: "{{ combined_results }}"
-  when: item.cert.stdout != ""
+  when: item.cert.stdout is defined and item.cert.stdout | length > 0
 
 - name: Add failed results to report
   lineinfile:
@@ -57,7 +56,7 @@
     line: "{{ item.item }} => ERROR: Unable to fetch certificate"
     create: yes
   loop: "{{ ssl_cert_results.results }}"
-  when: item.stdout == ""
+  when: item.stdout is not defined or item.stdout == ""
 
 #- name: Send report via email
 #  mail:
