@@ -24,15 +24,25 @@
   changed_when: false
   when: item.stdout != ""
 
-- name: Combine cert results and epoch results (pure Jinja2)
+#- name: Combine cert results and epoch results (pure Jinja2)
+#  set_fact:
+#    combined_results: >-
+#      {{
+#        [
+#          {'cert': c, 'epoch': e}
+#          for c, e in ssl_cert_results.results | zip(epoch_result.results)
+#        ]
+#      }}
+
+- name: Initialize empty combined_results
   set_fact:
-    combined_results: >-
-      {{
-        [
-          {'cert': c, 'epoch': e}
-          for c, e in ssl_cert_results.results | zip(epoch_result.results)
-        ]
-      }}
+    combined_results: []
+
+- name: Build combined cert/epoch result list
+  set_fact:
+    combined_results: "{{ combined_results + [ {'cert': item.0, 'epoch': item.1} ] }}"
+  loop: "{{ ssl_cert_results.results | zip(epoch_result.results) | list }}"
+
 
 - name: Create report file
   copy:
