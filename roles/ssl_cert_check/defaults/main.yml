@@ -1,0 +1,16 @@
+---
+# defaults file for ssl_cert_check
+# List of URLs with ports
+ssl_check_urls:
+  - "google.com:443"
+  - "expired.badssl.com:443"
+  - "stackoverflow.com:443"
+
+# Email to send report to
+ssl_check_email_to: "security-team@example.com"
+
+# Email subject
+ssl_check_email_subject: "SSL Certificate Expiry Report"
+
+# Temporary file to store email body
+ssl_check_report_file: "/tmp/ssl_cert_report.txt"

@@ -1,0 +1,48 @@
+---
+# tasks file for ssl_cert_check
+- name: Check SSL certificate expiry for each host
+  shell: |
+    echo | openssl s_client -servername {{ item.split(':')[0] }} -connect {{ item }} 2>/dev/null \
+    | openssl x509 -noout -enddate \
+    | cut -d= -f2
+  register: ssl_cert_results
+  loop: "{{ ssl_check_urls }}"
+  changed_when: false
+  failed_when: false
+
+- name: Create certificate expiry report
+  copy:
+    dest: "{{ ssl_check_report_file }}"
+    content: "SSL Certificate Expiry Report\n\n"
+    force: true
+
+- name: Append each certificate result to report file
+  block:
+    - name: Calculate expiry days
+      set_fact:
+        cert_expiry_date: "{{ item.stdout | trim }}"
+        cert_expiry_epoch: "{{ (item.stdout | trim | strftime('%s')) | int }}"
+        days_remaining: "{{ ((cert_expiry_epoch - ansible_date_time.epoch | int) // 86400) }}"
+      when: item.stdout != ""
+
+    - name: Add valid result to report
+      lineinfile:
+        path: "{{ ssl_check_report_file }}"
+        line: "{{ item.item }} => Expiry: {{ cert_expiry_date }} | Days Left: {{ days_remaining }}"
+        create: yes
+      when: item.stdout != ""
+
+    - name: Add error to report if no expiry found
+      lineinfile:
+        path: "{{ ssl_check_report_file }}"
+        line: "{{ item.item }} => ERROR: Unable to fetch certificate"
+        create: yes
+      when: item.stdout == ""
+  loop: "{{ ssl_cert_results.results }}"
+
+#- name: Send report via email
+#  mail:
+#    subject: "{{ ssl_check_email_subject }}"
+#    to: "{{ ssl_check_email_to }}"
+#    body: "{{ lookup('file', ssl_check_report_file) }}"
+#  delegate_to: localhost
