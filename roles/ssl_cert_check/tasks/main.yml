@@ -1,11 +1,11 @@
-- name: Read URL list from file
-  slurp:
-    src: /etc/ssl_urls.txt
-  register: url_file
-
-- name: Set URL list from file content
-  set_fact:
-    ssl_check_urls: "{{ url_file.content | b64decode | splitlines() }}"
+#- name: Read URL list from file
+#  slurp:
+#    src: /etc/ssl_urls.txt
+#  register: url_file
+#
+#- name: Set URL list from file content
+#  set_fact:
+#    ssl_check_urls: "{{ url_file.content | b64decode | splitlines() }}"
 
 - name: Check SSL certificate expiry for each host
   shell: |
