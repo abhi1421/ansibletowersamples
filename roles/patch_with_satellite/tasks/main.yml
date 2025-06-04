@@ -1,0 +1,33 @@
+---
+# tasks file for patch_with_satellite
+- name: Stop application services
+  import_tasks: stop_services.yml
+
+- name: Take system snapshot
+  import_tasks: take_snapshot.yml
+
+- name: Register and subscribe system to Satellite
+  import_tasks: register_satellite.yml
+
+- name: Fetch pre-patch errata count
+  import_tasks: fetch_errata.yml
+  vars:
+    when: "pre"
+
+- name: Apply patch and reboot
+  import_tasks: patch.yml
+
+- name: Reboot system
+  import_tasks: reboot.yml
+
+- name: Fetch post-patch errata count
+  import_tasks: fetch_errata.yml
+  vars:
+    when: "post"
+
+- name: Start application services
+  import_tasks: start_services.yml
+
+- name: Send email report
+  import_tasks: send_mail.yml
+

@@ -1,0 +1,6 @@
+- name: Start application services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop: "{{ application_services }}"

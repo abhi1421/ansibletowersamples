@@ -1,0 +1,13 @@
+- name: Create patch report from template
+  template:
+    src: patch_report.j2
+    dest: /tmp/patch_report.txt
+
+- name: Send patch report email
+  mail:
+    host: "{{ smtp_host }}"
+    port: 25
+    to: "{{ email_recipients | join(',') }}"
+    subject: "{{ mail_subject }}"
+    from: "{{ mail_sender }}"
+    body: "{{ lookup('file', '/tmp/patch_report.txt') }}"
