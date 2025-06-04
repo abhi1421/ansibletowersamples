@@ -1,0 +1,6 @@
+- name: Stop application services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: yes
+  loop: "{{ application_services }}"

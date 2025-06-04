@@ -1,0 +1,11 @@
+- name: Register the system with Satellite
+  command: >
+    subscription-manager register
+    --org="{{ satellite_org }}"
+    --activationkey="{{ satellite_activation_key }}"
+    --serverurl="https://{{ satellite_server }}"
+  register: reg_output
+  changed_when: "'The system has been registered' in reg_output.stdout"
+
+- name: Auto-attach subscriptions
+  command: subscription-manager attach --auto

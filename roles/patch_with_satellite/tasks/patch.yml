@@ -1,0 +1,5 @@
+- name: Apply patches with inclusion and exclusion
+  yum:
+    name: "{{ include_packages }}"
+    exclude: "{{ exclude_packages | join(',') }}"
+    state: latest

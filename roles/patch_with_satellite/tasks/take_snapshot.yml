@@ -1,0 +1,4 @@
+- name: Take system snapshot (custom script or integration)
+  command: "{{ snapshot_command }}"
+  register: snapshot_output
+  ignore_errors: yes

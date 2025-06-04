@@ -1,0 +1,19 @@
+---
+# defaults file for patch_with_satellite
+
+application_services: []  # e.g., ['app1', 'app2']
+
+satellite_org: "YourOrg"
+satellite_activation_key: "activation-key"
+satellite_server: "satellite.example.com"
+
+include_packages: []  # e.g., ['openssl', 'bash']
+exclude_packages: []  # e.g., ['kernel', 'glibc']
+
+email_recipients:
+  - ops@example.com
+mail_subject: "Patch Report for {{ inventory_hostname }}"
+mail_sender: "aap@example.com"
+smtp_host: "localhost"
+
+snapshot_command: "/usr/local/bin/create_snapshot.sh"  # Placeholder
