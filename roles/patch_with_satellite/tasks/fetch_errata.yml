@@ -1,4 +1,4 @@
-- name: Fetch {{ when }}-patch errata count
+- name: Fetch {{ errata_phase }}-patch errata count
   shell: yum list updates | grep -c "^"
   register: errata_raw_count
   changed_when: false
