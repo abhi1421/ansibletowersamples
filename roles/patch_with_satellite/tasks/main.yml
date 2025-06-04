@@ -28,6 +28,5 @@
 - name: Start application services
   import_tasks: start_services.yml
 
-- name: Send email report
-  import_tasks: send_mail.yml
-
+#- name: Send email report
+#  import_tasks: send_mail.yml
