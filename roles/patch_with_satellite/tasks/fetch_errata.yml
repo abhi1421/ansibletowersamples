@@ -1,7 +1,8 @@
 - name: Fetch {{ when }}-patch errata count
   shell: yum list updates | grep -c "^"
-  register: errata_count_{{ when }}
+  register: errata_raw_count
+  changed_when: false
 
 - name: Save errata count fact
   set_fact:
-    "errata_{{ when }}": "{{ lookup('vars', 'errata_count_' + when).stdout }}"
+    errata_{{ when }}": "{{ errata_raw_count.stdout }}"
