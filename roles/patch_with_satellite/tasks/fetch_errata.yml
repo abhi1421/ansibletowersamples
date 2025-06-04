@@ -5,4 +5,4 @@
 
 - name: Save errata count fact
   set_fact:
-    errata_{{ when }}": "{{ errata_raw_count.stdout }}"
+    errata_{{ errata_phase }}": "{{ errata_raw_count.stdout }}"

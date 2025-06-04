@@ -12,7 +12,7 @@
 - name: Fetch pre-patch errata count
   import_tasks: fetch_errata.yml
   vars:
-    when: "pre"
+    errata_phase: "pre"
 
 - name: Apply patch and reboot
   import_tasks: patch.yml
@@ -23,7 +23,7 @@
 - name: Fetch post-patch errata count
   import_tasks: fetch_errata.yml
   vars:
-    when: "post"
+    errata_phase: "post"
 
 - name: Start application services
   import_tasks: start_services.yml
