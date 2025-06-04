@@ -3,6 +3,14 @@
   register: errata_raw_count
   changed_when: false
 
-- name: Save errata count fact
+#- name: Save errata count fact
+#  set_fact:
+#    errata_{{ errata_phase }}": "{{ errata_raw_count.stdout }}"
+
+- name: Save to temporary variable
   set_fact:
-    errata_{{ errata_phase }}": "{{ errata_raw_count.stdout }}"
+    errata_fact_name: "{{ errata_raw_count.stdout }}"
+
+- name: Save errata count fact for {{ errata_phase }}
+  set_fact:
+    "{{ 'errata_' + errata_phase }}": "{{ errata_fact_name }}"
