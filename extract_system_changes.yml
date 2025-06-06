@@ -1,0 +1,5 @@
+- name: Run system change check
+  hosts: all
+  become: yes
+  roles:
+    - extract_system_changes

@@ -1,0 +1,80 @@
+- name: Create today's output directory
+  file:
+    path: "{{ system_change_output_dir }}/{{ timestamp }}"
+    state: directory
+    mode: '0755'
+
+- name: Save /etc/passwd
+  copy:
+    src: /etc/passwd
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/passwd"
+    remote_src: true
+
+- name: Save /etc/group
+  copy:
+    src: /etc/group
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/group"
+    remote_src: true
+
+- name: List installed RPMs
+  command: rpm -qa --qf "%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n"
+  register: rpm_list
+  changed_when: false
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Save RPM list
+  copy:
+    content: "{{ rpm_list.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/installed_packages.txt"
+  when: rpm_list is defined
+
+- name: List enabled services
+  shell: systemctl list-unit-files --state=enabled
+  register: enabled_services
+  changed_when: false
+
+- name: Save services list
+  copy:
+    content: "{{ enabled_services.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/enabled_services.txt"
+
+- name: Get root's crontab
+  command: crontab -l
+  register: root_cron
+  failed_when: false
+  changed_when: false
+
+- name: Save root's crontab
+  copy:
+    content: "{{ root_cron.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/root_crontab.txt"
+
+- name: Get sysctl settings
+  command: sysctl -a
+  register: sysctl_output
+  changed_when: false
+
+- name: Save sysctl output
+  copy:
+    content: "{{ sysctl_output.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/sysctl.txt"
+
+- name: Get network info
+  command: ip a && ip r
+  register: net_info
+  changed_when: false
+
+- name: Save network info
+  copy:
+    content: "{{ net_info.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/network_info.txt"
+
+- name: Get recent logins
+  command: last -n 20
+  register: login_hist
+  changed_when: false
+
+- name: Save login history
+  copy:
+    content: "{{ login_hist.stdout }}"
+    dest: "{{ system_change_output_dir }}/{{ timestamp }}/login_history.txt"

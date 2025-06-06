@@ -1,0 +1,14 @@
+---
+# defaults file for extract_system_changes
+system_change_output_dir: "/var/log/system-change-daily"
+timestamp: "{{ lookup('pipe', 'date +%Y%m%d') }}"
+previous_date: "{{ lookup('pipe', 'date -d \"yesterday\" +%Y%m%d') }}"
+files_to_compare:
+  - passwd
+  - group
+  - installed_packages.txt
+  - enabled_services.txt
+  - root_crontab.txt
+  - sysctl.txt
+  - network_info.txt
+  - login_history.txt
