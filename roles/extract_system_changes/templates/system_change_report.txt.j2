@@ -1,0 +1,22 @@
+System Change Report - {{ timestamp }}
+
+Snapshot Location:
+  {{ system_change_output_dir }}/{{ timestamp }}
+
+Compared Against:
+  {% if lookup('ansible.builtin.fileglob', system_change_output_dir + '/' + previous_date, errors='ignore') %}
+  {{ system_change_output_dir }}/{{ previous_date }}
+  {% else %}
+  No previous snapshot available
+  {% endif %}
+
+Details:
+---------
+
+{% for file in files_to_compare %}
+- {{ file }}:
+  Diff File: diff_{{ file }}
+{% endfor %}
+
+Note:
+Each diff file contains either the changes or "No previous snapshot available for comparison."

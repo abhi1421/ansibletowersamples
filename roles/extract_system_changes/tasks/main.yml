@@ -1,0 +1,7 @@
+---
+# tasks file for extract_system_changes
+- name: Include extraction tasks
+  include_tasks: extract.yml
+
+- name: Include comparison tasks
+  include_tasks: compare.yml
