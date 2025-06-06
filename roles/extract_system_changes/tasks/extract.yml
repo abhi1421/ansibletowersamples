@@ -60,7 +60,7 @@
     dest: "{{ system_change_output_dir }}/{{ timestamp }}/sysctl.txt"
 
 - name: Get network info
-  command: ip a && ip r
+  shell: ip a && ip r
   register: net_info
   changed_when: false
 
