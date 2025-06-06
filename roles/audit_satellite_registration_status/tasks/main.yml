@@ -1,0 +1,69 @@
+---
+# tasks file for audit_satellite_registration_status
+- name: Get auth token from Satellite
+  uri:
+    url: "{{ satellite_api_url }}/katello/api/v2/authenticate"
+    method: POST
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+    body:
+      username: "{{ satellite_api_user }}"
+      password: "{{ satellite_api_password }}"
+    status_code: 200
+    return_content: yes
+    validate_certs: "{{ verify_ssl }}"
+  register: satellite_auth
+
+- name: Set auth token
+  set_fact:
+    satellite_token: "{{ satellite_auth.json['auth_token'] }}"
+
+- name: Get list of registered hosts
+  uri:
+    url: "{{ satellite_api_url }}/api/hosts"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ satellite_token }}"
+    return_content: yes
+    validate_certs: "{{ verify_ssl }}"
+  register: satellite_hosts
+
+- name: Initialize host audit data
+  set_fact:
+    audit_host_list: []
+
+- name: Check each host for upgradable packages
+  vars:
+    hosts_data: "{{ satellite_hosts.json.results }}"
+  loop: "{{ hosts_data }}"
+  loop_control:
+    label: "{{ item.name }}"
+  uri:
+    url: "{{ satellite_api_url }}/api/hosts/{{ item.id }}/packages/upgradable"
+    method: GET
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ satellite_token }}"
+    return_content: yes
+    validate_certs: "{{ verify_ssl }}"
+  register: package_check
+  when: item.id is defined
+  notify: build_report
+
+- name: Aggregate audit data
+  set_fact:
+    audit_host_list: "{{ audit_host_list + [{
+      'name': item.item.name,
+      'ip': item.item.ip,
+      'os': item.item.operatingsystem_name,
+      'pending_updates': (item.json.total or 0)
+          }] }}"
+  loop: "{{ package_check.results }}"
+  when: item.json is defined and item.item is defined
+
+- name: Create audit report from template
+  template:
+    src: audit_report.j2
+    dest: "{{ report_output_path }}"

@@ -1,0 +1,7 @@
+---
+# defaults file for audit_satellite_registration_status
+satellite_api_url: "https://satellite.example.com"
+satellite_api_user: "audit_user"
+satellite_api_password: "secure_password"
+report_output_path: "/tmp/satellite_audit_report.csv"
+verify_ssl: false  # Set to true in production

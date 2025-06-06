@@ -1,0 +1,4 @@
+Hostname,IP Address,Operating System,Pending Updates
+{% for host in audit_host_list -%}
+{{ host.name }},{{ host.ip | default('N/A') }},{{ host.os | default('Unknown') }},{{ host.pending_updates }}
+{% endfor %}
