@@ -1,0 +1,35 @@
+---
+# tasks file for privileged_user_audit
+- name: Collect users with UID 0
+  ansible.builtin.shell: awk -F: '$3 == 0 {print $1}' /etc/passwd
+  register: uid0_users
+
+- name: Collect users in sudo group
+  ansible.builtin.shell: getent group sudo || getent group wheel
+  register: sudo_group_users
+  changed_when: false
+  failed_when: false
+
+- name: Read /etc/sudoers file
+  ansible.builtin.slurp:
+    src: /etc/sudoers
+  register: sudoers_file
+
+- name: List /etc/sudoers.d directory
+  ansible.builtin.find:
+    paths: /etc/sudoers.d
+    file_type: file
+  register: sudoers_d_files
+
+- name: Read each file in /etc/sudoers.d
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ sudoers_d_files.files }}"
+  register: sudoers_d_contents
+  when: sudoers_d_files.files | length > 0
+
+- name: Assemble audit report
+  ansible.builtin.template:
+    src: report.j2
+    dest: "/tmp/privileged_access_report_{{ inventory_hostname }}.txt"
+    mode: '0644'
