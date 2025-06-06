@@ -1,0 +1,5 @@
+- name: Audit the systems from Satellite for patches
+  hosts: all
+  become: yes
+  roles:
+    - audit_satellite_registration_status

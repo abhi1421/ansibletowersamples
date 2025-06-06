@@ -1,0 +1,5 @@
+- name: Audit the user privileges
+  hosts: all
+  become: yes
+  roles:
+    - privileged_user_audit

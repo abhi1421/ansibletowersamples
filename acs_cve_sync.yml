@@ -1,0 +1,5 @@
+- name: Download CVE for ACS
+  hosts: all
+  become: yes
+  roles:
+    - acs_cve_sync

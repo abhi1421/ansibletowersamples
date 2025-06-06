@@ -1,0 +1,5 @@
+- name: Audit the individual systems 
+  hosts: all
+  become: yes
+  roles:
+    - audit_system_updates
