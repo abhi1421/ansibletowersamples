@@ -1,35 +1,49 @@
 ---
-# tasks file for privileged_user_audit
-- name: Collect users with UID 0
+- name: Ensure acl package is installed
+  ansible.builtin.package:
+    name: acl
+    state: present
+  become: true
+
+- name: Get users with UID 0
   ansible.builtin.shell: "awk -F':' '$3 == 0 {print $1}' /etc/passwd"
   register: uid0_users
 
-- name: Collect users in sudo group
+- name: Get users in sudo or wheel group
   ansible.builtin.shell: getent group sudo || getent group wheel
   register: sudo_group_users
   changed_when: false
   failed_when: false
 
-- name: Read /etc/sudoers file
-  ansible.builtin.slurp:
-    src: /etc/sudoers
-  register: sudoers_file
+- name: Get all local users (UID >= 1000)
+  ansible.builtin.shell: awk -F: '$3 >= 1000 && $3 < 65534 {print $1}' /etc/passwd
+  register: all_users
 
-- name: List /etc/sudoers.d directory
-  ansible.builtin.find:
-    paths: /etc/sudoers.d
-    file_type: file
-  register: sudoers_d_files
+- name: Check sudo access for each user
+  ansible.builtin.shell: sudo -l -U {{ item }} 2>&1 || echo "No sudo access for {{ item }}"
+  loop: "{{ all_users.stdout_lines }}"
+  register: sudo_l_output
+  become: true
 
-- name: Read each file in /etc/sudoers.d
-  ansible.builtin.slurp:
-    src: "{{ item.path }}"
-  loop: "{{ sudoers_d_files.files }}"
-  register: sudoers_d_contents
-  when: sudoers_d_files.files | length > 0
+- name: List files owned by each user in /etc, /var, /home
+  ansible.builtin.shell: find /etc /var /home -xdev -user {{ item }} -ls 2>/dev/null
+  loop: "{{ all_users.stdout_lines }}"
+  register: user_files
+  become: true
 
-- name: Assemble audit report
+- name: Get ACLs on /etc, /var, /home
+  ansible.builtin.command: getfacl -p /etc /var /home
+  register: acl_output
+  become: true
+  ignore_errors: true
+
+- name: Find setuid/setgid files
+  ansible.builtin.shell: find / -xdev \( -perm -4000 -o -perm -2000 \) -type f 2>/dev/null
+  register: setuid_files
+  become: true
+
+- name: Generate privileged access report
   ansible.builtin.template:
     src: report.j2
     dest: "/tmp/privileged_access_report_{{ inventory_hostname }}.txt"
-    mode: '0644'
+    mode: '0600'
