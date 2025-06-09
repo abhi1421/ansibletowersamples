@@ -1,0 +1,35 @@
+Privileged Access Audit Report for {{ inventory_hostname }}
+==========================================================
+
+[Users with UID 0 (root privileges)]
+{% for user in uid0_users.stdout_lines %}
+- {{ user }}
+{% endfor %}
+
+[Users in sudo/wheel group]
+{{ sudo_group_users.stdout }}
+
+[Sudo Privileges Per User]
+{% for result in sudo_l_output.results %}
+User: {{ result.item }}
+-----------------------
+{{ result.stdout }}
+
+{% endfor %}
+
+[Files Owned by Users in /etc, /var, /home]
+{% for result in user_files.results %}
+User: {{ result.item }}
+-----------------------
+{{ result.stdout }}
+
+{% endfor %}
+
+[ACLs on Critical Directories (/etc /var /home)]
+------------------------------------------------
+{{ acl_output.stdout }}
+
+[Setuid/Setgid Files Found on System]
+-------------------------------------
+{{ setuid_files.stdout }}
+
