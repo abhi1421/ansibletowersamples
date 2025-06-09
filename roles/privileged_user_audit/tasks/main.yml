@@ -16,7 +16,7 @@
   failed_when: false
 
 - name: Get all local users (UID >= 1000)
-  ansible.builtin.shell: awk -F: '$3 >= 1000 && $3 < 65534 {print $1}' /etc/passwd
+  ansible.builtin.shell: "awk -F':' '$3 >= 1000 && $3 < 65534 {print $1}' /etc/passwd"
   register: all_users
 
 - name: Check sudo access for each user
