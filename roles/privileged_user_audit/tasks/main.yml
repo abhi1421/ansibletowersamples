@@ -79,14 +79,15 @@
   changed_when: false
   ignore_errors: yes
 
-- name: Build map of user to file list
+- name: Build map of user to home directory
   ansible.builtin.set_fact:
-    user_files: >-
+    user_homes: >-
       {{
         dict(
-          user_files_raw.results | json_query('[].{user=item,files=stdout_lines}') |
-          map(attribute='user') | list | zip(
-          user_files_raw.results | map(attribute='stdout_lines') | list)
+          home_dirs.results | 
+          zip(privileged_users) | 
+          map('reverse') | 
+          map('list')
         )
       }}
 
