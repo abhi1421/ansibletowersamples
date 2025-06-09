@@ -1,29 +1,39 @@
-Privileged Access Audit Report
-==============================
+Privileged User Access Audit Report
+==================================
 
-Sudoers File:
-  Path: /etc/sudoers
-  Exists: {{ 'Yes' if sudoers_file_stat.exists else 'No' }}
-  Mode: {{ sudoers_file_stat.mode if sudoers_file_stat.exists else 'N/A' }}
-  Owner: {{ sudoers_file_stat.pw_name if sudoers_file_stat.exists else 'N/A' }}
-  Group: {{ sudoers_file_stat.gr_name if sudoers_file_stat.exists else 'N/A' }}
+Date: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
 
-Sudoers.d Directory:
-  Path: /etc/sudoers.d
-  Exists: {{ 'Yes' if sudoers_d_stat.exists else 'No' }}
-  Mode: {{ sudoers_d_stat.mode if sudoers_d_stat.exists else 'N/A' }}
-  Owner: {{ sudoers_d_stat.pw_name if sudoers_d_stat.exists else 'N/A' }}
-  Group: {{ sudoers_d_stat.gr_name if sudoers_d_stat.exists else 'N/A' }}
+Users with UID 0 (root or equivalent) and sudo access:
+------------------------------------------------------
 
-Privileged Users:
------------------
-{% for user in privileged_users_info %}
-- User: {{ user.user }}
-  Home Directory: {{ user.home }}
-  SSH authorized_keys present: {{ 'Yes' if user.ssh_auth_keys_exists else 'No' }}
-  {% if user.ssh_auth_keys_exists %}
-  authorized_keys mode: {{ user.ssh_auth_keys_mode }}
-  authorized_keys owner: {{ user.ssh_auth_keys_owner }}
-  authorized_keys group: {{ user.ssh_auth_keys_group }}
-  {% endif %}
+{% for user in privileged_users %}
+User: {{ user }}
+Home Directory: {{ user_homes[user] }}
+
+Authorized SSH Key Info:
+{% if ssh_key_info[user].exists %}
+  Exists: Yes
+  Permissions (mode): {{ ssh_key_info[user].mode }}
+  Owner: {{ ssh_key_info[user].owner }}
+{% else %}
+  No authorized_keys file found.
+{% endif %}
+
+Sudo Privileges (sudo -l output):
+---------------------------------
+{{ sudo_l_output[user] | default('No sudo privileges or command output available.') }}
+
+Files Owned on System:
+---------------------
+{% if user_files[user] %}
+{% for line in user_files[user] %}
+  {{ line }}
 {% endfor %}
+{% else %}
+  No files found owned by {{ user }} or access denied.
+{% endif %}
+
+------------------------------------------------------
+{% endfor %}
+
+End of Report.
