@@ -1,70 +1,108 @@
 ---
-- name: Ensure acl package is installed
-  ansible.builtin.package:
-    name: acl
-    state: present
-  become: true
+- name: Collect users with UID 0 (root/sudo)
+  ansible.builtin.shell: "awk -F: '$3 == 0 {print $1}' /etc/passwd"
+  register: root_users
+  changed_when: false
 
-- name: Gather users with UID 0 (root)
-  ansible.builtin.shell: "awk -F':' '$3 == 0 {print $1}' /etc/passwd"
-  register: uid0_users
+- name: Collect sudo users from /etc/sudoers and /etc/sudoers.d
+  ansible.builtin.shell: |
+    grep -Po '^[^#]*\bALL\b' /etc/sudoers /etc/sudoers.d/* 2>/dev/null | grep -oP '^[a-zA-Z0-9_\-]+'
+  register: sudoers_users_raw
+  changed_when: false
+  ignore_errors: yes
 
-- name: Gather users allowed in sudoers (sudo group members)
-  ansible.builtin.shell: "getent group sudo wheel | awk -F':' '{print $4}' | tr ',' '\\n'"
-  register: sudo_group_users
-  failed_when: false  # in some distros group sudo or wheel may not exist
+- name: Set sudo users list (unique)
+  ansible.builtin.set_fact:
+    sudoers_users: "{{ (sudoers_users_raw.stdout_lines | default([])) | unique }}"
 
-- name: Combine sudo/root users into a list
-  set_fact:
-    privileged_users: "{{ (uid0_users.stdout_lines + (sudo_group_users.stdout_lines | default([]))) | unique }}"
+- name: Combine root and sudo users, unique
+  ansible.builtin.set_fact:
+    privileged_users: "{{ (root_users.stdout_lines + sudoers_users) | unique }}"
 
-- name: Get sudoers file stat
-  ansible.builtin.stat:
-    path: /etc/sudoers
-  register: sudoers_file
-
-- name: Get /etc/sudoers.d directory stat
-  ansible.builtin.stat:
-    path: /etc/sudoers.d
-  register: sudoers_d_dir
-  failed_when: false
-
-- name: Prepare user info list
-  set_fact:
-    privileged_users_info: []
-
-- name: Loop over privileged users to get home and ssh key info
-  vars:
-    user_name: "{{ item }}"
-  block:
-    - name: Get home directory of user {{ item }}
-      ansible.builtin.shell: "getent passwd {{ item }} | cut -d: -f6"
-      register: home_dir
-
-    - name: Check if .ssh/authorized_keys exists for user {{ item }}
-      ansible.builtin.stat:
-        path: "{{ home_dir.stdout }}/.ssh/authorized_keys"
-      register: ssh_auth_keys
-      failed_when: false
-
-    - name: Append user info
-      set_fact:
-        privileged_users_info: >-
-          {{ privileged_users_info + [{
-            'user': item,
-            'home': home_dir.stdout,
-            'ssh_auth_keys_exists': ssh_auth_keys.stat.exists | default(false),
-            'ssh_auth_keys_mode': ssh_auth_keys.stat.mode | default('N/A'),
-            'ssh_auth_keys_owner': ssh_auth_keys.stat.pw_name | default('N/A'),
-            'ssh_auth_keys_group': ssh_auth_keys.stat.gr_name | default('N/A')
-          }] }}
+- name: Get home directories for privileged users
+  ansible.builtin.shell: "getent passwd {{ item }} | cut -d: -f6"
   loop: "{{ privileged_users }}"
+  register: home_dirs
+  changed_when: false
 
-- name: Assemble audit report file
+- name: Build map of user to home directory
+  ansible.builtin.set_fact:
+    user_homes: >-
+      {{
+        dict(
+          home_dirs.results | json_query('[].{user=item,home=stdout}') | 
+          map(attribute='user') | list | zip(
+          home_dirs.results | json_query('[].stdout') | list)
+        )
+      }}
+
+- name: Check .ssh/authorized_keys existence and permissions
+  ansible.builtin.stat:
+    path: "{{ user_homes[item] }}/.ssh/authorized_keys"
+  loop: "{{ privileged_users }}"
+  register: ssh_auth_keys
+  ignore_errors: yes
+
+- name: Gather ssh key info for users
+  ansible.builtin.set_fact:
+    ssh_key_info: >-
+      {{
+        dict(
+          ssh_auth_keys.results | json_query('[].{user=item,exists=stat.exists,mode=stat.mode,owner=stat.pw_name}') |
+          map(attribute='user') | list | zip(
+          ssh_auth_keys.results | map(attribute='stat') | list)
+        )
+      }}
+
+- name: Collect sudo -l output for each privileged user
+  ansible.builtin.shell: "sudo -l -U {{ item }}"
+  loop: "{{ privileged_users }}"
+  register: sudo_l_output_raw
+  ignore_errors: yes
+
+- name: Build sudo command map per user
+  ansible.builtin.set_fact:
+    sudo_l_output: >-
+      {{
+        dict(
+          sudo_l_output_raw.results | json_query('[].{user=item,output=stdout}') | 
+          map(attribute='user') | list | zip(
+          sudo_l_output_raw.results | map(attribute='stdout') | list)
+        )
+      }}
+
+- name: Gather directory/file permissions owned by privileged users
+  ansible.builtin.shell: |
+    find / -user {{ item }} -ls 2>/dev/null || true
+  loop: "{{ privileged_users }}"
+  register: user_files_raw
+  changed_when: false
+  ignore_errors: yes
+
+- name: Build map of user to file list
+  ansible.builtin.set_fact:
+    user_files: >-
+      {{
+        dict(
+          user_files_raw.results | json_query('[].{user=item,files=stdout_lines}') |
+          map(attribute='user') | list | zip(
+          user_files_raw.results | map(attribute='stdout_lines') | list)
+        )
+      }}
+
+- name: Assemble audit report content
   ansible.builtin.template:
     src: report.j2
-    dest: /tmp/privileged_access_report.txt
+    dest: /tmp/privileged_user_access_report.txt
+    mode: '0644'
   vars:
-    sudoers_file_stat: "{{ sudoers_file.stat }}"
-    sudoers_d_stat: "{{ sudoers_d_dir.stat | default({}) }}"
-    privileged_users_info: "{{ privileged_users_info }}"
+    privileged_users: "{{ privileged_users }}"
+    user_homes: "{{ user_homes }}"
+    ssh_auth_keys: "{{ ssh_auth_keys }}"
+    ssh_key_info: "{{ ssh_key_info }}"
+    sudo_l_output: "{{ sudo_l_output }}"
+    user_files: "{{ user_files }}"
+
+- name: Display report path
+  ansible.builtin.debug:
+    msg: "Privileged user audit report generated at /tmp/privileged_user_access_report.txt"
