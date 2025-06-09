@@ -29,11 +29,7 @@
   ansible.builtin.set_fact:
     user_homes: >-
       {{
-        dict(
-          home_dirs.results | json_query('[].{user=item,home=stdout}') | 
-          map(attribute='user') | list | zip(
-          home_dirs.results | json_query('[].stdout') | list)
-        )
+        dict(privileged_users | zip(home_dirs.results | map(attribute='stdout') | list))
       }}
 
 - name: Check .ssh/authorized_keys existence and permissions
@@ -43,14 +39,14 @@
   register: ssh_auth_keys
   ignore_errors: yes
 
-- name: Gather ssh key info for users
+- name: Build ssh key info map for users
   ansible.builtin.set_fact:
     ssh_key_info: >-
       {{
         dict(
-          ssh_auth_keys.results | json_query('[].{user=item,exists=stat.exists,mode=stat.mode,owner=stat.pw_name}') |
-          map(attribute='user') | list | zip(
-          ssh_auth_keys.results | map(attribute='stat') | list)
+          privileged_users | zip(
+            ssh_auth_keys.results | map(attribute='stat') | list
+          )
         )
       }}
 
@@ -65,9 +61,9 @@
     sudo_l_output: >-
       {{
         dict(
-          sudo_l_output_raw.results | json_query('[].{user=item,output=stdout}') | 
-          map(attribute='user') | list | zip(
-          sudo_l_output_raw.results | map(attribute='stdout') | list)
+          privileged_users | zip(
+            sudo_l_output_raw.results | map(attribute='stdout') | list
+          )
         )
       }}
 
@@ -79,12 +75,14 @@
   changed_when: false
   ignore_errors: yes
 
-- name: Build map of user to home directory
+- name: Build map of user to their file listings
   ansible.builtin.set_fact:
-    user_homes: >-
+    user_files: >-
       {{
         dict(
-          privileged_users | zip(home_dirs.results | map(attribute='stdout') | list)
+          privileged_users | zip(
+            user_files_raw.results | map(attribute='stdout_lines') | list
+          )
         )
       }}
 
