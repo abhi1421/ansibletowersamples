@@ -10,28 +10,25 @@ Users with UID 0 (root or equivalent) and sudo access:
 User: {{ user }}
 Home Directory: {{ user_homes[user] }}
 
-Authorized SSH Key Info:
+Authorized SSH Key:
 {% if ssh_key_info[user].exists %}
-  Exists: Yes
-  Permissions (mode): {{ ssh_key_info[user].mode }}
-  Owner: {{ ssh_key_info[user].owner }}
+  Yes
 {% else %}
-  No authorized_keys file found.
+  No authorized_keys file found
 {% endif %}
 
-Sudo Privileges (sudo -l output):
----------------------------------
-{{ sudo_l_output[user] | default('No sudo privileges or command output available.') }}
-
-Files Owned on System:
----------------------
-{% if user_files[user] %}
-{% for line in user_files[user] %}
-  {{ line }}
-{% endfor %}
+Sudo Privileges:
+{% if sudo_l_output[user] %}
+  Commands allowed:
+  {% set cmds = sudo_l_output[user].split('\n') %}
+  {% for cmd in cmds[:5] %}  - {{ cmd }}
+  {% endfor %}
+  {% if cmds|length > 5 %}  ... (and {{ cmds|length - 5 }} more) {% endif %}
 {% else %}
-  No files found owned by {{ user }} or access denied.
+  No sudo privileges
 {% endif %}
+
+Files Owned: {{ user_files[user] | length if user_files[user] else 0 }}
 
 ------------------------------------------------------
 {% endfor %}
