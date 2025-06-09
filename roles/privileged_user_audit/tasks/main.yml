@@ -84,10 +84,7 @@
     user_homes: >-
       {{
         dict(
-          home_dirs.results | 
-          zip(privileged_users) | 
-          map('reverse') | 
-          map('list')
+          privileged_users | zip(home_dirs.results | map(attribute='stdout') | list)
         )
       }}
 
