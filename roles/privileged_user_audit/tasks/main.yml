@@ -1,7 +1,7 @@
 ---
 # tasks file for privileged_user_audit
 - name: Collect users with UID 0
-  ansible.builtin.shell: awk -F: '$3 == 0 {print $1}' /etc/passwd
+  ansible.builtin.shell: "awk -F':' '$3 == 0 {print $1}' /etc/passwd"
   register: uid0_users
 
 - name: Collect users in sudo group
