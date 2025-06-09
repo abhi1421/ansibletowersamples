@@ -1,0 +1,126 @@
+---
+# tasks file for quay_cve_sync
+# Set current date for file naming
+- name: Set today's date
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+
+# Ensure download directory exists on download host
+- name: Ensure destination dir exists on download host
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+  delegate_to: "{{ download_host }}"
+
+# Download required JSONs on download host
+- name: Download repository-to-cpe.json
+  ansible.builtin.get_url:
+    url: "https://www.redhat.com/security/data/metrics/repository-to-cpe.json"
+    dest: "{{ quay_cve_download_dir }}/repository-to-cpe.json"
+    mode: '0644'
+  delegate_to: "{{ download_host }}"
+
+- name: Download container-name-repos-map.json
+  ansible.builtin.get_url:
+    url: "https://access.redhat.com/security/data/metrics/container-name-repos-map.json"
+    dest: "{{ quay_cve_download_dir }}/container-name-repos-map.json"
+    mode: '0644'
+  delegate_to: "{{ download_host }}"
+
+# Run clairctl on download host to create updates.gz
+- name: Generate updates.gz using clairctl
+  ansible.builtin.command: >
+    clairctl export-updaters
+    -r {{ quay_cve_download_dir }}/repository-to-cpe.json
+    -m {{ quay_cve_download_dir }}/container-name-repos-map.json
+    -o {{ quay_cve_download_dir }}/updates.gz
+  delegate_to: "{{ download_host }}"
+  become: true
+  become_user: ansible
+
+# Fetch CVE files from download host to controller
+- name: Fetch CVE files to controller node
+  ansible.builtin.fetch:
+    src: "{{ quay_cve_download_dir }}/{{ item }}"
+    dest: "/tmp/quay-cve-sync/"
+    flat: true
+  loop:
+    - repository-to-cpe.json
+    - container-name-repos-map.json
+    - updates.gz
+  delegate_to: "{{ download_host }}"
+
+# Ensure upload directory exists on upload hosts
+- name: Ensure upload directory exists on upload hosts
+  ansible.builtin.file:
+    path: "{{ quay_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: "{{ item }}"
+  loop: "{{ upload_hosts }}"
+
+# Copy CVE files from controller to upload hosts
+- name: Copy files from controller to upload hosts
+  ansible.builtin.copy:
+    src: "/tmp/quay-cve-sync/{{ item.file }}"
+    dest: "{{ quay_cve_upload_dir }}/{{ item.file }}"
+    mode: '0644'
+  loop:
+    - { file: 'repository-to-cpe.json' }
+    - { file: 'container-name-repos-map.json' }
+    - { file: 'updates.gz' }
+  loop_control:
+    label: "{{ item.file }}"
+  delegate_to: "{{ item_host }}"
+  vars:
+    item_host: "{{ upload_hosts | first }}"
+  when: item_host is defined
+
+# Create the UBI pod
+- name: Apply UBI pod on upload hosts
+  ansible.builtin.command: "oc apply -f {{ ubi_pod_yaml_path }}"
+  delegate_to: "{{ item }}"
+  loop: "{{ upload_hosts }}"
+  become: true
+  become_user: core
+
+# Copy JSON and GZ to pod
+- name: Copy files to UBI pod's /data
+  ansible.builtin.command: >
+    oc cp {{ quay_cve_upload_dir }}/{{ item }}
+    ubi-pod:/data/{{ item }}
+  loop:
+    - repository-to-cpe.json
+    - container-name-repos-map.json
+    - updates.gz
+  delegate_to: "{{ upload_hosts | first }}"
+  become: true
+  become_user: core
+
+# Port forward Clair DB inside the pod
+- name: Port forward Clair DB
+  ansible.builtin.command: >
+    oc port-forward svc/clair-postgres 5432:5432
+  async: 60
+  poll: 0
+  delegate_to: "{{ upload_hosts | first }}"
+  become: true
+  become_user: core
+
+# Import updates using clairctl
+- name: Import CVE updates to Clair DB
+  ansible.builtin.command: >
+    clairctl import-updaters -f /data/updates.gz
+  delegate_to: "{{ upload_hosts | first }}"
+  become: true
+  become_user: core
+
+# Optional cleanup
+- name: Clean up staging directory
+  ansible.builtin.file:
+    path: "/tmp/quay-cve-sync"
+    state: absent
+  delegate_to: localhost

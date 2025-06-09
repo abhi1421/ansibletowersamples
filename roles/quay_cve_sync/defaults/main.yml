@@ -1,0 +1,10 @@
+---
+# defaults file for quay_cve_sync
+download_host: download-host-name
+upload_hosts:
+  - upload-host-dmz
+  - upload-host-mz
+
+quay_cve_download_dir: "/home/ansible/clair-cve-data"
+quay_cve_upload_dir: "/var/home/core/clair-cve-data"
+ubi_pod_yaml_path: "/var/home/core/ubi-minimal.yaml"
