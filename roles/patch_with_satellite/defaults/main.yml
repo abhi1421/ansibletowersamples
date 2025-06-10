@@ -6,6 +6,9 @@ application_services: []  # e.g., ['app1', 'app2']
 satellite_org: "YourOrg"
 satellite_activation_key: "activation-key"
 satellite_server: "satellite.example.com"
+satellite_repos:
+  - "rhel-8-for-x86_64-baseos-rpms"
+  - "rhel-8-for-x86_64-appstream-rpms"
 
 include_packages: []  # e.g., ['openssl', 'bash']
 exclude_packages: []  # e.g., ['kernel', 'glibc']
@@ -15,5 +18,3 @@ email_recipients:
 mail_subject: "Patch Report for {{ inventory_hostname }}"
 mail_sender: "aap@example.com"
 smtp_host: "localhost"
-
-snapshot_command: "/usr/local/bin/create_snapshot.sh"  # Placeholder

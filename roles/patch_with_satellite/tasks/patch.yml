@@ -1,5 +1,5 @@
-- name: Apply patches with inclusion and exclusion
-  yum:
-    name: "{{ include_packages }}"
-    exclude: "{{ exclude_packages | join(',') }}"
+- name: Patch system (included packages or all if none provided)
+  ansible.builtin.yum:
+    name: "{{ included_packages | default(['*']) }}"
     state: latest
+    exclude: "{{ excluded_packages | default([]) }}"
