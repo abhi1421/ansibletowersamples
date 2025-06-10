@@ -1,7 +1,11 @@
+- name: Get hostname
+  ansible.builtin.command: hostname
+  register: hostname_cmd
+
 - name: Create patch report from template
   template:
     src: patch_report.j2
-    dest: /tmp/patch_report.txt
+    dest: /tmp/patch_report_{{ hostname_cmd.stdout }}.txt
 
 - name: Send patch report email
   mail:
