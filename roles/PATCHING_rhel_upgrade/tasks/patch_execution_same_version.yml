@@ -23,12 +23,9 @@
     var: repos_list.stdout_lines
 
 - name: Execute DNF distro-sync for current RHEL version
-  # Using command as distro-sync is a specific operation.
-  # --allowerasing is included as per customer spec.
-  # --setopt=deltarpm=false is included as per customer spec.
   ansible.builtin.shell: "dnf --releasever={{ ansible_distribution_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
-  args:
-    timeout: 3600 # 1 hour timeout
+#  args:
+#    timeout: 3600 # 1 hour timeout
 
 - name: Execute dracut for the current kernel
   # The output of 'uname -r' is already available via ansible_kernel fact.

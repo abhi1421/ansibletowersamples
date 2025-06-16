@@ -24,8 +24,8 @@
 - name: Execute DNF distro-sync for target RHEL version
   # This is the main upgrade command to the new major version.
   ansible.builtin.shell: "dnf --releasever={{ target_rhel_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
-  args:
-    timeout: 3600 # 1 hour timeout, adjust as needed
+#  args:
+#    timeout: 3600 # 1 hour timeout, adjust as needed
 
 - name: Execute dracut for the newly installed kernel
   # After distro-sync, a new kernel might be installed. Re-gathering facts to get the latest kernel.
