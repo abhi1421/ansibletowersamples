@@ -31,7 +31,7 @@
     msg: "Comparison of pre- and post-patch snapshots needs to be done manually or via external tools. Review logs above."
 
 - name: Fetch a post-count of errata
-  ansible.builtin.command: dnf updateinfo list available | wc -l
+  ansible.builtin.shell: dnf updateinfo list available | wc -l
   register: post_errata_count
   changed_when: false
 - name: Display Post-Count of Errata
