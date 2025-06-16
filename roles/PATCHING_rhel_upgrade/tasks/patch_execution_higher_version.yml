@@ -23,7 +23,7 @@
 
 - name: Execute DNF distro-sync for target RHEL version
   # This is the main upgrade command to the new major version.
-  ansible.builtin.command: "dnf --releasever={{ target_rhel_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
+  ansible.builtin.shell: "dnf --releasever={{ target_rhel_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
   args:
     timeout: 3600 # 1 hour timeout, adjust as needed
 
