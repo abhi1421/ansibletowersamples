@@ -5,6 +5,16 @@
   ansible.builtin.debug:
     msg: "Starting Pre-Patching Checklist..."
 
+- name: Ensure report directory exists on target host
+  ansible.builtin.file:
+    path: "{{ report_output_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Record starting timestamp for report
+  ansible.builtin.set_fact:
+    upgrade_start_time: "{{ ansible_date_time.iso8601_basic }}"
+
 - name: System Health Snapshot - Disk Usage
   ansible.builtin.command: df -h
   register: df_output
@@ -46,7 +56,7 @@
       - "Architecture: {{ ansible_architecture }}"
 
 - name: Fetch a pre-count of errata
-  ansible.builtin.command: dnf updateinfo info available
+  ansible.builtin.command: dnf updateinfo list available | wc -l
   register: pre_errata_count
   changed_when: false
 - name: Display Pre-Count of Errata
