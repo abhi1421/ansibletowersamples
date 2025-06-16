@@ -56,7 +56,7 @@
       - "Architecture: {{ ansible_architecture }}"
 
 - name: Fetch a pre-count of errata
-  ansible.builtin.command: dnf updateinfo list available | wc -l
+  ansible.builtin.shell: dnf updateinfo list available | wc -l
   register: pre_errata_count
   changed_when: false
 - name: Display Pre-Count of Errata
