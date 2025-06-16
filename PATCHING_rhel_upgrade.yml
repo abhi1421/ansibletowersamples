@@ -1,0 +1,5 @@
+- name: Invoke the Upgrade role
+  hosts: all
+  become: yes
+  roles:
+    - PATCHING_rhel_upgrade
