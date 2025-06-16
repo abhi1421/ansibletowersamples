@@ -1,0 +1,64 @@
+#- name: Validate system services
+#  shell: systemctl list-units --type=service --state=failed
+#  register: failed_services
+#
+#- name: Application validation
+#  shell: systemctl status myapp.service
+#  register: app_status
+#  ignore_errors: true
+#
+#- name: Compare system state (manually or by diffing snapshot files)
+#  shell: echo "Compare logic to be implemented if file snapshot comparison is used"
+#
+#- name: Post-patch errata count
+#  shell: yum list updates
+#  register: errata_post
+
+
+- name: Capture post-upgrade kernel
+  shell: uname -r
+  register: post_kernel
+  changed_when: false
+
+- name: Capture post-upgrade OS release
+  shell: cat /etc/redhat-release
+  register: post_release
+  changed_when: false
+
+- name: Fetch post-upgrade errata count
+  shell: yum updateinfo list available | wc -l
+  register: post_errata_count
+  changed_when: false
+
+- name: Determine upgrade result
+  set_fact:
+    upgrade_status: >-
+      {{ 'Successful' if (pre_kernel != post_kernel.stdout and ('8.10' in post_release.stdout)) else 'Unsuccessful' }}
+
+- name: Generate upgrade report summary
+  set_fact:
+    upgrade_report: |
+      -------------------------------
+      RHEL Upgrade Report - {{ inventory_hostname }}
+      -------------------------------
+      Pre-Patch Kernel   : {{ pre_kernel }}
+      Post-Patch Kernel  : {{ post_kernel.stdout }}
+
+      Pre-Release Info   : {{ pre_release }}
+      Post-Release Info  : {{ post_release.stdout }}
+
+      Pre Errata Count   : {{ pre_errata_count }}
+      Post Errata Count  : {{ post_errata_count.stdout }}
+
+      UPGRADE STATUS     : {{ upgrade_status }}
+      -------------------------------
+
+- name: Display report in AAP job log
+  debug:
+    msg: "{{ upgrade_report }}"
+
+- name: Write upgrade report to /tmp
+  copy:
+    content: "{{ upgrade_report }}"
+    dest: "/tmp/rhel_upgrade_report_{{ ansible_date_time.date }}.txt"
+    mode: '0644'

@@ -1,0 +1,2 @@
+patch_stage: "precheck"   # Accepted values: precheck, same_version, higher_version, postcheck
+releasever: "8.10"

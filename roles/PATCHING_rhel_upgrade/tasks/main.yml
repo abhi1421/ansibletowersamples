@@ -1,0 +1,13 @@
+---
+# tasks file for PATCHING_rhel_upgrade
+- name: Include Pre-Patching Checklist
+  import_tasks: precheck.yml
+
+- name: Include Patch Execution Same Version
+  import_tasks: same_version.yml
+
+- name: Include Patch Execution Higher Version
+  import_tasks: higher_version.yml
+
+- name: Include Post-Patching Checklist
+  import_tasks: postcheck.yml

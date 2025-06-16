@@ -1,0 +1,42 @@
+- name: Clean DNF metadata
+  command: dnf clean all
+
+- name: Set subscription-manager release to 8.8
+  command: subscription-manager release --set 8.8
+
+- name: Verify enabled repositories
+  command: subscription-manager repos --list-enabled
+
+- name: Perform same-version distro-sync
+  command: dnf --releasever=8.8 --allowerasing --setopt=deltarpm=false distro-sync -y
+
+
+#- name: Clean DNF metadata
+#  command: dnf clean all
+#
+#- name: Set release to 8.8
+#  command: subscription-manager release --set 8.8
+#
+#- name: Show enabled repositories
+#  command: subscription-manager repos --list-enabled
+#  register: enabled_repos
+#
+#- name: Perform distro-sync for 8.8
+#  command: dnf --releasever=8.8 --allowerasing --setopt=deltarpm=false distro-sync -y
+#
+#- name: Get current kernel version
+#  command: uname -r
+#  register: uname_out
+#
+#- name: Create new initramfs
+#  command: "dracut -f /boot/initramfs-{{ uname_out.stdout }}.img {{ uname_out.stdout }}"
+#
+#- name: Run zipl
+#  command: zipl
+#
+#- name: Reboot system
+#  reboot:
+#
+#- name: Validate upgrade result
+#  command: cat /etc/redhat-release
+#  register: os_release

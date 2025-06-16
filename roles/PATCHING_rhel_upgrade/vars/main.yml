@@ -1,0 +1,4 @@
+---
+# vars file for PATCHING_rhel_upgrade
+initramfs_cmd_template: "dracut -f /boot/initramfs-{{ kernel_version }}.img {{ kernel_version }}"
+zipl_cmd: "zipl"

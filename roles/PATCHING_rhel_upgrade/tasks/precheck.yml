@@ -1,0 +1,42 @@
+#- name: Take system health snapshot
+#  shell: uptime; top -b -n 1 | head -20
+#  register: health_snapshot
+#
+#- name: Capture application status
+#  shell: systemctl list-units --type=service --state=running
+#  register: app_status
+#
+#- name: OS and kernel info
+#  shell: uname -a
+#  register: kernel_info
+#
+#- name: Pre-patch errata count
+#  shell: yum list updates
+#  register: errata_list
+
+- name: Ensure /tmp has enough space
+  shell: df --output=avail /tmp | tail -n1
+  register: tmp_space
+  failed_when: tmp_space.stdout | int < 2000000
+  changed_when: false
+
+- name: Capture pre-patch kernel version
+  shell: uname -r
+  register: pre_kernel
+  changed_when: false
+
+- name: Capture pre-patch OS release
+  shell: cat /etc/redhat-release
+  register: pre_release
+  changed_when: false
+
+- name: Capture pre-patch errata count
+  shell: yum updateinfo list available | wc -l
+  register: pre_errata_count
+  changed_when: false
+
+- name: Save facts for later use
+  set_fact:
+    pre_kernel: "{{ pre_kernel.stdout }}"
+    pre_release: "{{ pre_release.stdout }}"
+    pre_errata_count: "{{ pre_errata_count.stdout }}"  
