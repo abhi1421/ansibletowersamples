@@ -28,9 +28,6 @@
   # --setopt=deltarpm=false is included as per customer spec.
   ansible.builtin.shell: "dnf --releasever={{ ansible_distribution_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
   args:
-    # Adding a timeout for potentially long running DNF operations
-    # You might need to adjust this value based on your environment's performance
-    # and the number of packages to update.
     timeout: 3600 # 1 hour timeout
 
 - name: Execute dracut for the current kernel
