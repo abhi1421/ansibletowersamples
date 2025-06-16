@@ -26,7 +26,7 @@
   # Using command as distro-sync is a specific operation.
   # --allowerasing is included as per customer spec.
   # --setopt=deltarpm=false is included as per customer spec.
-  ansible.builtin.command: "dnf --releasever={{ ansible_distribution_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
+  ansible.builtin.shell: "dnf --releasever={{ ansible_distribution_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
   args:
     # Adding a timeout for potentially long running DNF operations
     # You might need to adjust this value based on your environment's performance
@@ -39,9 +39,9 @@
   ansible.builtin.command: "dracut -f /boot/initramfs-{{ ansible_kernel }}.img {{ ansible_kernel }}"
   changed_when: true # dracut creates or updates initramfs
 
-- name: Execute zipl (s390x specific bootloader update)
-  ansible.builtin.command: zipl
-  changed_when: true # zipl updates the bootloader configuration
+#- name: Execute zipl (s390x specific bootloader update)
+#  ansible.builtin.command: zipl
+#  changed_when: true # zipl updates the bootloader configuration
 
 - name: Reboot system after same version update
   ansible.builtin.reboot:
