@@ -1,0 +1,34 @@
+- name: Install AIDE
+  package:
+    name: aide
+    state: present
+  when: aide_enabled
+
+- name: Initialize AIDE DB
+  command: /usr/sbin/aide --init
+  when: aide_enabled
+
+- name: Enable SELinux
+  selinux:
+    policy: targeted
+    state: enforcing
+
+- name: Enable auditd
+  service:
+    name: auditd
+    enabled: yes
+    state: started
+  when: auditd_enabled
+
+- name: Enable rsyslog
+  service:
+    name: rsyslog
+    enabled: yes
+    state: started
+  when: rsyslog_enabled
+
+- name: Configure log forwarding
+  lineinfile:
+    path: /etc/rsyslog.conf
+    line: "*.* @@{{ splunk_host }}"
+  when: splunk_forwarding_enabled

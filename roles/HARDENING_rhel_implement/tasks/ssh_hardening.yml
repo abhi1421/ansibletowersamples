@@ -1,0 +1,16 @@
+- name: Configure SSH settings
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^{{ item.key }}"
+    line: "{{ item.key }} {{ item.value }}"
+    create: yes
+  loop:
+    - { key: 'Protocol', value: '2' }
+    - { key: 'LogLevel', value: 'INFO' }
+    - { key: 'PermitRootLogin', value: 'no' }
+    - { key: 'PermitEmptyPasswords', value: 'no' }
+
+- name: Restart SSH
+  service:
+    name: sshd
+    state: restarted

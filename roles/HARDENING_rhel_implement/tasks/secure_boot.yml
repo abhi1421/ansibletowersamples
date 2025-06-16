@@ -1,0 +1,22 @@
+- name: Set permissions on grub.cfg
+  file:
+    path: /boot/grub2/grub.cfg
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Grub password configuration notice
+  debug:
+    msg: "Set grub password manually and update /etc/grub.d/40_custom."
+
+- name: Remove X Window System
+  package:
+    name: xorg-x11*
+    state: absent
+
+- name: Disable xfs service if present
+  service:
+    name: xfs
+    state: stopped
+    enabled: no
+  ignore_errors: true

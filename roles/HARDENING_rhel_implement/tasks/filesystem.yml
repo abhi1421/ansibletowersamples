@@ -1,0 +1,31 @@
+- name: Ensure /tmp is a separate partition
+  mount:
+    path: /tmp
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,nodev,nosuid,noexec
+    state: mounted
+
+- name: Bind /var/tmp to /tmp
+  mount:
+    path: /var/tmp
+    src: /tmp
+    fstype: none
+    opts: bind
+    state: mounted
+
+- name: Secure /dev/shm
+  mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,nodev,nosuid,noexec
+    state: remounted
+
+- name: Set sticky bit on all world-writable directories
+  shell: |
+    for dir in $(find / -type d -perm -0002 -xdev 2>/dev/null); do
+      chmod +t "$dir"
+    done
+  args:
+    warn: false

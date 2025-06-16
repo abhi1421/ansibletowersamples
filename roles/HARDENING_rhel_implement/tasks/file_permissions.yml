@@ -1,0 +1,6 @@
+- name: Check for world-writable files and set sticky bit
+  shell: find / -type d -perm -0002 -exec chmod +t {} \;
+
+- name: Check for unnecessary users/groups manually
+  debug:
+    msg: "🔍 Run manual review of /etc/passwd, /etc/group for least privilege."

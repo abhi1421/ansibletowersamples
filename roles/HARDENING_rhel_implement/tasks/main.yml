@@ -1,0 +1,49 @@
+---
+# tasks file for HARDENING_rhel_implement
+- name: Include preparation and install hardening
+  import_tasks: preparation.yml
+  tags: [prep]
+
+- name: Filesystem configuration
+  import_tasks: filesystem.yml
+  tags: [filesystem]
+
+- name: System updates
+  import_tasks: updates.yml
+  tags: [updates]
+
+- name: Secure boot settings
+  import_tasks: secure_boot.yml
+  tags: [secureboot]
+
+- name: Process hardening
+  import_tasks: process_hardening.yml
+  tags: [process]
+
+- name: OS hardening
+  import_tasks: os_hardening.yml
+  tags: [os]
+
+- name: Network and firewall hardening
+  import_tasks: network_firewall.yml
+  tags: [network]
+
+- name: SSH hardening
+  import_tasks: ssh_hardening.yml
+  tags: [ssh]
+
+- name: System integrity and intrusion detection
+  import_tasks: integrity_detection.yml
+  tags: [ids]
+
+- name: File/directory permission checks
+  import_tasks: file_permissions.yml
+  tags: [permissions]
+
+- name: PAM hardening
+  import_tasks: pam_config.yml
+  tags: [pam]
+
+- name: Warning banners
+  import_tasks: banners.yml
+  tags: [banner]
