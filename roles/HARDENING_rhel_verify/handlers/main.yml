@@ -1,0 +1,5 @@
+---
+# handlers file for HARDENING_rhel_verify
+- name: Append result to report
+  set_fact:
+    hardening_report: "{{ hardening_report + [ { 'check': check_name, 'status': (not ansible_failed_result | default(false)) | ternary('PASS', 'FAIL') } ] }}"

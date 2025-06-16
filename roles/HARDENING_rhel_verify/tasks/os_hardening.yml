@@ -1,0 +1,43 @@
+- name: Remove legacy services
+  package:
+    name:
+      - telnet-server
+      - rsh
+      - ypserv
+      - ypbind
+      - tftp
+      - talk
+    state: absent
+
+- name: Remove xinetd
+  package:
+    name: xinetd
+    state: absent
+
+- name: Disable legacy systemd services
+  service:
+    name: "{{ item }}"
+    enabled: no
+    state: stopped
+  loop:
+    - chargen-dgram
+    - daytime-dgram
+    - echo-dgram
+  ignore_errors: true
+
+- name: Remove unused servers
+  package:
+    name:
+      - vsftpd
+      - bind
+      - samba
+      - dhcp
+      - nfs-utils
+      - net-snmp
+    state: absent
+
+- name: Set system umask
+  lineinfile:
+    path: /etc/systemd/system.conf
+    regexp: '^#?DefaultUmask='
+    line: 'DefaultUmask=027'

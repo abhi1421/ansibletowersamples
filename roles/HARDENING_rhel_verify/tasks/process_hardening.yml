@@ -1,0 +1,12 @@
+- name: Restrict core dumps
+  lineinfile:
+    path: /etc/security/limits.conf
+    line: '* hard core 0'
+    create: yes
+
+- name: Enable ASLR
+  sysctl:
+    name: kernel.randomize_va_space
+    value: 2
+    state: present
+    reload: yes

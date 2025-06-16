@@ -1,0 +1,31 @@
+- name: Ensure SSH protocol is 2
+  shell: grep -E '^Protocol\s+2' /etc/ssh/sshd_config
+  register: ssh_protocol
+  failed_when: ssh_protocol.rc != 0
+  vars:
+    check_name: "SSH Protocol 2 enforced"
+  notify: Append result to report
+
+- name: Ensure SSH log level is INFO
+  shell: grep -E '^LogLevel\s+INFO' /etc/ssh/sshd_config
+  register: ssh_loglevel
+  failed_when: ssh_loglevel.rc != 0
+  vars:
+    check_name: "SSH LogLevel INFO"
+  notify: Append result to report
+
+- name: Ensure root login is disabled
+  shell: grep -E '^PermitRootLogin\s+no' /etc/ssh/sshd_config
+  register: ssh_root
+  failed_when: ssh_root.rc != 0
+  vars:
+    check_name: "SSH root login disabled"
+  notify: Append result to report
+
+- name: Ensure PermitEmptyPasswords is no
+  shell: grep -E '^PermitEmptyPasswords\s+no' /etc/ssh/sshd_config
+  register: ssh_empty
+  failed_when: ssh_empty.rc != 0
+  vars:
+    check_name: "SSH empty passwords not allowed"
+  notify: Append result to report
