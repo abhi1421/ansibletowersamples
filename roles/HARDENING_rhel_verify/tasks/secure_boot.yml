@@ -1,0 +1,22 @@
+- name: Check grub.cfg owner is root
+  stat:
+    path: /boot/grub2/grub.cfg
+  register: grub_stat
+  failed_when:
+    - grub_stat.stat.pw_name != 'root'
+    - grub_stat.stat.gid != 0
+  vars:
+    check_name: "grub.cfg owner is root"
+  notify: Append result to report
+
+- name: Check grub.cfg permissions
+  file:
+    path: /boot/grub2/grub.cfg
+    state: file
+    mode: '0600'
+  check_mode: yes
+  register: grub_perms
+  failed_when: grub_perms.mode != '0600'
+  vars:
+    check_name: "grub.cfg permissions 0600"
+  notify: Append result to report

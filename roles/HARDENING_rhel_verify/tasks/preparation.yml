@@ -1,0 +1,19 @@
+- name: Block new systems from network traffic during install
+  debug:
+    msg: "This must be enforced manually at network level in air-gapped setup."
+
+- name: BIOS password setting notice
+  debug:
+    msg: "Set BIOS/firmware password manually per hardware policy."
+
+- name: Configure boot order to prevent unauthorized boot
+  debug:
+    msg: "Enforce boot order in BIOS to prevent alternate boot devices."
+
+- name: Ensure latest RHEL version
+  shell: cat /etc/redhat-release
+  register: os_version
+
+- name: Print RHEL version
+  debug:
+    var: os_version.stdout

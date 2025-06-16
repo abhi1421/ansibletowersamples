@@ -1,0 +1,44 @@
+- name: Initialize hardening verification report
+  set_fact:
+    hardening_report: []
+
+- name: Verify preparation
+  import_tasks: preparation.yml
+
+- name: Verify filesystem configuration
+  import_tasks: filesystem.yml
+
+- name: Verify system update configuration
+  import_tasks: updates.yml
+
+- name: Verify secure boot settings
+  import_tasks: secure_boot.yml
+
+- name: Verify process hardening
+  import_tasks: process_hardening.yml
+
+- name: Verify OS hardening
+  import_tasks: os_hardening.yml
+
+- name: Verify network and firewall configuration
+  import_tasks: network_firewall.yml
+
+- name: Verify SSH configuration
+  import_tasks: ssh_hardening.yml
+
+- name: Verify system integrity and detection setup
+  import_tasks: integrity_detection.yml
+
+- name: Verify file and directory permissions
+  import_tasks: file_permissions.yml
+
+- name: Verify PAM configuration
+  import_tasks: pam_config.yml
+
+- name: Verify warning banners
+  import_tasks: banners.yml
+
+- name: Write hardening verification report
+  copy:
+    content: "{{ hardening_report | to_nice_yaml }}"
+    dest: /tmp/hardening_verification_report.yaml

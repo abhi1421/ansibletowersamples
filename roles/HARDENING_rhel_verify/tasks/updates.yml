@@ -1,0 +1,16 @@
+- name: Ensure Red Hat GPG key is installed
+  stat:
+    path: /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+  register: gpg_key
+  failed_when: not gpg_key.stat.exists
+  vars:
+    check_name: "Red Hat GPG key installed"
+  notify: Append result to report
+
+- name: Ensure gpgcheck is enabled in repos
+  shell: grep -r 'gpgcheck=1' /etc/yum.repos.d/
+  register: gpgcheck_setting
+  failed_when: gpgcheck_setting.rc != 0
+  vars:
+    check_name: "GPG check enabled in repos"
+  notify: Append result to report
