@@ -5,6 +5,10 @@
   ansible.builtin.debug:
     msg: "Starting Post-Patching Checklist..."
 
+- name: Record ending timestamp for report
+  ansible.builtin.set_fact:
+    upgrade_end_time: "{{ ansible_date_time.iso8601_basic }}"
+
 - name: Validate System Services (Placeholder - Customer Specific)
   ansible.builtin.command: "{{ system_service_validation_command }}"
   register: service_validation_output
@@ -27,7 +31,7 @@
     msg: "Comparison of pre- and post-patch snapshots needs to be done manually or via external tools. Review logs above."
 
 - name: Fetch a post-count of errata
-  ansible.builtin.command: dnf updateinfo info available
+  ansible.builtin.command: dnf updateinfo list available | wc -l
   register: post_errata_count
   changed_when: false
 - name: Display Post-Count of Errata
@@ -37,3 +41,53 @@
 - name: Post-Patching Checklist - End
   ansible.builtin.debug:
     msg: "Post-Patching Checklist completed."
+
+- name: Generate Upgrade Report
+  ansible.builtin.blockinfile:
+    path: "{{ report_output_dir }}/{{ report_file_name }}"
+    create: true
+    mode: '0644'
+    block: |
+      --- RHEL Upgrade Report for {{ inventory_hostname }} ---
+      Generated On: {{ ansible_date_time.iso8601 }}
+      Upgrade Start Time: {{ upgrade_start_time | default('N/A') }}
+      Upgrade End Time: {{ upgrade_end_time | default('N/A') }}
+      Total Duration: {{ (ansible_date_time.epoch | float - upgrade_start_time_epoch | default(ansible_date_time.epoch | float)) | int }} seconds (Approx)
+
+      --- System Information (Before & After) ---
+      Pre-Upgrade RHEL Version: {{ hostvars[inventory_hostname]['ansible_distribution_version'] | default('Unknown') }}
+      Post-Upgrade RHEL Version: {{ ansible_distribution_version }}
+      Post-Upgrade Kernel Version: {{ ansible_kernel }}
+
+      --- Package Information ---
+      # You might want to add specific DNF commands here to list installed packages,
+      # or changes in package versions. This would require parsing dnf history or logs.
+      # For example, to list recently installed/updated packages:
+      # dnf history info last | grep 'Packages altered:'
+
+      --- Available Errata Post-Upgrade ---
+      # This assumes 'post_errata_count' from rhel_upgrade/tasks/post_patching_checklist.yml was registered and visible.
+      # To include actual errata counts, the rhel_upgrade role would need to expose more variables,
+      # or this playbook would need to re-run dnf updateinfo.
+      # For now, running the command directly for the report.
+      {{ lookup('ansible.builtin.pipe', 'dnf updateinfo info available') }}
+
+      --- Status of Key Services (Post-Upgrade) ---
+      # You should customize this to check your critical services
+      # Example:
+      # systemctl status sshd.service
+      # systemctl status httpd.service
+      # Replace with checks for your actual services:
+      {{ lookup('ansible.builtin.pipe', 'systemctl is-active sshd.service && echo "SSHD Active" || echo "SSHD Inactive"') }}
+      {{ lookup('ansible.builtin.pipe', 'systemctl is-active firewalld.service && echo "Firewalld Active" || echo "Firewalld Inactive"') }}
+      {{ lookup('ansible.builtin.pipe', system_service_validation_command | default("echo 'No specific system service validation command provided.'")) }}
+
+
+      --- End of Report ---
+    delegate_to: "{{ inventory_hostname }}" # Ensure report is generated on target host
+    register: upgrade_report_output
+    changed_when: true
+
+- name: Display path to generated report on target host
+  ansible.builtin.debug:
+    msg: "Upgrade report generated on {{ inventory_hostname }} at {{ report_output_dir }}/{{ report_file_name }}"

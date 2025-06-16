@@ -19,3 +19,6 @@ run_post_patching_checklist: true
 # If not customized, they will execute a simple echo command.
 application_validation_command: "echo 'No specific application validation command provided. Please customize application_validation_command in defaults/main.yml or via extra_vars.'"
 system_service_validation_command: "echo 'No specific system service validation command provided. Please customize system_service_validation_command in defaults/main.yml or via extra_vars.'"
+
+report_output_dir: "/var/ansible_reports" # Directory on target host to store reports
+report_file_name: "rhel_upgrade_report_{{ inventory_hostname }}_{{ ansible_date_time.iso8601_basic }}.txt"
