@@ -62,9 +62,9 @@
   changed_when: true
   when: kernel_for_dracut is defined
 
-- name: Execute zipl
-  ansible.builtin.command: zipl
-  changed_when: true
+#- name: Execute zipl
+#  ansible.builtin.command: zipl
+#  changed_when: true
 
 - name: Reboot system after higher version update
   ansible.builtin.reboot:
