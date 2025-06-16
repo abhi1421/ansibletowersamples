@@ -1,0 +1,90 @@
+# tasks/patch_execution_higher_version.yml
+
+---
+- name: Patch Execution (Higher Version) - Start
+  ansible.builtin.debug:
+    msg: "Starting Patch Execution for higher version update (to RHEL {{ target_rhel_version }})."
+
+- name: Clean all DNF metadata (again, before higher version upgrade)
+  ansible.builtin.command: dnf clean all
+  changed_when: true
+
+- name: Set release version for subscription-manager to target RHEL version
+  ansible.builtin.command: "subscription-manager release --set {{ target_rhel_version }}"
+  changed_when: true
+
+- name: Verify enabled repositories after setting target release
+  ansible.builtin.command: subscription-manager repos --list-enabled
+  register: target_repos_list
+  changed_when: false
+- name: Display enabled repositories for target version
+  ansible.builtin.debug:
+    var: target_repos_list.stdout_lines
+
+- name: Execute DNF distro-sync for target RHEL version
+  # This is the main upgrade command to the new major version.
+  ansible.builtin.command: "dnf --releasever={{ target_rhel_version }} --allowerasing --setopt=deltarpm=false distro-sync -y"
+  args:
+    timeout: 3600 # 1 hour timeout, adjust as needed
+
+- name: Execute dracut for the newly installed kernel
+  # After distro-sync, a new kernel might be installed. Re-gathering facts to get the latest kernel.
+  ansible.builtin.setup:
+  delegate_to: "{{ inventory_hostname }}" # Re-gather facts for latest kernel info
+
+  # IMPORTANT: The kernel version might change after the distro-sync.
+  # Ensure the dracut command targets the *new* kernel.
+  # If the new kernel is not yet the 'running' kernel, ansible_kernel might still show the old one.
+  # A safer approach might be to parse 'rpm -q kernel' output or verify the latest installed kernel package.
+  # For this specific scenario (RHEL 8.x to 8.y), the running kernel might not change immediately,
+  # but the *installed* kernel might. We assume ansible_kernel updates after setup, or that the
+  # dracut command is flexible enough.
+  # However, the user provided a sample with the specific kernel version post-upgrade.
+  # We should use the actual kernel that dnf installed.
+  # For this, we can try to find the latest installed kernel image in /boot/
+- name: Find the latest installed kernel for dracut
+  ansible.builtin.find:
+    paths: /boot
+    patterns: "vmlinuz-*"
+    file_type: file
+    use_regex: true
+  register: installed_kernels
+
+- name: Determine kernel version for dracut based on latest vmlinuz
+  # Assuming the latest vmlinuz is the one to use for dracut.
+  # This might need refinement if there's a more robust way to get the *target* kernel post-upgrade.
+  ansible.builtin.set_fact:
+    kernel_for_dracut: "{{ installed_kernels.files | sort(attribute='path', reverse=true) | map(attribute='path') | first | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
+  when: installed_kernels.files | length > 0
+
+- name: Execute dracut for the detected kernel
+  ansible.builtin.command: "dracut -f /boot/initramfs-{{ kernel_for_dracut }}.img {{ kernel_for_dracut }}"
+  changed_when: true
+  when: kernel_for_dracut is defined
+
+- name: Execute zipl
+  ansible.builtin.command: zipl
+  changed_when: true
+
+- name: Reboot system after higher version update
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+
+- name: Unset release version for subscription-manager (good practice)
+  # After a successful major version upgrade, it's often good to unset the specific release
+  # so that future 'dnf update' commands use the latest available repositories for the OS.
+  ansible.builtin.command: subscription-manager release --unset
+  changed_when: true
+  # This task is optional but recommended. Consider making it conditional if desired.
+
+- name: Verify RHEL release after higher version update
+  ansible.builtin.command: cat /etc/redhat-release
+  register: post_upgrade_release
+  changed_when: false
+- name: Display RHEL release after higher version update
+  ansible.builtin.debug:
+    var: post_upgrade_release.stdout_lines
+
+- name: Patch Execution (Higher Version) - End
+  ansible.builtin.debug:
+    msg: "Patch Execution for higher version update completed."

@@ -1,0 +1,39 @@
+# tasks/post_patching_checklist.yml
+
+---
+- name: Post-Patching Checklist - Start
+  ansible.builtin.debug:
+    msg: "Starting Post-Patching Checklist..."
+
+- name: Validate System Services (Placeholder - Customer Specific)
+  ansible.builtin.command: "{{ system_service_validation_command }}"
+  register: service_validation_output
+  changed_when: false
+  # Add assertions here if you want to check for specific output indicating service health
+- name: Display System Service Validation Output
+  ansible.builtin.debug:
+    var: service_validation_output.stdout_lines
+
+- name: Application Validation (Placeholder - Customer Specific)
+  ansible.builtin.command: "{{ application_validation_command }}"
+  register: post_app_validation_output
+  changed_when: false
+- name: Display Application Validation Output
+  ansible.builtin.debug:
+    var: post_app_validation_output.stdout_lines
+
+- name: Compare Pre- and Post-Patch (Informational)
+  ansible.builtin.debug:
+    msg: "Comparison of pre- and post-patch snapshots needs to be done manually or via external tools. Review logs above."
+
+- name: Fetch a post-count of errata
+  ansible.builtin.command: dnf updateinfo info available
+  register: post_errata_count
+  changed_when: false
+- name: Display Post-Count of Errata
+  ansible.builtin.debug:
+    var: post_errata_count.stdout_lines
+
+- name: Post-Patching Checklist - End
+  ansible.builtin.debug:
+    msg: "Post-Patching Checklist completed."

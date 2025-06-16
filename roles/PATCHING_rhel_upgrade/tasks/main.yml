@@ -1,13 +1,35 @@
 ---
-# tasks file for PATCHING_rhel_upgrade
+- name: Ensure Ansible facts are gathered (required for dynamic versioning)
+  ansible.builtin.setup:
+  delegate_to: "{{ inventory_hostname }}" # Ensure facts are gathered on the target host
+
+- name: Display current RHEL and kernel versions
+  ansible.builtin.debug:
+    msg:
+      - "Current RHEL Version: {{ ansible_distribution_version }}"
+      - "Current Kernel Version: {{ ansible_kernel }}"
+      - "Target RHEL Version: {{ target_rhel_version }}"
+
 - name: Include Pre-Patching Checklist
-  import_tasks: precheck.yml
+  ansible.builtin.include_tasks: pre_patching_checklist.yml
+  when: run_pre_patching_checklist | bool
+  tags:
+    - pre_patching
 
-- name: Include Patch Execution Same Version
-  import_tasks: same_version.yml
+- name: Include Patch Execution (Same Version Update)
+  ansible.builtin.include_tasks: patch_execution_same_version.yml
+  when: run_patch_execution_same_version | bool
+  tags:
+    - patch_same_version
 
-- name: Include Patch Execution Higher Version
-  import_tasks: higher_version.yml
+- name: Include Patch Execution (Higher Version Update)
+  ansible.builtin.include_tasks: patch_execution_higher_version.yml
+  when: run_patch_execution_higher_version | bool
+  tags:
+    - patch_higher_version
 
 - name: Include Post-Patching Checklist
-  import_tasks: postcheck.yml
+  ansible.builtin.include_tasks: post_patching_checklist.yml
+  when: run_post_patching_checklist | bool
+  tags:
+    - post_patching
