@@ -1,0 +1,14 @@
+---
+# defaults file for HARDENING_rhel_implement
+satellite_registration: false
+satellite_org: ""
+satellite_activation_key: ""
+
+bios_password_set: false
+enforce_boot_order: false
+
+grub_password: ""
+
+aide_enabled: true
+auditd_enabled: true
+rsyslog_enabled: true

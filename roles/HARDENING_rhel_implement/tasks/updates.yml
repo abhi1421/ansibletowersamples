@@ -1,0 +1,16 @@
+- name: Register with Red Hat Satellite
+  command: subscription-manager register --org={{ satellite_org }} --activationkey={{ satellite_activation_key }}
+  when: satellite_registration | bool
+
+- name: Ensure GPG key is installed
+  rpm_key:
+    key: /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+    state: present
+
+- name: Enable gpgcheck
+  ini_file:
+    path: "/etc/yum.repos.d/redhat.repo"
+    section: '*'
+    option: gpgcheck
+    value: '1'
+    no_extra_spaces: yes

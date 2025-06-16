@@ -3,9 +3,6 @@
 - name: Stop application services
   import_tasks: stop_services.yml
 
-- name: Take system snapshot
-  import_tasks: take_snapshot.yml
-
 - name: Register and subscribe system to Satellite
   import_tasks: register_satellite.yml
 

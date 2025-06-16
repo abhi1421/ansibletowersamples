@@ -1,0 +1,16 @@
+- name: Set network login banner
+  copy:
+    dest: /etc/issue
+    content: "Authorized uses only. All activity may be monitored and reported."
+
+- name: Set GUI login banner
+  copy:
+    dest: /etc/dconf/db/gdm.d/01-banner-message
+    content: |
+      [org/gnome/login-screen]
+      banner-message-enable=true
+      banner-message-text='Authorized uses only. All activity may be monitored.'
+  notify: Update dconf
+
+- name: Update dconf
+  command: dconf update

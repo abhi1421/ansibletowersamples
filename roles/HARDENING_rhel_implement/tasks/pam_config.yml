@@ -1,0 +1,21 @@
+- name: Use SHA-512 hashing
+  lineinfile:
+    path: /etc/login.defs
+    regexp: '^ENCRYPT_METHOD'
+    line: 'ENCRYPT_METHOD SHA512'
+
+- name: Set password creation rules
+  blockinfile:
+    path: /etc/security/pwquality.conf
+    block: |
+      minlen = 14
+      dcredit = -1
+      ucredit = -1
+      ocredit = -1
+      lcredit = -1
+
+- name: Restrict root login to console
+  lineinfile:
+    path: /etc/securetty
+    create: yes
+    line: 'console'
