@@ -8,6 +8,8 @@ target_rhel_version: "8.10"
 # These variables control which stages of the upgrade process will run.
 # Set them to 'false' to skip a particular stage.
 # By default, all stages are enabled.
+
+#satellite_fqdn_or_ip: "your.satellite.example.com"
 run_pre_patching_checklist: true
 run_patch_execution_same_version: true
 run_patch_execution_higher_version: true
