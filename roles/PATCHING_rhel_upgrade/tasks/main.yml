@@ -10,6 +10,37 @@
       - "Current Kernel Version: {{ ansible_kernel }}"
       - "Target RHEL Version: {{ target_rhel_version }}"
 
+# --- NEW CRITICAL PRE-CHECK ADDITION START ---
+- name: Critical Pre-check # Verify System Subscription Status and DNF Repository Accessibility
+  ansible.builtin.shell: |
+    set -euo pipefail # Exit immediately if a command exits with a non-zero status or undefined variable is used
+
+    # First, verify subscription status is 'Current'
+    # Use || true to prevent grep from failing the script if 'Overall Status' isn't found
+    SUBSCRIPTION_STATUS=$(subscription-manager status | grep 'Overall Status' | awk '{print $3}' || true)
+    if [[ "$SUBSCRIPTION_STATUS" != "Current" ]]; then
+      echo "ERROR: System subscription status is NOT 'Current'. Please ensure the system is properly registered and subscribed." >&2
+      exit 1
+    fi
+
+    # Then, attempt to list enabled DNF repositories to confirm connectivity to Satellite and repository configuration.
+    # Redirect stdout and stderr to /dev/null to keep output clean, we only care about the exit code.
+    echo "Checking DNF repository list for connectivity..."
+    dnf repolist enabled > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo "ERROR: 'dnf repolist enabled' command failed (exit code $?). This likely indicates an issue with network connectivity to Satellite ({{ satellite_fqdn_or_ip }}) or incorrect repository configuration." >&2
+      echo "Please verify network path, firewall rules, and repository configurations (e.g., in /etc/yum.repos.d/)." >&2
+      exit 1
+    fi
+    echo "System is subscribed and DNF repositories are accessible. Proceeding with upgrade checks."
+  register: satellite_connectivity_check
+  changed_when: false # This task only checks status, doesn't change system state
+  failed_when: satellite_connectivity_check.rc != 0 # Fail the task if the shell script exits with a non-zero code
+  tags:
+    - critical_precheck
+    - satellite_connectivity
+# --- NEW CRITICAL PRE-CHECK ADDITION END ---
+
 - name: Include Pre-Patching Checklist
   ansible.builtin.include_tasks: pre_patching_checklist.yml
   when: run_pre_patching_checklist | bool
