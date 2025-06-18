@@ -10,7 +10,9 @@
       - "Current Kernel Version: {{ ansible_kernel }}"
       - "Target RHEL Version: {{ target_rhel_version }}"
 
+
 # --- NEW CRITICAL PRE-CHECK ADDITION START ---
+
 #- name: Critical Pre-check # Verify System Subscription Status and DNF Repository Accessibility
 #  ansible.builtin.shell: |
 #    set -euo pipefail # Exit immediately if a command exits with a non-zero status or undefined variable is used
