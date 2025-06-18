@@ -27,7 +27,7 @@
 #  args:
 #    timeout: 3600 # 1 hour timeout
 
-- name: Execute dracut for the current kernel
+- name: Execute dracut for the current kernel ({{ ansible_kernel }})
   # The output of 'uname -r' is already available via ansible_kernel fact.
   # Example: dracut -f /boot/initramfs-4.18.0-553.54.1.el8_10.s390x.img 4.18.0-553.54.1.el8_10.s390x
   ansible.builtin.command: "dracut -f /boot/initramfs-{{ ansible_kernel }}.img {{ ansible_kernel }}"
