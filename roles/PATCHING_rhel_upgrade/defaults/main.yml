@@ -3,6 +3,7 @@
 # Target RHEL version for the higher version upgrade.
 # This can be overridden at runtime via extra_vars (e.g., -e "target_rhel_version=8.11")
 target_rhel_version: "8.10"
+manage_cluster_services: true
 
 # --- Stage Execution Control ---
 # These variables control which stages of the upgrade process will run.
