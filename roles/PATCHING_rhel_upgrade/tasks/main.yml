@@ -55,6 +55,7 @@
   register: pcs_stop_output
   changed_when: true # Assume it changes state, as it's an action
   when: manage_cluster_services | bool
+  ignore_errors: true
   tags:
     - cluster_management
 
@@ -63,6 +64,7 @@
   register: pcs_disable_output
   changed_when: true # Assume it changes state
   when: manage_cluster_services | bool
+  ignore_errors: true
   tags:
     - cluster_management
 # --- NEW ADDITION END ---  
@@ -85,6 +87,7 @@
   register: pcs_enable_output
   changed_when: true # Assume it changes state
   when: manage_cluster_services | bool
+  ignore_errors: true
   tags:
     - cluster_management
 
@@ -93,6 +96,7 @@
   register: pcs_start_output
   changed_when: true # Assume it changes state
   when: manage_cluster_services | bool
+  ignore_errors: true
   tags:
     - cluster_management
 # --- NEW ADDITION END ---
