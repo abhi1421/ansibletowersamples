@@ -1,0 +1,8 @@
+---
+- name: Install and Configure Instana Agent
+  hosts: all
+  gather_facts: true
+  gather_timeout: 120
+  become: true # Use sudo for privileged operations
+  roles:
+    - INSTALLATION_instana_agent
