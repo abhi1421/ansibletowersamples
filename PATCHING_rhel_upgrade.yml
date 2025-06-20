@@ -1,5 +1,7 @@
 - name: Invoke the Upgrade role
   hosts: all
+  gather_facts: true # Explicitly ensure default gathering is on (or remove gather_facts: false if present)
+  gather_timeout: 120 # Timeout in seconds for default fact gathering (e.g., 2 minutes)
   become: yes
   roles:
     - PATCHING_rhel_upgrade
