@@ -1,0 +1,6 @@
+192.168.1.100    myhost.example.com
+192.168.1.101    another.example.com
+192.168.1.102    myhost1.example.com
+192.168.1.103    another1.example.com
+192.168.1.104    myhost2.example.com
+192.168.1.105    another2.example.com
