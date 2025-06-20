@@ -49,10 +49,8 @@
   tags:
     - pre_patching
 
-  # --- NEW ADDITION START: Determine if host is a cluster node ---
-# This task checks for the presence of the 'pcs' binary.
-# It helps to ensure 'pcs cluster' commands are only attempted on actual cluster members.
-- name: Determine if /usr/sbin/pcs binary exists (indicates a Pacemaker cluster node)
+# 1. Determine if /usr/sbin/pcs binary exists
+- name: Determine if /usr/sbin/pcs binary exists (indicates Pacemaker packages are installed)
   ansible.builtin.stat:
     path: /usr/sbin/pcs
   register: pcs_binary_status
@@ -60,21 +58,45 @@
   tags:
     - cluster_node_detection
 
-- name: Set fact if host is a cluster node
+- name: Set fact if host has pcs installed
   ansible.builtin.set_fact:
-    is_cluster_node: "{{ pcs_binary_status.stat.exists | default(false) }}" # Set to true if pcs exists, false otherwise
+    has_pcs_installed: "{{ pcs_binary_status.stat.exists | default(false) }}"
   tags:
     - cluster_node_detection
+
+# 2. Check actual pcs cluster status if pcs is installed
+- name: Check pcs cluster status to determine if node is online/active
+  ansible.builtin.command: pcs cluster status
+  register: pcs_online_status_check
+  changed_when: false
+  failed_when: false # IMPORTANT: Do NOT fail this task even if pcs status returns an error (e.g., cluster is offline)
+  when: has_pcs_installed | bool # Only run this command if pcs is actually installed
+  tags:
+    - cluster_status_check
+
+# 3. Set fact based on 'pcs cluster status' output
+- name: Set fact if cluster is currently online on this node
+  ansible.builtin.set_fact:
+    is_cluster_online: "{{
+      (pcs_online_status_check.rc == 0 and 'Cluster Manager status: Online' in pcs_online_status_check.stdout)
+      if has_pcs_installed | bool else false
+      }}"
+  tags:
+    - cluster_status_check
+
 # --- NEW ADDITION END ---
 
-# --- EXISTING Cluster Services Management (Stop/Disable) - NOW CONDITIONAL ON is_cluster_node ---
-# These tasks will be SKIPPED on non-cluster nodes (where is_cluster_node is false).
-# They will FAIL if they run on a cluster node and the command does not succeed.
+# --- EXISTING Cluster Services Management (Stop/Disable) ---
+# These tasks will now be SKIPPED if:
+# - 'manage_cluster_services' is false (global override)
+# - 'has_pcs_installed' is false (pcs not present)
+# - 'is_cluster_online' is false (cluster not active/online on this node)
+# They will FAIL if they run (i.e., cluster is online) and the command does not succeed.
 - name: Execute command to stop cluster services (pcs cluster stop --all)
   ansible.builtin.command: pcs cluster stop --all
   register: pcs_stop_output_main
   changed_when: true
-  when: manage_cluster_services | bool and is_cluster_node | bool # <-- Added is_cluster_node condition
+  when: manage_cluster_services | bool and has_pcs_installed | bool and is_cluster_online | bool # <-- UPDATED CONDITION
   tags:
     - cluster_management_main
 
@@ -82,10 +104,10 @@
   ansible.builtin.command: pcs cluster disable --all
   register: pcs_disable_output_main
   changed_when: true
-  when: manage_cluster_services | bool and is_cluster_node | bool # <-- Added is_cluster_node condition
+  when: manage_cluster_services | bool and has_pcs_installed | bool and is_cluster_online | bool # <-- UPDATED CONDITION
   tags:
     - cluster_management_main
-# --- End Existing Cluster Services Management (Stop/Disable) ---
+# --- End Cluster Services Management (Stop/Disable) ---
 
 - name: Include Patch Execution (Same Version Update)
   ansible.builtin.include_tasks: patch_execution_same_version.yml
@@ -99,12 +121,17 @@
   tags:
     - patch_higher_version
 
-# --- EXISTING Cluster Services Management (Enable/Start) - NOW CONDITIONAL ON is_cluster_node ---
+# --- EXISTING Cluster Services Management (Enable/Start) ---
+# These tasks will run if:
+# - 'manage_cluster_services' is true (global override)
+# - 'has_pcs_installed' is true (pcs is present)
+# They will FAIL if they run and the command does not succeed.
+# We don't check 'is_cluster_online' here, as we want to attempt to bring it online.
 - name: Execute command to enable cluster services (pcs cluster enable --all)
   ansible.builtin.command: pcs cluster enable --all
   register: pcs_enable_output_main
   changed_when: true
-  when: manage_cluster_services | bool and is_cluster_node | bool # <-- Added is_cluster_node condition
+  when: manage_cluster_services | bool and has_pcs_installed | bool # <-- UPDATED CONDITION (removed is_cluster_online)
   tags:
     - cluster_management_main
 
@@ -112,7 +139,7 @@
   ansible.builtin.command: pcs cluster start --all
   register: pcs_start_output_main
   changed_when: true
-  when: manage_cluster_services | bool and is_cluster_node | bool # <-- Added is_cluster_node condition
+  when: manage_cluster_services | bool and has_pcs_installed | bool # <-- UPDATED CONDITION (removed is_cluster_online)
   tags:
     - cluster_management_main
 # --- End Existing Cluster Services Management (Enable/Start) ---
