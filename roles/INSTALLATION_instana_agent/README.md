@@ -1,38 +1,54 @@
-Role Name
-=========
-
-A brief description of the role goes here.
+Ansible Role: INSTALLATION_Instana_Agent
+This role automates the installation and management of the Instana agent on target nodes.
 
 Requirements
-------------
+Ansible 2.9 or higher.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+Target nodes must be running a supported RPM-based Linux distribution (e.g., RHEL, CentOS, Fedora) or AIX.
+
+Python and libselinux-python (if SELinux is enforced) on target nodes.
+
+Privileges (sudo) to install packages, modify /etc/hosts, and manage system services.
 
 Role Variables
---------------
+instana_rpm_base_name (default: "instana-agent-static-j9-20250618-0909"): The base filename of the Instana RPMs. The role appends .<architecture>.rpm.
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+instana_service_name (default: "instana-agent"): The name of the Instana agent systemd service.
 
-Dependencies
-------------
+instana_target_dir (default: "/home/ansible"): The directory on the target node where RPMs will be copied.
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+instana_env_vars_script (default: "/etc/profile.d/instana.sh"): The path to the script where Instana environment variables will be set.
 
-Example Playbook
-----------------
+Files
+Ensure the following files are present in the files/ directory of this role:
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+instana-agent-static-j9-20250618-0909.aix.rpm: Instana agent RPM for AIX.
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+instana-agent-static-j9-20250618-0909.s390x.rpm: Instana agent RPM for s390x.
 
-License
--------
+instana-agent-static-j9-20250618-0909.x86_64.rpm: Instana agent RPM for x86_64.
 
-BSD
+instana_host_entries.txt: A plain text file with one host entry per line (e.g., 192.168.1.100 myhost.instana.com).
 
-Author Information
-------------------
+instana_env_vars.txt: A plain text file with one environment variable export per line (e.g., export INSTANA_AGENT_KEY="your_key").
 
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+Usage
+To use this role, execute the playbook like install_instana.yml:
+
+---
+- name: Install and Configure Instana Agent
+  hosts: your_target_group
+  become: true # Use sudo for privileged operations
+  roles:
+    - INSTALLATION_Instana_Agent
+
+Then run the playbook:
+
+ansible-playbook -i your_inventory_file install_instana.yml
+
+Idempotency for Host Entries
+The role uses the ansible.builtin.lineinfile module with state: present to manage /etc/hosts and the environment variable script. This module is inherently idempotent:
+
+If a line from instana_host_entries.txt or instana_env_vars.txt already exists exactly in the target file (/etc/hosts or instana.sh), Ansible will detect no change and will not re-add it.
+
+If a new entry is added to instana_host_entries.txt or instana_env_vars.txt and then the role is re-executed, only the new line(s) will be added to the target file.
