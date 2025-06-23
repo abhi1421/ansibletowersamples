@@ -2,7 +2,7 @@
 # tasks file for INSTALLATION_Instana_Agent
 
 - name: Get Instana agent service facts
-  ansible.builtin.service_facts:
+  ansible.builtin.systemd_service_facts:
   # This module gets information about all services,
   # which we'll use to check if 'instana-agent' exists.
 
@@ -46,7 +46,8 @@
 
 - name: Determine Instana RPM file based on OS architecture
   ansible.builtin.set_fact:
-    instana_rpm_file: "{{ lookup('ansible.builtin.fileglob', '{{ instana_rpm_base_name }}.' + ansible_architecture + '.rpm') | first | ansible.builtin.basename }}"
+    # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
+    instana_rpm_file: "{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | ansible.builtin.basename }}"
   # Dynamically determine the exact RPM filename from the 'files' directory
   # based on the target host's architecture (s390x, aix, x86_64).
   # 'first' handles cases where glob might return a list.

@@ -3,7 +3,7 @@
 
 # Define the common base name for Instana RPMs.
 # The role will append the architecture to this.
-instana_rpm_base_name: "instana-agent-static-j9-20250618-0909"
+#instana_rpm_base_name: "instana-agent-static-j9-20250618-0909"
 
 # Define the Instana agent service name.
 # This might vary based on your Instana installation.
