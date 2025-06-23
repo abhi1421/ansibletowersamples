@@ -1,6 +1,14 @@
 ---
 # tasks file for INSTALLATION_Instana_Agent
 
+- name: Ensure facts are gathered for architecture detection
+  ansible.builtin.setup:
+  # This task explicitly gathers all facts from the target host,
+  # including 'ansible_architecture', ensuring it's available for
+  # subsequent tasks. This is crucial if 'gather_facts: no' is
+  # set at the playbook level, or for robustness.
+
+
 - name: Get Instana agent service facts
   ansible.builtin.service_facts:
   # This module gets information about all services,
