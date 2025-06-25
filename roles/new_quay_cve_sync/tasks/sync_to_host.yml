@@ -1,0 +1,115 @@
+---
+# tasks/sync_to_host.yml
+# This file is included from main.yml for each upload host in the loop.
+
+- name: Task 8.1: Ensure upload directory exists on {{ current_upload_host }}
+  ansible.builtin.file:
+    path: "{{ quay_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: ansible
+
+- name: Task 8.2: Copy CVE files from controller to {{ current_upload_host }}
+  ansible.builtin.copy:
+    src: "{{ controller_tmp_dir }}/{{ item }}"
+    dest: "{{ quay_cve_upload_dir }}/{{ item }}"
+    mode: '0644'
+    owner: ansible
+    group: ansible
+  loop:
+    - repository-to-cpe.json
+    - container-name-repos-map.json
+    - updates.gz
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: ansible
+
+- name: Task 8.3: Create the UBI pod manifest on {{ current_upload_host }}
+  ansible.builtin.copy:
+    content: "{{ ubi_pod_yaml_content }}"
+    dest: "{{ quay_cve_upload_dir }}/ubi-minimal.yaml"
+    mode: '0644'
+    owner: '{{ upload_user }}'
+    group: '{{ upload_user }}'
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+
+- name: Task 8.4: Apply the UBI pod manifest on {{ current_upload_host }}
+  ansible.builtin.command:
+    cmd: "oc apply -f {{ quay_cve_upload_dir }}/ubi-minimal.yaml"
+    chdir: "{{ quay_cve_upload_dir }}"
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+  register: ubi_pod_apply_result
+  changed_when: "'created' in ubi_pod_apply_result.stdout or 'configured' in ubi_pod_apply_result.stdout"
+
+- name: Task 8.5: Wait for the UBI pod to be in a running state on {{ current_upload_host }}
+  ansible.builtin.command: "oc get pod ubi-minimal -n image-registry -o jsonpath='{.status.phase}'"
+  register: pod_status
+  until: pod_status.stdout == "Running"
+  retries: 30 # Retry for 5 minutes (10 seconds * 30 retries)
+  delay: 10
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+
+- name: Task 8.6: Copy files to the UBI pod's /data directory
+  ansible.builtin.command:
+    cmd: "oc cp {{ quay_cve_upload_dir }}/{{ item }} ubi-minimal:/data/{{ item }} -n image-registry"
+  loop:
+    - repository-to-cpe.json
+    - container-name-repos-map.json
+    - updates.gz
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+
+- name: Task 8.7: Port forward Clair DB and hold it in the background
+  ansible.builtin.command:
+    cmd: "oc port-forward svc/clair-postgres 5432:5432 -n image-registry"
+  async: 600 # Run in the background for 10 minutes
+  poll: 0 # Do not wait for the command to finish
+  register: port_forward_task
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+
+- name: Task 8.8: Wait for the port-forward to be established
+  ansible.builtin.wait_for:
+    port: 5432
+    host: 127.0.0.1
+    timeout: 30 # Wait for 30 seconds for the port to be open
+  delegate_to: "{{ current_upload_host }}"
+  become: no # This waits on the delegate_to host, not the controller
+
+- name: Task 8.9: Import CVE updates to Clair DB using clairctl
+  ansible.builtin.command:
+    cmd: "clairctl --config /data/clair-cve-data/clair-config.yaml import-updaters /data/updates.gz"
+  environment:
+    # Set the config file path for the clairctl command
+    CLAIR_CONFIG: "/data/clair-cve-data/clair-config.yaml"
+  # This command needs to run where the port-forward is active, so we use a different approach.
+  # We will execute it on the upload host.
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+
+- name: Task 8.10: Clean up the UBI minimal pod
+  ansible.builtin.command: "oc delete pod ubi-minimal -n image-registry"
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+  ignore_errors: yes # Ignore errors if the pod doesn't exist
+
+- name: Task 8.11: Kill the background port-forward process
+  ansible.builtin.shell: "kill $(ps aux | grep 'oc port-forward' | grep '5432:5432' | awk '{print $2}')"
+  delegate_to: "{{ current_upload_host }}"
+  become: yes
+  become_user: "{{ upload_user }}"
+  ignore_errors: yes # Ignore if the process is not found
