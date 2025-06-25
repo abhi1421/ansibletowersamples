@@ -95,7 +95,6 @@
   loop:
     - repository-to-cpe.json
     - container-name-repos-map.json
-    - updates.gz
   delegate_to: "{{ upload_hosts | first }}"
   become: true
   become_user: core

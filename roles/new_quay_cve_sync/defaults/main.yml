@@ -1,0 +1,40 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for new_quay_cve_sync
+
+# Download host details
+download_host: "dmz-bastion"
+quay_cve_download_dir: "/home/ansible/clair-cve-data/clair-mapping-files"
+clair_config_file_path: "{{ quay_cve_download_dir }}/clair-config.yaml"
+
+# Upload host details
+upload_hosts:
+  - "mz-bastion-1"
+  - "dmz-bastion-2" # Assuming a second upload host for the DMZ Quay
+quay_cve_upload_dir: "/home/ansible/quay/clair-cve-data"
+
+# UBI pod details
+ubi_pod_yaml_content: |
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: ubi-minimal
+    namespace: image-registry
+  spec:
+    containers:
+    - name: ubi-minimal
+      command: ["/bin/bash", "-c", "sleep 86400"]
+      image: dmz-quay.ek3np.rbi1.rbi.org.in:8443/ubi9/ubi:latest
+      volumeMounts:
+      - name: clair-cpe-mount
+        mountPath: /data
+    volumes:
+    - name: clair-cpe-mount
+      persistentVolumeClaim:
+        claimName: clair-cpe-latest
+
+# Temporary directory on the Ansible controller for fetching files
+controller_tmp_dir: "/tmp/quay_cve_sync"
+
+# User to use for execution on the upload hosts
+upload_user: "core"

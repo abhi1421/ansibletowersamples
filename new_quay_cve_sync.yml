@@ -1,0 +1,6 @@
+---
+- name: Sync Quay CVE data
+  hosts: all
+  gather_facts: true
+  roles:
+    - new_quay_cve_sync

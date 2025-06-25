@@ -1,0 +1,116 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for quay_cve_sync
+
+# ==================================================================================================
+#                                        Download Phase
+# ==================================================================================================
+
+- name: Task 1: Ensure download directory exists on the download host
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+  delegate_to: "{{ download_host }}"
+  run_once: true # Ensure this runs only once, on the specified download_host
+  become: yes
+  become_user: ansible
+
+- name: Task 2: Download repository-to-cpe.json
+  ansible.builtin.get_url:
+    url: "https://www.redhat.com/security/data/metrics/repository-to-cpe.json"
+    dest: "{{ quay_cve_download_dir }}/repository-to-cpe.json"
+    mode: '0644'
+  delegate_to: "{{ download_host }}"
+  run_once: true
+  become: yes
+  become_user: ansible
+
+- name: Task 3: Download container-name-repos-map.json
+  ansible.builtin.get_url:
+    url: "https://www.redhat.com/security/data/metrics/container-name-repos-map.json"
+    dest: "{{ quay_cve_download_dir }}/container-name-repos-map.json"
+    mode: '0644'
+  delegate_to: "{{ download_host }}"
+  run_once: true
+  become: yes
+  become_user: ansible
+
+- name: Task 4: Create clair-config.yaml on the download host
+  ansible.builtin.copy:
+    content: |
+      indexer:
+        connstring: host=localhost port=5432 dbname=postgres user=postgres password=postgres sslmode=disable
+        scanlock_retry: 10
+        layer_scan_concurrency: 5
+        migrations: true
+        scanner:
+          repo:
+            rhel-repository-scanner:
+              repo2cpe_mapping_file: {{ quay_cve_download_dir }}/repository-to-cpe.json
+          package:
+            rhel_containerscanner:
+              name2repos_mapping_file: {{ quay_cve_download_dir }}/container-name-repos-map.json
+    dest: "{{ clair_config_file_path }}"
+    mode: '0644'
+  delegate_to: "{{ download_host }}"
+  run_once: true
+  become: yes
+  become_user: ansible
+
+- name: Task 5: Generate updates.gz using clairctl
+  ansible.builtin.command:
+    cmd: "clairctl --config {{ clair_config_file_path }} export-updaters {{ quay_cve_download_dir }}/updates.gz"
+    chdir: "{{ quay_cve_download_dir }}"
+  delegate_to: "{{ download_host }}"
+  run_once: true
+  become: yes
+  become_user: ansible
+  args:
+    creates: "{{ quay_cve_download_dir }}/updates.gz" # Only run if the file doesn't exist
+
+- name: Task 6: Ensure temporary staging directory exists on the controller
+  ansible.builtin.file:
+    path: "{{ controller_tmp_dir }}"
+    state: directory
+    mode: '0700'
+  run_once: true
+  delegate_to: localhost
+
+- name: Task 7: Fetch CVE files from the download host to the controller
+  ansible.builtin.fetch:
+    src: "{{ quay_cve_download_dir }}/{{ item }}"
+    dest: "{{ controller_tmp_dir }}/"
+    flat: true # Keep the file name
+  loop:
+    - repository-to-cpe.json
+    - container-name-repos-map.json
+    - updates.gz
+  delegate_to: "{{ download_host }}"
+  run_once: true
+  become: yes
+  become_user: ansible
+
+# ==================================================================================================
+#                                          Upload Phase
+# ==================================================================================================
+
+- name: Task 8: Synchronize CVE data to each upload host
+  ansible.builtin.include_tasks: sync_to_host.yml
+  loop: "{{ upload_hosts }}"
+  loop_control:
+    loop_var: current_upload_host
+    label: "Uploading to {{ current_upload_host }}"
+
+# ==================================================================================================
+#                                           Cleanup Phase
+# ==================================================================================================
+
+- name: Task 9: Clean up the temporary staging directory on the controller
+  ansible.builtin.file:
+    path: "{{ controller_tmp_dir }}"
+    state: absent
+  run_once: true
+  delegate_to: localhost
