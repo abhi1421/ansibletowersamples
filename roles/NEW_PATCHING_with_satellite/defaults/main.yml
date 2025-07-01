@@ -13,6 +13,7 @@ satellite_activation_key: "your_activation_key"
 apply_security_patches: true
 apply_bugfix_patches: true
 apply_kernel_patches: true
+apply_enhancement_patches: true
 
 # Control whether to reboot after patching
 reboot_after_patching: true
