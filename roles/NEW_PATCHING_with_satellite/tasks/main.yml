@@ -53,6 +53,13 @@
     - kernel_patches
   when: apply_kernel_patches | bool # Existing variable
 
+- name: Include task to apply enhancement patches
+  ansible.builtin.import_tasks: apply_enhancement.yml # NEW: Import enhancement task
+  tags:
+    - patching
+    - enhancement_patches
+  when: apply_enhancement_patches | bool # NEW: Conditional execution
+
 - name: Include task to reboot the system if required
   ansible.builtin.import_tasks: reboot_system.yml
   tags:
