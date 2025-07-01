@@ -1,0 +1,12 @@
+# tasks/register_system.yml
+# Task to register the system to Satellite if not already registered
+
+- name: Register system to Satellite if not registered
+  ansible.builtin.command: >
+    subscription-manager register
+    --org="{{ satellite_activation_key | regex_replace('_.*$', '') }}" # Assumes org name is part of key or known
+    --activationkey="{{ satellite_activation_key }}"
+    --force
+  when: subscription_status_check.stdout != "Current"
+  tags:
+    - registration
