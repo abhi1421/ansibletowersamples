@@ -14,8 +14,6 @@
 - name: Apply Enhancement Patches (RHEA) using DNF
   ansible.builtin.shell: >
     dnf upgrade-minimal --enhancement -y
-  args:
-    warn: false # Suppress warning about using shell module
   when:
     - ansible_facts['distribution_major_version'] | int >= 8
     - ansible_facts['os_family'] == "RedHat"
