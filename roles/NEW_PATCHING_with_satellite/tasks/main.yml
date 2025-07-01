@@ -1,0 +1,73 @@
+# tasks/main.yml
+# Main tasks for the satellite_patching role - orchestrates sub-tasks
+
+- name: Include DNF/YUM plugin installation task
+  ansible.builtin.import_tasks: ensure_dnf_yum_plugin.yml
+  tags:
+    - setup_plugins
+  when: enable_plugin_installation | bool
+
+- name: Include task to stop services
+  ansible.builtin.import_tasks: stop_services.yml
+  tags:
+    - stop_services
+  when: enable_service_management | bool
+
+- name: Include task to check Satellite registration
+  ansible.builtin.import_tasks: check_registration.yml
+  tags:
+    - registration_check
+  when: enable_satellite_registration | bool
+
+- name: Include task to register system to Satellite if needed
+  ansible.builtin.import_tasks: register_system.yml
+  tags:
+    - registration
+  when: enable_satellite_registration | bool
+
+- name: Include task to fetch pre-patching errata
+  ansible.builtin.import_tasks: fetch_pre_errata.yml
+  tags:
+    - errata_info
+    - pre_patch_info
+  when: enable_errata_reporting | bool
+
+- name: Include task to apply security patches
+  ansible.builtin.import_tasks: apply_security.yml
+  tags:
+    - patching
+    - security_patches
+  when: apply_security_patches | bool # Existing variable
+
+- name: Include task to apply bugfix patches
+  ansible.builtin.import_tasks: apply_bugfix.yml
+  tags:
+    - patching
+    - bugfix_patches
+  when: apply_bugfix_patches | bool # Existing variable
+
+- name: Include task to apply kernel patches
+  ansible.builtin.import_tasks: apply_kernel.yml
+  tags:
+    - patching
+    - kernel_patches
+  when: apply_kernel_patches | bool # Existing variable
+
+- name: Include task to reboot the system if required
+  ansible.builtin.import_tasks: reboot_system.yml
+  tags:
+    - reboot
+  when: reboot_after_patching | bool # Existing variable
+
+- name: Include task to fetch post-patching errata
+  ansible.builtin.import_tasks: fetch_post_errata.yml
+  tags:
+    - errata_info
+    - post_patch_info
+  when: enable_errata_reporting | bool
+
+- name: Include task to start services
+  ansible.builtin.import_tasks: start_services.yml
+  tags:
+    - start_services
+  when: enable_service_management | bool
