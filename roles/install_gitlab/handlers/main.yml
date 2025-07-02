@@ -1,5 +1,3 @@
-
-# handlers file for install_gitlab
 ---
 - name: Get initial root password
   ansible.builtin.command: cat /etc/gitlab/initial_root_password
