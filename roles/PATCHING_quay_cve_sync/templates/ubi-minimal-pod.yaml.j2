@@ -1,0 +1,20 @@
+# quay_cve_sync_refined/templates/ubi-minimal-pod.yaml.j2
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }} # Unique name per host
+  namespace: {{ quay_namespace }}
+spec:
+  containers:
+  - name: ubi-minimal
+    command: ["/bin/bash", "-c", "sleep 86400"] # Keep pod running
+    image: {{ ubi_minimal_image }}
+    volumeMounts:
+    - name: clair-cpe-mount
+      mountPath: /data
+  volumes:
+  - name: clair-cpe-mount
+    persistentVolumeClaim:
+      claimName: {{ clair_pvc_claim_name }}
+  # Ensure the pod is scheduled on a node that can access the PVC
+  # You might need node selectors or affinity rules here depending on your cluster setup

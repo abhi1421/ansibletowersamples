@@ -1,0 +1,119 @@
+---
+# quay_cve_sync_refined/tasks/upload_phase.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true
+
+- name: Ensure the Quay CVE upload directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Copy Quay CVE files from Ansible control node to upload host
+  ansible.builtin.copy:
+    src: "{{ controller_temp_dir }}/{{ item.filename }}"
+    dest: "{{ quay_cve_upload_dir }}/{{ item.filename }}"
+    mode: '0644'
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+
+- name: Create ubi-minimal pod definition file on upload host
+  ansible.builtin.template:
+    src: ubi-minimal-pod.yaml.j2
+    dest: "{{ quay_cve_upload_dir }}/ubi-minimal-pod-{{ ansible_hostname | lower | replace('-', '') }}.yaml"
+    mode: '0644'
+    owner: core
+    group: core
+
+- name: Apply ubi-minimal pod on upload host
+  ansible.builtin.command: "oc apply -f {{ quay_cve_upload_dir }}/ubi-minimal-pod-{{ ansible_hostname | lower | replace('-', '') }}.yaml -n {{ quay_namespace }}"
+  register: oc_apply_pod_result
+  changed_when: "'created' in oc_apply_pod_result.stdout or 'configured' in oc_apply_pod_result.stdout"
+  failed_when: oc_apply_pod_result.rc != 0
+
+- name: Wait for ubi-minimal pod to be running
+  ansible.builtin.shell: >
+    oc get pod ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }} -n {{ quay_namespace }} -o jsonpath='{.status.phase}'
+  register: pod_status
+  until: pod_status.stdout == "Running"
+  retries: 30 # Retry for 5 minutes (30 * 10 seconds)
+  delay: 10 # Check every 10 seconds
+  changed_when: false # This task doesn't change anything
+
+- name: Copy JSON and GZ files into ubi-minimal pod's /data path
+  ansible.builtin.command: >
+    oc cp {{ quay_cve_upload_dir }}/{{ item.filename }}
+    ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }}:/data/{{ item.filename }}
+    -n {{ quay_namespace }}
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+  register: oc_cp_result
+  changed_when: oc_cp_result.rc == 0
+  failed_when: oc_cp_result.rc != 0
+
+- name: Start Clair DB port-forward in background
+  # This command needs to run on the upload host and persist for the import step.
+  # The 'async' and 'poll: 0' make it run in the background.
+  # We capture the PID to kill it later.
+  ansible.builtin.shell: >
+    oc port-forward svc/{{ clair_postgres_service }} 5432:5432 -n {{ quay_namespace }} > /dev/null 2>&1 & echo $!
+  args:
+    chdir: "{{ quay_cve_upload_dir }}" # Run from a known directory
+  register: port_forward_pid
+  changed_when: false # This task doesn't change system state in a persistent way
+  # Add a short pause to allow port-forward to establish
+- name: Pause to allow port-forward to establish
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Import CVE updates to Clair DB using clairctl (local connection via port-forward)
+  # This clairctl command will connect to localhost:5432 due to the port-forward.
+  ansible.builtin.command: >
+    clairctl --config {{ clair_config_file_path | replace(quay_cve_download_dir, '/data') }} import-updaters /data/{{ updates_gz_filename }}
+  args:
+    chdir: /data # Run from within the mounted PVC path for clairctl to find files
+  register: clairctl_import_result
+  changed_when: "'Successfully imported' in clairctl_import_result.stdout"
+  failed_when: clairctl_import_result.rc != 0 or
+               "'Successfully imported' not in clairctl_import_result.stdout"
+  # IMPORTANT: The clair-config.yaml on the download host has paths like /data/clair-cve-data/clair-mapping-files.
+  # When running clairctl *inside* the pod (or on the host accessing the PVC), the paths
+  # need to reflect the mount point, which is /data.
+  # The `replace` filter is used here to adjust the config path for the `import-updaters` command.
+  # This assumes the config file is also copied to /data in the temp pod, or that clairctl can be run
+  # from the host and access the PVC directly. Given the `oc cp` to `/data`, it implies the files
+  # are accessible via `/data` in the context where `clairctl import-updaters` is run.
+  # If `clairctl` is run on the host, it needs to access the files via the PVC mount point,
+  # which usually means the `quay_cve_upload_dir` path.
+  # Let's clarify: `clairctl import-updaters` needs to be run on the upload host, and it needs
+  # to find `updates.gz` and `clair-config.yaml`. The `oc cp` copies to `/data` *in the pod*.
+  # If `clairctl` is run on the *host*, it needs to access the files at `quay_cve_upload_dir`.
+  # The user's script for import was `$ clairctl --config clair-config.yaml import-updaters updates.gz`
+  # implying it's run from the directory containing these files.
+  # Let's assume `clairctl` runs on the host and accesses `quay_cve_upload_dir`.
+  # The port-forward is on the host. So the config path should be the host path.
+
+- name: Kill Clair DB port-forward process
+  ansible.builtin.command: "kill {{ port_forward_pid.stdout }}"
+  when: port_forward_pid.stdout is defined and port_forward_pid.stdout | length > 0
+  changed_when: false # This task doesn't change system state in a persistent way
+  failed_when: false # Don't fail if kill command fails (e.g., process already gone)
+
+- name: Delete ubi-minimal pod
+  ansible.builtin.command: "oc delete pod ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }} -n {{ quay_namespace }}"
+  register: oc_delete_pod_result
+  changed_when: "'deleted' in oc_delete_pod_result.stdout"
+  failed_when: oc_delete_pod_result.rc != 0 and "not found" not in oc_delete_pod_result.stderr
