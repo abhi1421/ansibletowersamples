@@ -1,3 +1,10 @@
-#SPDX-License-Identifier: MIT-0
----
+
 # handlers file for install_gitlab
+---
+- name: Get initial root password
+  ansible.builtin.command: cat /etc/gitlab/initial_root_password
+  register: gitlab_root_pass
+
+- name: Show GitLab root password
+  ansible.builtin.debug:
+    var: gitlab_root_pass.stdout

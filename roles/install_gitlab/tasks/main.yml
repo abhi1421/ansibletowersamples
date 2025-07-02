@@ -2,22 +2,80 @@
 ---
 # tasks file for install_gitlab
 
-- name: set vars for community edition
-  ansible.builtin.include_tasks:
-    file: set-ce-edition.yml
-  when:
-    - gitlab_edition == 'community'
+#- name: set vars for community edition
+#  ansible.builtin.include_tasks:
+#    file: set-ce-edition.yml
+#  when:
+#    - gitlab_edition == 'community'
 #- name: set vars for enterprise edition
 #  ansible.builtin.include_tasks:
 #    file: set-ee-edition.yml
 #  when:
 #    - gitlab_edition == 'enterprise'
 
-- name: import pre-tasks
-  ansible.builtin.import_tasks: install-prerequisites.yml
+#- name: import pre-tasks
+#  ansible.builtin.import_tasks: install-prerequisites.yml
 
-- name: setup gitlab repo
-  ansible.builtin.import_tasks: setup-gitlab-repo.yml
+#- name: setup gitlab repo
+#  ansible.builtin.import_tasks: setup-gitlab-repo.yml
 
-- name: install gitlab
-  ansible.builtin.import_tasks: install-gitlab.yml
+#- name: install gitlab
+#  ansible.builtin.import_tasks: install-gitlab.yml
+
+---
+- name: Ensure system is up-to-date
+  ansible.builtin.yum:
+    name: "*"
+    state: latest
+
+- name: Install required packages
+  ansible.builtin.yum:
+    name: "{{ gitlab_packages }}"
+    state: present
+
+- name: Enable and start SSH service
+  ansible.builtin.service:
+    name: sshd
+    state: started
+    enabled: true
+
+- name: Enable and start Postfix
+  ansible.builtin.service:
+    name: postfix
+    state: started
+    enabled: true
+
+- name: Open firewall ports (HTTP, HTTPS, SSH)
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - http
+    - https
+    - ssh
+
+- name: Add GitLab CE repository
+  ansible.builtin.template:
+    src: gitlab.repo.j2
+    dest: /etc/yum.repos.d/gitlab.repo
+    mode: '0644'
+
+- name: Install GitLab CE
+  ansible.builtin.yum:
+    name: "gitlab-ce{{ '-' + gitlab_version if gitlab_version else '' }}"
+    state: present
+
+- name: Configure GitLab external URL
+  ansible.builtin.lineinfile:
+    path: /etc/gitlab/gitlab.rb
+    regexp: '^external_url'
+    line: "external_url '{{ gitlab_external_url }}'"
+    state: present
+
+- name: Reconfigure GitLab
+  ansible.builtin.command: gitlab-ctl reconfigure
+  args:
+    creates: /etc/gitlab/initial_root_password
+  notify: Get initial root password

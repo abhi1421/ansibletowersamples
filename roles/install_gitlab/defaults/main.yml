@@ -3,3 +3,5 @@
 # defaults file for install_gitlab
 
 gitlab_edition: 'community'
+gitlab_external_url: "https://gitlab.example.com"
+gitlab_version: ""

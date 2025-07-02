@@ -1,3 +1,11 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # vars file for install_gitlab
+---
+gitlab_packages:
+  - curl
+  - policycoreutils
+  - openssh-server
+  - openssh-clients
+  - perl
+  - postfix
