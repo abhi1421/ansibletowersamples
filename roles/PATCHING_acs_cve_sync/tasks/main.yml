@@ -1,0 +1,145 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for PATCHING_acs_cve_sync
+# --- Play 1: Download CVE Bundle on the Download Host (No Sudo) ---
+# This play targets the 'download_host' (172.23.161.20) to securely
+# download the CVE update bundle from the internet.
+# All tasks in this play will run as the 'ansible' user WITHOUT sudo.
+
+- name: Play 1 - Download CVE Bundle and Prepare for Transfer (No Sudo)
+  hosts: localhost # Explicitly target the download host group/alias
+  tasks:
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once for the entire play
+
+    - name: Ensure the destination directory exists on the download node (as ansible user)
+      # This task will create the directory if it doesn't exist.
+      # It assumes that '/home/ansible' (or the parent of acs_cve_download_dir)
+      # is writable by the 'ansible' user.
+      ansible.builtin.file:
+        path: "{{ acs_cve_download_dir }}" # Path from defaults/main.yml
+        state: directory # Ensures the directory exists
+        mode: '0755' # Standard permissions for directories
+        owner: ansible # Set ownership to the 'ansible' user (should already be if in home dir)
+        group: ansible # Set group ownership to the 'ansible' group (should already be)
+      # This task ensures the target directory is ready before download.
+
+    - name: DIAGNOSTIC Test DNS resolution from download host (as ansible user)
+      # This task is for troubleshooting. It attempts to resolve the StackRox domain
+      # from the 'ansible' user's context on the download host.
+      # If this fails, it indicates a fundamental network or DNS configuration issue
+      # for the 'ansible' user on 172.23.161.20.
+      ansible.builtin.command: "nslookup {{ rox_central_address.split(':')[0] }}" # Extract hostname from URL
+      register: nslookup_result
+      changed_when: false # This task does not change system state
+      failed_when: nslookup_result.rc != 0 # Mark as failed if nslookup command returns non-zero exit code
+      # Debug output can be viewed with '-v' or by adding a debug task:
+      # - name: Debug nslookup result
+      #   ansible.builtin.debug:
+      #     var: nslookup_result.stdout_lines
+      #   when: nslookup_result.rc != 0
+
+    - name: Download the latest StackRox CVE update bundle using wget (as ansible user)
+      # This task directly invokes 'wget' as a command, leveraging the known working
+      # manual process. It runs as the 'ansible' user.
+      # IMPORTANT: 'wget' must be in the 'ansible' user's PATH, and the destination
+      # directory (acs_cve_download_dir) must be writable by the 'ansible' user.
+      ansible.builtin.command: >
+        wget -O {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+        https://install.stackrox.io/scanner/scanner-vuln-updates.zip
+      args:
+        # 'creates' ensures idempotency: the command will only run if the target file
+        # does not already exist. This prevents re-downloading if the file is already there.
+        creates: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+      register: wget_download_result
+      # Mark task as 'changed' if wget successfully runs (rc == 0)
+      changed_when: wget_download_result.rc == 0
+      # Mark task as 'failed' if wget returns a non-zero exit code AND the error
+      # message doesn't indicate the file already exists (which is handled by 'creates').
+      failed_when: wget_download_result.rc != 0 and "already exists" not in wget_download_result.stderr
+      # Note: Ensure 'wget' is installed on the download_host and accessible by 'ansible' user.
+
+    - name: Fetch CVE zip from download host to Ansible control node
+      # This task securely pulls the downloaded CVE bundle from the download host
+      # to a temporary location on the Ansible control node. This is the critical
+      # step for bridging the air-gapped environments.
+      ansible.builtin.fetch:
+        src: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+        dest: "/tmp/acs-cve-files/" # Temporary directory on the Ansible control node
+        flat: true # Ensures the file is copied directly into 'dest' without host-specific subdirectories
+      become: false # 'fetch' operates as the user running the playbook on the control node, no sudo needed.
+      # This task will create a directory structure like /tmp/acs-cve-files/hostname/path/to/file
+      # if 'flat: false' is used. 'flat: true' simplifies the path to /tmp/acs-cve-files/filename.zip.
+
+
+# --- Play 2 -  Upload CVE Bundle to the Upload Host (Core User) ---
+# This play targets the 'upload_host' (172.23.162.4) to copy the CVE bundle
+# from the Ansible control node and then upload it to the ACS cluster.
+# All tasks in this play will be performed by the 'core' user, with sudo if required.
+
+- name: Play 2 -  Copy CVE Bundle to Upload Host and Perform Upload
+  hosts: localhost # Explicitly target the upload host group/alias
+  gather_facts: false # Optimize: No need to gather facts for this specific workflow
+  become: true # Enable privilege escalation for tasks within this play
+  become_user: core # Execute tasks as the 'core' user on the upload host, as per your requirement
+
+  tasks:
+    - name: Set today's date for consistent file naming (re-set for this play's scope)
+      # Re-setting the fact ensures it's available within this play's scope,
+      # even if plays are run independently or in different contexts.
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once for the entire play
+
+    - name: Ensure the upload destination directory exists on the upload node (as core user)
+      ansible.builtin.file:
+        path: "{{ acs_cve_upload_dir }}" # Path from defaults/main.yml
+        state: directory
+        mode: '0755'
+        owner: core # Set ownership to the 'core' user
+        group: core # Set group ownership to the 'core' group
+
+    - name: Copy CVE zip from Ansible control node to upload host (as core user)
+      # This task pushes the CVE bundle from the Ansible control node's temporary
+      # location to the designated upload directory on the upload host.
+      ansible.builtin.copy:
+        src: "/tmp/acs-cve-files/{{ cve_bundle_base_name }}-{{ today_date }}.zip" # Source on control node
+        dest: "{{ acs_cve_upload_dir }}/" # Destination on upload host
+        mode: '0644' # Standard permissions for files
+      # This completes the file transfer across the air-gap.
+
+    - name: Upload CVE file to ACS Cluster using roxctl (as core user)
+      # This task executes the 'roxctl' command on the upload host to push the
+      # CVE database update to the StackRox Central instance.
+      ansible.builtin.command: >
+        roxctl scanner upload-db
+        -e {{ rox_central_address }} # Central address from defaults
+        --token-file {{ acs_rox_api_token_file }} # API token file path from defaults
+        --scanner-db-file {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+      register: roxctl_upload_result # Register the command output for checks
+      # Mark task as 'changed' if the output indicates successful upload.
+      changed_when: "'Successfully uploaded' in roxctl_upload_result.stdout"
+      # Mark task as 'failed' if command returns non-zero exit code OR
+      # if the success message is not found in the output.
+      failed_when: roxctl_upload_result.rc != 0 or
+                   "'Successfully uploaded' not in roxctl_upload_result.stdout"
+      # Debug output can be viewed with '-v' or by adding a debug task:
+      # - name: Debug roxctl upload result
+      #   ansible.builtin.debug:
+      #     var: roxctl_upload_result.stdout_lines
+      #   when: roxctl_upload_result.rc != 0
+
+    - name: Cleanup CVE ZIP from Ansible control node
+      # This task removes the temporary CVE bundle from the Ansible control node
+      # after the entire process (download, fetch, copy, upload) is complete.
+      # This is crucial for maintaining disk space and security on the control node.
+      ansible.builtin.file:
+        path: "/tmp/acs-cve-files/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+        state: absent # Ensures the file is removed
+      delegate_to: localhost # Explicitly run this task on the Ansible control node itself
+      run_once: true # Ensures this cleanup task runs only once, even if multiple hosts were targeted in the playbook.
+      # This task should ideally be placed in a handler or a separate cleanup playbook
+      # for more robust error handling (e.g., only clean up on success), but for
+      # simplicity in a single role, placing it here as the last task is common.
