@@ -2,7 +2,7 @@
 # run_quay_cve_sync.yml
 
 - name: Phase 1 Download Quay CVE Bundle on Download Host and Transfer to Controller
-  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+  hosts: download_servers # Targets the group containing your download host
   gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
   become: false # IMPORTANT: No sudo for the 'ansible' user on the download host
   tasks:
@@ -11,7 +11,7 @@
       # Variables from defaults/main.yml in the role will be available here.
 
 - name: Phase 2 Upload Quay CVE Bundle to Upload Hosts and Update Clair DB
-  hosts: upload_servers # Targets the group containing your upload hosts (e.g., 172.23.162.4 and another)
+  hosts: upload_servers # Targets the group containing your upload hosts
   gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
   become: true # Enable privilege escalation for the 'core' user
   become_user: core # Execute tasks as the 'core' user on the upload hosts
