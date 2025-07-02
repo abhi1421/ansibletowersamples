@@ -1,0 +1,29 @@
+---
+# tasks/02_copy_rpms_and_files.yml
+
+- name: Determine Instana RPM file based on OS architecture
+  ansible.builtin.set_fact:
+    # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
+    # Example: instana-agent-static-j9-20250618-0909.x86_64.rpm
+    instana_rpm_file: "{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | ansible.builtin.basename }}"
+  tags: [copy_files]
+  # Dynamically determine the exact RPM filename from the 'files' directory
+  # based on the target host's architecture (e.g., s390x, x86_64).
+  # 'first' handles cases where glob might return a list (though it should be unique).
+  # 'basename' extracts just the filename from its full path.
+
+- name: Create target directory for Instana agent files
+  ansible.builtin.file:
+    path: "{{ instana_target_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [copy_files]
+  # Ensure the target directory (e.g., /home/ansible) exists on the remote host.
+
+- name: Copy Instana agent RPM to target node
+  ansible.builtin.copy:
+    src: "{{ instana_rpm_file }}" # Use the dynamically determined RPM file
+    dest: "{{ instana_target_dir }}/{{ instana_rpm_file }}"
+    mode: '0644'
+  tags: [copy_files]
+  # Copy the selected RPM to the target host's specified directory.

@@ -1,0 +1,33 @@
+---
+# tasks/06_import_certificate.yml
+
+- name: Copy certificate to temporary location
+  ansible.builtin.copy:
+    src: "{{ instana_certificate_file_src }}" # Source file from role's 'files/' directory
+    dest: "/tmp/{{ instana_certificate_file_src | ansible.builtin.basename }}"
+    mode: '0644'
+  tags: [import_cert]
+  # Copy the certificate file from the Ansible control machine to a temporary location on the target.
+
+- name: Check if certificate is already imported
+  ansible.builtin.command: "{{ instana_keytool_path }} -list -keystore {{ instana_cacerts_path }} -alias {{ instana_certificate_alias }} -storepass {{ instana_cacerts_password }}"
+  register: cert_check
+  ignore_errors: true # Ignore error if alias is not found (expected on first run)
+  changed_when: false # This task only checks, it doesn't change anything
+  tags: [import_cert]
+  # Use 'keytool -list' to check if a certificate with the specified alias already exists in the keystore.
+
+- name: Import certificate into Instana agent's cacerts keystore
+  ansible.builtin.command: "{{ instana_keytool_path }} -import -trustcacerts -alias {{ instana_certificate_alias }} -file /tmp/{{ instana_certificate_file_src | ansible.builtin.basename }} -keystore {{ instana_cacerts_path }} -storepass {{ instana_cacerts_password }} -noprompt"
+  when: cert_check.rc != 0 # Only import if the certificate was NOT found in the previous check (rc != 0)
+  tags: [import_cert]
+  # Import the certificate using keytool.
+  # '-noprompt' ensures it doesn't wait for user input for confirmation.
+  # This task will only run if the certificate was not found in the previous check, ensuring idempotency.
+
+- name: Remove temporary certificate file
+  ansible.builtin.file:
+    path: "/tmp/{{ instana_certificate_file_src | ansible.builtin.basename }}"
+    state: absent
+  tags: [import_cert]
+  # Clean up the temporary certificate file from the target system after import.

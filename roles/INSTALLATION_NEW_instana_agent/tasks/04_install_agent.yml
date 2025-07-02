@@ -1,0 +1,12 @@
+---
+# tasks/04_install_agent.yml
+
+- name: Install Instana agent RPM
+  ansible.builtin.yum: # The 'yum' module handles .rpm files on RedHat-based systems.
+    name: "{{ instana_target_dir }}/{{ instana_rpm_file }}"
+    state: present
+  when: ansible_os_family == 'RedHat'
+  tags: [install_agent]
+  # Use the yum module (or dnf, which yum module can abstract) to install the RPM on RedHat-based Linux.
+  # This module is idempotent: it will only install/update if necessary.
+  # If the agent is already installed with the same version, this task will report 'changed=false'.
