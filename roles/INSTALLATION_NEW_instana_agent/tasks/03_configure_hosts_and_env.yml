@@ -1,0 +1,54 @@
+---
+# tasks/03_configure_hosts_and_env.yml
+
+- name: Copy host entries file to temporary location
+  ansible.builtin.copy:
+    src: instana_host_entries.txt
+    dest: "/tmp/instana_host_entries.txt"
+    mode: '0644'
+  tags: [configure_system]
+  # Copy the file containing host entries from the Ansible control machine's 'files' directory
+  # to a temporary location on the target host.
+
+- name: Add/Ensure host entries in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    state: present # Ensures the line is present; if it exists, it won't be added again.
+    create: true # Create the file if it doesn't exist (though /etc/hosts usually exists).
+    insertafter: EOF # Add new lines at the end of the file.
+  loop: "{{ lookup('ansible.builtin.file', '/tmp/instana_host_entries.txt').splitlines() }}"
+  tags: [configure_system]
+  # Read each line from the copied temporary file.
+  # For each line, ensure it exists in /etc/hosts.
+  # 'state: present' ensures idempotency: if the exact line is already there, it does nothing,
+  # preventing duplicate entries on re-execution.
+
+- name: Copy environment variables file to temporary location
+  ansible.builtin.copy:
+    src: instana_env_vars.txt
+    dest: "/tmp/instana_env_vars.txt"
+    mode: '0644'
+  tags: [configure_system]
+  # Copy the file containing environment variables to a temporary location on the target.
+
+- name: Create Instana environment script directory
+  ansible.builtin.file:
+    path: "{{ instana_env_vars_script | ansible.builtin.dirname }}"
+    state: directory
+    mode: '0755'
+  tags: [configure_system]
+  # Ensure the directory for the environment script (e.g., /etc/profile.d/) exists.
+
+- name: Add/Ensure environment variables in Instana script
+  ansible.builtin.lineinfile:
+    path: "{{ instana_env_vars_script }}"
+    line: "{{ item }}"
+    state: present # Ensures the line is present; if it exists, it won't be added again.
+    create: true # Create the file if it doesn't exist.
+    mode: '0644' # Set appropriate permissions for the script.
+    insertafter: EOF # Add new lines at the end of the file.
+  loop: "{{ lookup('ansible.builtin.file', '/tmp/instana_env_vars.txt').splitlines() }}"
+  tags: [configure_system]
+  # Similar to host entries, read each line from the env vars file and ensure it's in the script.
+  # This also handles idempotency, preventing duplicate environment variable definitions.

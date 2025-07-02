@@ -1,0 +1,29 @@
+---
+# tasks/07_manage_services_post_install.yml
+
+- name: Perform daemon-reload, enable, and start Instana agent service (Linux)
+  ansible.builtin.systemd:
+    daemon_reload: true
+    name: "{{ instana_service_name }}"
+    state: started
+    enabled: true # Ensure the service is configured to start automatically on boot
+  when: ansible_os_family == 'RedHat'
+  tags: [manage_services]
+  # This task now combines daemon-reload, enabling, and starting the Instana agent service on Linux systems.
+  # It ensures that systemd picks up any new service unit files, and the service is running and persistent across reboots.
+
+- name: Get Instana agent service status (Linux)
+  ansible.builtin.command: "systemctl status {{ instana_service_name }} --no-pager"
+  register: instana_status_output_linux
+  ignore_errors: true # Do not fail if service status command has non-zero exit (e.g., service not fully active)
+  when: ansible_os_family == 'RedHat'
+  tags: [manage_services]
+  # Get the full status output for Linux systems. '--no-pager' ensures all output is captured without pagination.
+
+- name: Display last 50 lines of Instana agent status (Linux)
+  ansible.builtin.debug:
+    msg: "{{ instana_status_output_linux.stdout_lines[-50:] | join('\n') }}"
+  when: ansible_os_family == 'RedHat' and instana_status_output_linux.stdout is defined
+  tags: [manage_services]
+  # Print the last 50 lines of the status output to the Ansible job log.
+  # This provides immediate feedback on the agent's state.

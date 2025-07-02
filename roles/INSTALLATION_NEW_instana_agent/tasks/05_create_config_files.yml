@@ -1,0 +1,28 @@
+---
+# tasks/05_create_config_files.yml
+
+- name: Create Instana agent configuration directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: '0755'
+    recurse: true # Create parent directories if they don't exist
+  loop: "{{ instana_config_files }}"
+  loop_control:
+    label: "Creating directory {{ item.path }}"
+  tags: [create_configs]
+  # Iterate through the list of config files defined in defaults/main.yml
+  # and ensure that the parent directory for each config file exists.
+
+- name: Create Instana agent configuration files
+  ansible.builtin.copy:
+    content: "{{ item.content }}" # Use the 'content' defined in the variable
+    dest: "{{ item.path }}/{{ item.filename }}"
+    mode: '0644'
+  loop: "{{ instana_config_files }}"
+  loop_control:
+    label: "Creating config file {{ item.filename }} in {{ item.path }}"
+  tags: [create_configs]
+  # Create each configuration file.
+  # This task is idempotent: if a file exists with the same content, it will not be changed.
+  # This is where the sensitive content for config files will be injected.
