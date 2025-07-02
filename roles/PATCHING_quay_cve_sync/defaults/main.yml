@@ -1,0 +1,49 @@
+---
+# quay_cve_sync_refined/defaults/main.yml
+
+# --- General Role Configuration ---
+# This section defines common variables used across the role.
+
+# Directory on the download host (172.23.161.20)
+# This path MUST be writable by the 'ansible' user WITHOUT sudo privileges.
+# Typically, this would be within the 'ansible' user's home directory.
+quay_cve_download_dir: "/home/ansible/clair-cve-data"
+
+# Directory on the upload hosts (e.g., 172.23.162.4 for DMZ, another IP for MZ)
+# where the CVE update bundle will be copied before being uploaded to Quay.
+# This path will be managed by the 'core' user with sudo.
+quay_cve_upload_dir: "/home/core/ocp416-hub/clair-mapping-files"
+
+# Temporary directory on the Ansible control node for staging files during transfer.
+controller_temp_dir: "/tmp/quay-cve-sync"
+
+# --- Quay/Clair Specifics ---
+
+# The namespace where the Quay Clair application and PVCs reside.
+quay_namespace: "image-registry"
+
+# The name of the Persistent Volume Claim (PVC) shared between the Quay Clair app
+# and the temporary UBI minimal pod.
+clair_pvc_claim_name: "clair-cpe-latest"
+
+# The image to use for the temporary UBI minimal pod.
+# Ensure this image is accessible from your OpenShift cluster.
+ubi_minimal_image: "dmz-quay.ek3np.rbi1.rbi.org.in:8443/ubi9/ubi:latest"
+
+# The service name for Clair's PostgreSQL database.
+clair_postgres_service: "clair-postgres"
+
+# Clairctl configuration for the download host.
+# These paths are relative to the download host's filesystem.
+clair_config_file_path: "{{ quay_cve_download_dir }}/clair-config.yaml"
+clair_repo2cpe_mapping_file: "{{ quay_cve_download_dir }}/clair-mapping-files/repository-to-cpe.json"
+clair_name2repos_mapping_file: "{{ quay_cve_download_dir }}/clair-mapping-files/container-name-repos-map.json"
+
+# --- External Download URLs ---
+redhat_repo2cpe_url: "https://www.redhat.com/security/data/metrics/repository-to-cpe.json"
+redhat_container_map_url: "https://www.redhat.com/security/data/metrics/container-name-repos-map.json"
+
+# --- File Naming Conventions ---
+repo2cpe_filename: "repository-to-cpe.json"
+container_map_filename: "container-name-repos-map.json"
+updates_gz_filename: "updates.gz"

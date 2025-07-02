@@ -1,0 +1,86 @@
+---
+# quay_cve_sync_refined/tasks/download_phase.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensures this fact is set only once for the play
+
+- name: Ensure the Clair CVE download directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Ensure the Clair mapping files subdirectory exists (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}/clair-mapping-files"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: DIAGNOSTIC Test DNS resolution for Red Hat download URLs (as ansible user)
+  ansible.builtin.command: "nslookup {{ item | urlsplit('hostname') }}"
+  loop:
+    - "{{ redhat_repo2cpe_url }}"
+    - "{{ redhat_container_map_url }}"
+  register: nslookup_download_result
+  changed_when: false
+  failed_when: nslookup_download_result.rc != 0
+  # You can add a debug task here if you want to see the nslookup output:
+  # - name: Debug download DNS result
+  #   ansible.builtin.debug:
+  #     var: nslookup_download_result.results
+
+- name: Download Red Hat repository-to-cpe.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_repo2cpe_mapping_file }} {{ redhat_repo2cpe_url }}
+  args:
+    creates: "{{ clair_repo2cpe_mapping_file }}"
+  register: wget_repo2cpe_result
+  changed_when: wget_repo2cpe_result.rc == 0
+  failed_when: wget_repo2cpe_result.rc != 0 and "already exists" not in wget_repo2cpe_result.stderr
+
+- name: Download Red Hat container-name-repos-map.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_name2repos_mapping_file }} {{ redhat_container_map_url }}
+  args:
+    creates: "{{ clair_name2repos_mapping_file }}"
+  register: wget_container_map_result
+  changed_when: wget_container_map_result.rc == 0
+  failed_when: wget_container_map_result.rc != 0 and "already exists" not in wget_container_map_result.stderr
+
+- name: Create clair-config.yaml on the download host using template
+  ansible.builtin.template:
+    src: clair-config.yaml.j2
+    dest: "{{ clair_config_file_path }}"
+    mode: '0644'
+    owner: ansible
+    group: ansible
+
+- name: Generate updates.gz using clairctl export-updaters (as ansible user)
+  # Ensure clairctl is installed and in the 'ansible' user's PATH on the download host.
+  ansible.builtin.command: >
+    clairctl --config {{ clair_config_file_path }} export-updaters {{ quay_cve_download_dir }}/{{ updates_gz_filename }}
+  args:
+    chdir: "{{ quay_cve_download_dir }}" # Run command from this directory
+    creates: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+  register: clairctl_export_result
+  changed_when: clairctl_export_result.rc == 0
+  failed_when: clairctl_export_result.rc != 0 and "already exists" not in clairctl_export_result.stderr
+
+- name: Fetch Quay CVE files to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ item.src_path }}"
+    dest: "{{ controller_temp_dir }}/"
+    flat: true
+  loop:
+    - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+    - { src_path: "{{ clair_name2repos_mapping_file }}" }
+    - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.src_path | basename }}" # Nicer output for loop
+  become: false # fetch always runs as the user executing the playbook on the control node
