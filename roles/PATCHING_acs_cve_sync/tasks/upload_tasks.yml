@@ -1,0 +1,39 @@
+---
+# acs_cve_sync_refined/tasks/upload_tasks.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the upload destination directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Copy CVE zip from Ansible control node to upload host (as core user)
+  ansible.builtin.copy:
+    src: "/tmp/acs-cve-files/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: "{{ acs_cve_upload_dir }}/"
+    mode: '0644'
+
+- name: Upload CVE file to ACS Cluster using roxctl (as core user)
+  ansible.builtin.command: >
+    roxctl scanner upload-db
+    -e {{ rox_central_address }}
+    --token-file {{ acs_rox_api_token_file }}
+    --scanner-db-file {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+  register: roxctl_upload_result
+  changed_when: "'Successfully uploaded' in roxctl_upload_result.stdout"
+  failed_when: roxctl_upload_result.rc != 0 or
+               "'Successfully uploaded' not in roxctl_upload_result.stdout"
+
+- name: Cleanup CVE ZIP from Ansible control node
+  ansible.builtin.file:
+    path: "/tmp/acs-cve-files/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+  delegate_to: localhost
+  run_once: true

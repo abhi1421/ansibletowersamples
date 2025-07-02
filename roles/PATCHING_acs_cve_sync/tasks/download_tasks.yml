@@ -1,0 +1,38 @@
+---
+# acs_cve_sync_refined/tasks/download_tasks.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the destination directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: DIAGNOSTIC: Test DNS resolution from download host (as ansible user)
+  ansible.builtin.command: "nslookup {{ rox_central_address.split(':')[0] }}"
+  register: nslookup_result
+  changed_when: false
+  failed_when: nslookup_result.rc != 0
+
+- name: Download the latest StackRox CVE update bundle using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -O {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+    https://install.stackrox.io/scanner/scanner-vuln-updates.zip
+  args:
+    creates: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+  register: wget_download_result
+  changed_when: wget_download_result.rc == 0
+  failed_when: wget_download_result.rc != 0 and "already exists" not in wget_download_result.stderr
+
+- name: Fetch CVE zip from download host to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: "/tmp/acs-cve-files/"
+    flat: true
+  become: false # fetch always runs as the user executing the playbook on the control node
