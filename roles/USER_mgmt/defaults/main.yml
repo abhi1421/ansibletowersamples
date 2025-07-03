@@ -1,0 +1,12 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for USER_mgmt
+#defaults/main.yml
+
+user_action: ""
+username: ""
+
+user_shell: "/bin/bash"
+user_home: ""
+user_password: ""        # Must be hashed (e.g. openssl passwd -6 'password')
+user_groups: []          # Used for groupadd, groupremove, groupset

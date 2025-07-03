@@ -1,0 +1,90 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for FIREWALL_mgmt
+# roles/firewall_mgmt/tasks/main.yml
+
+- name: Fail if required vars are missing
+  fail:
+    msg: "'fw_action' is required"
+  when: fw_action == ""
+
+# Ensure firewalld is installed and enabled
+- name: Ensure firewalld is installed and running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: yes
+  when: fw_action in ["add", "remove", "block_port", "unblock_port", "enable", "disable", "reload", "status"]
+
+# Add service to firewall
+- name: Add service to firewall
+  ansible.builtin.firewalld:
+    service: "{{ fw_service }}"
+    zone: "{{ fw_zone }}"
+    permanent: "{{ fw_permanent }}"
+    state: enabled
+    immediate: yes
+  when: fw_action == "add" and fw_service != ""
+
+# Remove service from firewall
+- name: Remove service from firewall
+  ansible.builtin.firewalld:
+    service: "{{ fw_service }}"
+    zone: "{{ fw_zone }}"
+    permanent: "{{ fw_permanent }}"
+    state: disabled
+    immediate: yes
+  when: fw_action == "remove" and fw_service != ""
+
+# Open port in firewall
+- name: Open port in firewall
+  ansible.builtin.firewalld:
+    port: "{{ fw_port }}"
+    zone: "{{ fw_zone }}"
+    permanent: "{{ fw_permanent }}"
+    state: enabled
+    immediate: yes
+  when: fw_action == "block_port" and fw_port != ""
+
+# Close port in firewall
+- name: Close port in firewall
+  ansible.builtin.firewalld:
+    port: "{{ fw_port }}"
+    zone: "{{ fw_zone }}"
+    permanent: "{{ fw_permanent }}"
+    state: disabled
+    immediate: yes
+  when: fw_action == "unblock_port" and fw_port != ""
+
+# Enable firewalld
+- name: Enable firewalld service
+  ansible.builtin.service:
+    name: firewalld
+    enabled: yes
+    state: started
+  when: fw_action == "enable"
+
+# Disable firewalld
+- name: Disable firewalld service
+  ansible.builtin.service:
+    name: firewalld
+    enabled: no
+    state: stopped
+  when: fw_action == "disable"
+
+# Reload firewalld
+- name: Reload firewalld
+  ansible.builtin.command: firewall-cmd --reload
+  when: fw_action == "reload"
+
+# Show firewall status
+- name: Show firewall status
+  ansible.builtin.command: firewall-cmd --state
+  register: fw_status
+  changed_when: false
+  when: fw_action == "status"
+
+- name: Debug firewall status
+  ansible.builtin.debug:
+    msg: "{{ fw_status.stdout }}"
+  when: fw_action == "status"

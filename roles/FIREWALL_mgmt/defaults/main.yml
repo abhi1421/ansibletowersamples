@@ -1,0 +1,10 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for FIREWALL_mgmt
+# roles/firewall_mgmt/defaults/main.yml
+
+fw_action: ""              # e.g., add, remove, enable, disable, reload, status, block_port, unblock_port
+fw_service: ""             # name of the service (e.g., ssh, http)
+fw_port: ""                # single port or port/proto (e.g., 8080/tcp)
+fw_zone: "public"          # default zone
+fw_permanent: true         # whether change is permanent

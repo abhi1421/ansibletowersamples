@@ -1,0 +1,6 @@
+---
+- name: Test Firewall Management Role
+  hosts: all
+  become: true
+  roles:
+    - FIREWALL_mgmt
