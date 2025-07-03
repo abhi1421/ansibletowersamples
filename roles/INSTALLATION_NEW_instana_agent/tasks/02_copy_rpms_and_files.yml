@@ -18,23 +18,7 @@
       {{ lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm') }}
   tags: [copy_files, debug]
 
-- name: Determine Instana RPM file based on OS architecture
-  ansible.builtin.set_fact:
-    instana_rpm_file: >-
-      {{
-        (
-          lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm')
-          | sort
-          | first
-          | default('')
-        ) | string | trim
-      }}
-  tags: [copy_files]
 
-- name: Debug - Display final instana_rpm_file variable
-  ansible.builtin.debug:
-    msg: "Final instana_rpm_file: '{{ instana_rpm_file }}'"
-  tags: [copy_files, debug]
 
 - name: Create target directory for Instana agent files
   ansible.builtin.file:
@@ -43,14 +27,26 @@
     mode: '0755'
   tags: [copy_files]
 
+
+- name: Determine Instana RPM file based on OS architecture
+  ansible.builtin.set_fact:
+    instana_rpm_file: >-
+      {{ lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm')
+         | sort | first | default('') | string | trim }}
+  tags: [copy_files]
+
+- name: Debug - Show final instana_rpm_file
+  ansible.builtin.debug:
+    msg: "Final instana_rpm_file: '{{ instana_rpm_file }}'"
+  tags: [copy_files]
+
 - name: Fail if no Instana RPM file was found for the architecture
   ansible.builtin.fail:
     msg: |
       FATAL: No Instana RPM file found for architecture '{{ ansible_architecture }}'.
-      Expected pattern: 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm'
-      Raw fileglob: '{{ lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm') }}'
-      Final instana_rpm_file: '{{ instana_rpm_file }}'
-  when: instana_rpm_file == ''
+      Expected: 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm'
+      Final value: '{{ instana_rpm_file }}'
+  when: instana_rpm_file | trim == ''
   tags: [copy_files]
 
 - name: Copy Instana agent RPM to target node
@@ -58,5 +54,5 @@
     src: "{{ instana_rpm_file }}"
     dest: "{{ instana_target_dir }}/{{ instana_rpm_file | basename }}"
     mode: '0644'
-  when: instana_rpm_file != ''
+  when: instana_rpm_file | trim != ''
   tags: [copy_files]
