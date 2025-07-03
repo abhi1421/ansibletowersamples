@@ -16,7 +16,8 @@
     # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
     # It will set instana_rpm_file to the FULL PATH of the file on the control node.
     # Using | first | default('') ensures it's an empty string if no file is found.
-    instana_rpm_file: "{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | default('') }}"
+    # Added | string and | trim to ensure it's a clean string, removing any hidden characters or whitespace.
+    instana_rpm_file: "{{ (lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | default('')) | string | trim }}"
   tags: [copy_files]
   # Dynamically determine the exact RPM file path from the 'files' directory
   # based on the target host's architecture (e.g., s390x, x86_64).
@@ -29,11 +30,16 @@
 
 - name: Fail if no Instana RPM file was found for the architecture
   ansible.builtin.fail:
-    msg: "FATAL: No Instana RPM file found in 'files/' directory for architecture '{{ ansible_architecture }}' matching pattern 'instana-agent-*.{{ ansible_architecture }}.rpm'. Please ensure the correct RPM is present."
+    msg: |
+      FATAL: No Instana RPM file found or path not correctly resolved for architecture '{{ ansible_architecture }}'.
+      Expected pattern: 'instana-agent-*.{{ ansible_architecture }}.rpm'
+      Raw fileglob lookup result: '{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}'
+      Final instana_rpm_file variable value: '{{ instana_rpm_file }}'
+      Please ensure the correct RPM is present in the 'files/' directory of the role and is accessible.
   when: instana_rpm_file == ''
   tags: [copy_files]
   # This task will explicitly fail the playbook if the instana_rpm_file variable is empty,
-  # providing a clear message about the missing RPM.
+  # providing a clear message about the missing RPM and more context.
 
 - name: Create target directory for Instana agent files
   ansible.builtin.file:
