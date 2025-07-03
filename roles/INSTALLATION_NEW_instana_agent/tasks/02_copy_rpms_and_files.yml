@@ -1,37 +1,59 @@
 ---
-- name: Gather system architecture
-  ansible.builtin.setup:
-    gather_subset:
-      - hardware
-  
-- name: Set architecture-specific RPM filename pattern
-  ansible.builtin.set_fact:
-    rpm_arch_pattern: "instana-agent-static-j9-*.{{ ansible_architecture }}.rpm"
-  
+# tasks/02_copy_rpms_and_files.yml
 
-- name: Find RPM matching architecture
-  ansible.builtin.find:
-    paths: "{{ role_path }}/files"
-    patterns: "{{ rpm_arch_pattern }}"
-  register: found_rpms
-  
-
-- name: Fail if no RPM found for architecture
-  ansible.builtin.fail:
-    msg: "No matching Instana agent RPM found for architecture: {{ ansible_architecture }}"
-  when: found_rpms.matched == 0
-  
-
-- name: Debug - show which RPM will be copied
+- name: Debug - Display ansible_architecture
   ansible.builtin.debug:
-    msg: "Copying RPM: {{ item.path }}"
-  loop: "{{ found_rpms.files }}"
-  
+    msg: "Detected architecture: {{ ansible_architecture }}"
+  tags: [copy_files, debug]
 
-- name: Copy Instana agent RPM to target
+- name: Debug - Display fileglob lookup result
+  ansible.builtin.debug:
+    msg: "Fileglob lookup result for 'instana-agent-*.{{ ansible_architecture }}.rpm': {{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
+  tags: [copy_files, debug]
+
+- name: Determine Instana RPM file based on OS architecture
+  ansible.builtin.set_fact:
+    # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
+    # It will set instana_rpm_file to the FULL PATH of the file on the control node.
+    # Using | first | default('') ensures it's an empty string if no file is found.
+    # Added | string and | trim to ensure it's a clean string, removing any hidden characters or whitespace.
+    instana_rpm_file: "{{ (lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | default('')) | string | trim }}"
+  tags: [copy_files]
+  # Dynamically determine the exact RPM file path from the 'files' directory
+  # based on the target host's architecture (e.g., s390x, x86_64).
+  # 'first' handles cases where glob might return a list.
+
+- name: Debug - Display final instana_rpm_file variable
+  ansible.builtin.debug:
+    msg: "Final instana_rpm_file: '{{ instana_rpm_file }}'" # Added quotes to clearly show empty string
+  tags: [copy_files, debug]
+
+- name: Fail if no Instana RPM file was found for the architecture
+  ansible.builtin.fail:
+    msg: |
+      FATAL: No Instana RPM file found or path not correctly resolved for architecture '{{ ansible_architecture }}'.
+      Expected pattern: 'instana-agent-*.{{ ansible_architecture }}.rpm'
+      Raw fileglob lookup result: '{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}'
+      Final instana_rpm_file variable value: '{{ instana_rpm_file }}'
+      Please ensure the correct RPM is present in the 'files/' directory of the role and is accessible.
+  when: instana_rpm_file == ''
+  tags: [copy_files]
+  # This task will explicitly fail the playbook if the instana_rpm_file variable is empty,
+  # providing a clear message about the missing RPM and more context.
+
+- name: Create target directory for Instana agent files
+  ansible.builtin.file:
+    path: "{{ instana_target_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [copy_files]
+  # Ensure the target directory (e.g., /home/ansible) exists on the remote host.
+
+- name: Copy Instana agent RPM to target node
   ansible.builtin.copy:
-    src: "{{ item.path }}"
-    dest: "/tmp/{{ item.path | basename }}"
+    src: "{{ instana_rpm_file }}" # Use the dynamically determined FULL PATH to the RPM file
+    dest: "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}" # Use basename for the destination filename
     mode: '0644'
-  loop: "{{ found_rpms.files }}"
-  
+  tags: [copy_files]
+  # Copy the selected RPM to the target host's specified directory.
+  # Note: ansible.builtin.basename is now applied to the 'dest' path to ensure only the filename is used on the target.
