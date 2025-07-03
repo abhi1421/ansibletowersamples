@@ -11,7 +11,9 @@
 - name: Check Instana agent service status (Linux - systemd based)
   ansible.builtin.command: "systemctl status {{ instana_service_name }}"
   register: instana_service_status_linux
-  ignore_errors: true # Do not fail if the service is not found or not active
+  failed_when: false # Do not mark as failed even if return code is non-zero (e.g., service not found)
+  changed_when: false
+#  ignore_errors: true # Do not fail if the service is not found or not active
   when: ansible_os_family == 'RedHat'
   tags: [check_status]
   # For Linux systems using systemd (common for RedHat), attempt to get the service status.
