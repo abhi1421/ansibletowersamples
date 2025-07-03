@@ -1,6 +1,16 @@
 ---
 # tasks/02_copy_rpms_and_files.yml
 
+- name: Debug - Display ansible_architecture
+  ansible.builtin.debug:
+    msg: "Detected architecture: {{ ansible_architecture }}"
+  tags: [copy_files, debug]
+
+- name: Debug - Display fileglob lookup result
+  ansible.builtin.debug:
+    msg: "Fileglob lookup result for 'instana-agent-*.{{ ansible_architecture }}.rpm': {{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
+  tags: [copy_files, debug]
+
 - name: Determine Instana RPM file based on OS architecture
   ansible.builtin.set_fact:
     # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
@@ -11,6 +21,11 @@
   # based on the target host's architecture (e.g., s390x, x86_64).
   # 'first' handles cases where glob might return a list (though it should be unique).
   # 'basename' extracts just the filename from its full path.
+
+- name: Debug - Display final instana_rpm_file variable
+  ansible.builtin.debug:
+    msg: "Final instana_rpm_file: {{ instana_rpm_file }}"
+  tags: [copy_files, debug]
 
 - name: Create target directory for Instana agent files
   ansible.builtin.file:
