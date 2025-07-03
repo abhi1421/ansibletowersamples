@@ -6,22 +6,25 @@
     msg: "Detected architecture: {{ ansible_architecture }}"
   tags: [copy_files, debug]
 
-- name: Debug - Display fileglob lookup result
+- name: Debug - Display fileglob lookup result (Raw)
   ansible.builtin.debug:
-    msg: "Fileglob lookup result for 'instana-agent-*.{{ ansible_architecture }}.rpm': {{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
+    # Display the raw output of the fileglob lookup. This should ideally be a list.
+    msg: "Raw Fileglob lookup result for 'instana-agent-*.{{ ansible_architecture }}.rpm': {{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
   tags: [copy_files, debug]
 
 - name: Determine Instana RPM file based on OS architecture
   ansible.builtin.set_fact:
-    # This now looks for any file starting with 'instana-agent-' and ending with the specific architecture and '.rpm'.
-    # It will set instana_rpm_file to the FULL PATH of the file on the control node.
-    # Using | first | default('') ensures it's an empty string if no file is found.
-    # Added | string and | trim to ensure it's a clean string, removing any hidden characters or whitespace.
-    instana_rpm_file: "{{ (lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') | first | default('')) | string | trim }}"
+    # This task aims to get the FULL PATH of the RPM file on the control node.
+    # 1. lookup('ansible.builtin.fileglob', ...): Finds matching files in the role's 'files/' directory.
+    # 2. []: Encapsulates the lookup result in a list. This is a workaround if fileglob sometimes returns a string.
+    # 3. | flatten: Ensures it's a flat list, even if the lookup returned a list within a list.
+    # 4. | first: Takes the first item from the list (the first matching file path).
+    # 5. | default(''): If the list is empty (no file found), defaults to an empty string.
+    # 6. | string | trim: Ensures the final result is a clean string without leading/trailing whitespace.
+    instana_rpm_file: "{{ ([lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm')] | flatten | first | default('')) | string | trim }}"
   tags: [copy_files]
   # Dynamically determine the exact RPM file path from the 'files' directory
   # based on the target host's architecture (e.g., s390x, x86_64).
-  # 'first' handles cases where glob might return a list.
 
 - name: Debug - Display final instana_rpm_file variable
   ansible.builtin.debug:
