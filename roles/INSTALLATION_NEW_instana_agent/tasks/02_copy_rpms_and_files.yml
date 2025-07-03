@@ -1,58 +1,37 @@
 ---
-# tasks/02_copy_rpms_and_files.yml
-
-- name: Debug - Display ansible_architecture
-  ansible.builtin.debug:
-    msg: "Detected architecture: {{ ansible_architecture }}"
-  tags: [copy_files, debug]
-
-- name: Debug - Show current directory (for troubleshooting)
-  ansible.builtin.debug:
-    msg: "Playbook dir: {{ playbook_dir }}"
-  tags: [copy_files, debug]
-
-- name: Debug - Display fileglob lookup result
-  ansible.builtin.debug:
-    msg: >
-      Fileglob lookup result for 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm':
-      {{ lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm') }}
-  tags: [copy_files, debug]
-
-
-
-- name: Create target directory for Instana agent files
-  ansible.builtin.file:
-    path: "{{ instana_target_dir }}"
-    state: directory
-    mode: '0755'
-  tags: [copy_files]
-
-
-- name: Determine Instana RPM file based on OS architecture
+- name: Gather system architecture
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+  
+- name: Set architecture-specific RPM filename pattern
   ansible.builtin.set_fact:
-    instana_rpm_file: >-
-      {{ lookup('ansible.builtin.fileglob', 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm')
-         | sort | first | default('') | string | trim }}
-  tags: [copy_files]
+    rpm_arch_pattern: "instana-agent-static-j9-*.{{ ansible_architecture }}.rpm"
+  
 
-- name: Debug - Show final instana_rpm_file
-  ansible.builtin.debug:
-    msg: "Final instana_rpm_file: '{{ instana_rpm_file }}'"
-  tags: [copy_files]
+- name: Find RPM matching architecture
+  ansible.builtin.find:
+    paths: "{{ role_path }}/files"
+    patterns: "{{ rpm_arch_pattern }}"
+  register: found_rpms
+  
 
-- name: Fail if no Instana RPM file was found for the architecture
+- name: Fail if no RPM found for architecture
   ansible.builtin.fail:
-    msg: |
-      FATAL: No Instana RPM file found for architecture '{{ ansible_architecture }}'.
-      Expected: 'instana-agent-static-j9-*.{{ ansible_architecture }}.rpm'
-      Final value: '{{ instana_rpm_file }}'
-  when: instana_rpm_file | trim == ''
-  tags: [copy_files]
+    msg: "No matching Instana agent RPM found for architecture: {{ ansible_architecture }}"
+  when: found_rpms.matched == 0
+  
 
-- name: Copy Instana agent RPM to target node
+- name: Debug - show which RPM will be copied
+  ansible.builtin.debug:
+    msg: "Copying RPM: {{ item.path }}"
+  loop: "{{ found_rpms.files }}"
+  
+
+- name: Copy Instana agent RPM to target
   ansible.builtin.copy:
-    src: "{{ instana_rpm_file }}"
-    dest: "{{ instana_target_dir }}/{{ instana_rpm_file | basename }}"
+    src: "{{ item.path }}"
+    dest: "/tmp/{{ item.path | basename }}"
     mode: '0644'
-  when: instana_rpm_file | trim != ''
-  tags: [copy_files]
+  loop: "{{ found_rpms.files }}"
+  
