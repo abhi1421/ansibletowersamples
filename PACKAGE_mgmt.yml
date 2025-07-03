@@ -1,0 +1,6 @@
+---
+- name: Test Package Management Role
+  hosts: all
+  become: true
+  roles:
+    - PACKAGE_mgmt

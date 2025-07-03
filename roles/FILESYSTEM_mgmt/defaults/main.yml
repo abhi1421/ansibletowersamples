@@ -1,0 +1,12 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for FILESYSTEM_mgmt
+# roles/filesystem_mgmt/defaults/main.yml
+
+fs_action: ""            # create_lvm, format_fs, mount_fs, unmount_fs, resize_fs, remove_lv
+fs_disk: ""              # e.g. /dev/sdb
+fs_vg: ""                # Volume group name
+fs_lv: ""                # Logical volume name
+fs_size: ""              # LV size (e.g., 5G)
+fs_path: ""              # Mount path (e.g., /data)
+fs_fstype: "xfs"         # Filesystem type

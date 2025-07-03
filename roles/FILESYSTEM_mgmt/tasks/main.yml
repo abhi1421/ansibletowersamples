@@ -1,0 +1,64 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for FILESYSTEM_mgmt
+# roles/filesystem_mgmt/tasks/main.yml
+
+- name: Fail if required vars are missing
+  fail:
+    msg: "'fs_action' is required"
+  when: fs_action == ""
+
+# --- Create LVM (PV, VG, LV) ---
+- name: Create physical volume
+  community.general.lvg:
+    pvs: "{{ fs_disk }}"
+    vg: "{{ fs_vg }}"
+  when: fs_action == "create_lvm"
+
+- name: Create logical volume
+  community.general.lvol:
+    vg: "{{ fs_vg }}"
+    lv: "{{ fs_lv }}"
+    size: "{{ fs_size }}"
+  when: fs_action == "create_lvm"
+
+# --- Format Filesystem ---
+- name: Format filesystem
+  ansible.builtin.filesystem:
+    fstype: "{{ fs_fstype }}"
+    dev: "/dev/{{ fs_vg }}/{{ fs_lv }}"
+  when: fs_action == "format_fs"
+
+# --- Mount Filesystem ---
+- name: Create mount directory
+  ansible.builtin.file:
+    path: "{{ fs_path }}"
+    state: directory
+    mode: "0755"
+  when: fs_action == "mount_fs"
+
+- name: Mount filesystem
+  ansible.builtin.mount:
+    path: "{{ fs_path }}"
+    src: "/dev/{{ fs_vg }}/{{ fs_lv }}"
+    fstype: "{{ fs_fstype }}"
+    opts: defaults
+    state: mounted
+  when: fs_action == "mount_fs"
+
+# --- Unmount Filesystem ---
+- name: Unmount filesystem
+  ansible.builtin.mount:
+    path: "{{ fs_path }}"
+    state: unmounted
+  when: fs_action == "unmount_fs"
+
+# --- Resize Filesystem ---
+- name: Resize filesystem
+  ansible.builtin.command: "xfs_growfs {{ fs_path }}"
+  when: fs_action == "resize_fs" and fs_fstype == "xfs"
+
+# --- Remove Logical Volume ---
+- name: Remove logical volume
+  ansible.builtin.command: "lvremove -y /dev/{{ fs_vg }}/{{ fs_lv }}"
+  when: fs_action == "remove_lv"

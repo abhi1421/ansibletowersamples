@@ -1,0 +1,7 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for PACKAGE_mgmt
+# roles/package_mgmt/defaults/main.yml
+
+pkg_action: ""        # install, remove, update, info, list_installed, list_available
+pkg_name: ""          # Single package or list of packages

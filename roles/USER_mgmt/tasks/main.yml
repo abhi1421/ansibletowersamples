@@ -1,0 +1,111 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for USER_mgmt
+# roles/user_mgmt/tasks/main.yml
+
+- name: Fail if required vars are missing
+  fail:
+    msg: "Both 'username' and 'user_action' must be defined."
+  when: username == "" or user_action == ""
+
+# Add user
+- name: Add user
+  user:
+    name: "{{ username }}"
+    shell: "{{ user_shell }}"
+    home: "{{ user_home | default(omit) }}"
+    password: "{{ user_password | default(omit) }}"
+    state: present
+  when: user_action == "add"
+
+# Delete user
+- name: Delete user
+  user:
+    name: "{{ username }}"
+    state: absent
+    remove: yes
+  when: user_action == "delete"
+
+# Modify user shell/home
+- name: Modify user
+  user:
+    name: "{{ username }}"
+    shell: "{{ user_shell }}"
+    home: "{{ user_home }}"
+    move_home: yes
+  when: user_action == "modify"
+
+# Lock user
+- name: Lock user
+  user:
+    name: "{{ username }}"
+    password_lock: yes
+  when: user_action == "lock"
+
+# Unlock user
+- name: Unlock user
+  user:
+    name: "{{ username }}"
+    password_lock: no
+  when: user_action == "unlock"
+
+# Change user password
+- name: Change password
+  user:
+    name: "{{ username }}"
+    password: "{{ user_password }}"
+  when: user_action == "passwd"
+
+# Expire password to force reset on next login
+- name: Expire password
+  command: "chage -d 0 {{ username }}"
+  when: user_action == "expire"
+
+# Set shell to nologin
+- name: Disable login (nologin shell)
+  user:
+    name: "{{ username }}"
+    shell: "/sbin/nologin"
+  when: user_action == "nologin"
+
+# Restore login shell
+- name: Restore login shell
+  user:
+    name: "{{ username }}"
+    shell: "{{ user_shell }}"
+  when: user_action == "enablelogin"
+
+# Show user status
+- name: Get user info
+  command: "id {{ username }}"
+  register: user_info
+  failed_when: false
+  changed_when: false
+  when: user_action == "status"
+
+- name: Show user info
+  debug:
+    var: user_info.stdout
+  when: user_action == "status"
+
+# Set primary and secondary groups
+- name: Set user groups (overwrite existing)
+  user:
+    name: "{{ username }}"
+    groups: "{{ user_groups | join(',') }}"
+    append: no
+  when: user_action == "groupset"
+
+# Append to existing groups
+- name: Add user to additional groups
+  user:
+    name: "{{ username }}"
+    groups: "{{ user_groups | join(',') }}"
+    append: yes
+  when: user_action == "groupadd"
+
+# Remove user from specific groups
+- name: Remove user from specified groups
+  command: "gpasswd -d {{ username }} {{ item }}"
+  loop: "{{ user_groups }}"
+  when: user_action == "groupremove"

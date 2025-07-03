@@ -1,0 +1,6 @@
+---
+- name: Invoke Filesystem Management Role
+  hosts: all
+  become: true
+  roles:
+    - FILESYSTEM_mgmt

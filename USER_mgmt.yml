@@ -1,0 +1,6 @@
+---
+- name: Test Unified User Management Role
+  hosts: all
+  become: true
+  roles:
+    - USER_mgmt

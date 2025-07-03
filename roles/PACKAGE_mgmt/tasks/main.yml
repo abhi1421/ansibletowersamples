@@ -1,0 +1,66 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for PACKAGE_mgmt
+# roles/package_mgmt/tasks/main.yml
+
+- name: Fail if required vars are missing
+  fail:
+    msg: "'pkg_action' is required"
+  when: pkg_action == ""
+
+# Install package(s)
+- name: Install package(s)
+  ansible.builtin.yum:
+    name: "{{ pkg_name }}"
+    state: present
+  when: pkg_action == "install"
+
+# Remove package(s)
+- name: Remove package(s)
+  ansible.builtin.yum:
+    name: "{{ pkg_name }}"
+    state: absent
+  when: pkg_action == "remove"
+
+# Update package(s)
+- name: Update package(s)
+  ansible.builtin.yum:
+    name: "{{ pkg_name }}"
+    state: latest
+  when: pkg_action == "update"
+
+# Get info about package(s)
+- name: Get info about package(s)
+  ansible.builtin.command: "rpm -qi {{ pkg_name }}"
+  register: pkg_info
+  changed_when: false
+  when: pkg_action == "info"
+
+- name: Display package info
+  ansible.builtin.debug:
+    msg: "{{ pkg_info.stdout_lines }}"
+  when: pkg_action == "info"
+
+# List installed packages
+- name: List installed packages
+  ansible.builtin.command: "rpm -qa"
+  register: installed_pkgs
+  changed_when: false
+  when: pkg_action == "list_installed"
+
+- name: Show installed packages
+  ansible.builtin.debug:
+    msg: "{{ installed_pkgs.stdout_lines }}"
+  when: pkg_action == "list_installed"
+
+# List available packages
+- name: List available packages from repos
+  ansible.builtin.command: "yum list available"
+  register: available_pkgs
+  changed_when: false
+  when: pkg_action == "list_available"
+
+- name: Show available packages
+  ansible.builtin.debug:
+    msg: "{{ available_pkgs.stdout_lines }}"
+  when: pkg_action == "list_available"
