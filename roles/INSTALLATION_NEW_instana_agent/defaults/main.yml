@@ -8,18 +8,6 @@ instana_service_name: "instana-agent"
 instana_target_dir: "/home/ansible"
 instana_env_vars_script: "/etc/profile.d/instana.sh"
 
-# --- Variables for Configuration Files ---
-# Define a list of dictionaries for configuration files.
-# Each dictionary should have 'path', 'filename', and 'content'.
-# The 'content' will be provided by the customer at runtime or via inventory.
-instana_config_files:
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config1.yaml", content: "# Content for config file 1 (to be provided by customer)" }
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config2.yaml", content: "# Content for config file 2 (to be provided by customer)" }
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config3.yaml", content: "# Content for config file 3 (to be provided by customer)" }
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config4.yaml", content: "# Content for config file 4 (to be provided by customer)" }
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config5.yaml", content: "# Content for config file 5 (to be provided by customer)" }
-  - { path: "/opt/instana/agent/etc/conf.d", filename: "my_custom_config6.yaml", content: "# Content for config file 6 (to be provided by customer)" }
-
 # --- Variables for Certificate Import ---
 # Path to the certificate file on the Ansible control machine, relative to the role's 'files/' directory.
 # Ensure 'instana_certificate.crt' is placed in the 'files/' directory.
