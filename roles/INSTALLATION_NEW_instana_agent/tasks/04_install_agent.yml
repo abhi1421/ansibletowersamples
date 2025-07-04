@@ -13,6 +13,11 @@
 
 # tasks/04_install_agent.yml
 
+- name: Show installer file
+  debug: 
+    msg:
+      The file is "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}"
+  
 - name: Install Instana agent RPM
   ansible.builtin.yum:
     # The 'name' parameter for yum should be the full path to the RPM on the TARGET machine.
