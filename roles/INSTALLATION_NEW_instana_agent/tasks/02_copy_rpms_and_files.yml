@@ -6,7 +6,7 @@
     msg: "Detected architecture: {{ ansible_architecture }}"
   tags: [copy_files, debug]
 
-- name: Determine Instana RPM file based on OS architecture (Step 1: Raw Lookup)
+- name: Determine Instana RPM file based on OS architecture (Step 1 Raw Lookup)
   ansible.builtin.set_fact:
     # Get the raw lookup result. This should ideally be a list of paths.
     _raw_lookup_result: "{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
@@ -17,7 +17,7 @@
     msg: "Raw _raw_lookup_result: {{ _raw_lookup_result }} (Type: {{ _raw_lookup_result | type_debug }})"
   tags: [copy_files, debug]
 
-- name: Set instana_rpm_file from processed lookup result (Step 2: Process Result)
+- name: Set instana_rpm_file from processed lookup result (Step 2 Process Result)
   ansible.builtin.set_fact:
     # Ensure _raw_lookup_result is treated as a list, then flatten it (if nested),
     # get the first element, default to empty string if not found, and trim.
