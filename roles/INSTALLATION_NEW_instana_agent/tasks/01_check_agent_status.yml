@@ -1,22 +1,25 @@
 ---
 # tasks/01_check_agent_status.yml
 
-- name: Initialize service existence and running facts
+- name: Initialize service existence, running, and package installed facts
   ansible.builtin.set_fact:
     instana_service_exists: false
     instana_agent_running: false
+    instana_package_installed: false
+    instana_all_checks_pass_for_exit: false # Flag for comprehensive check before early exit
   tags: [check_status]
-  # Initialize these facts to false to prevent errors if not set by later conditional tasks.
+  # Initialize these facts to false to ensure a clean state before checks are performed.
 
 - name: Check Instana agent service status (Linux - systemd based)
   ansible.builtin.command: "systemctl status {{ instana_service_name }}"
   register: instana_service_status_linux
   failed_when: false # Do not mark as failed even if return code is non-zero (e.g., service not found)
-  changed_when: false
-#  ignore_errors: true # Do not fail if the service is not found or not active
+  changed_when: false # This command only checks status, it doesn't change the system
   when: ansible_os_family == 'RedHat'
   tags: [check_status]
-  # For Linux systems using systemd (common for RedHat), attempt to get the service status.
+  # For RedHat-based Linux systems using systemd, attempt to get the service status.
+  # 'failed_when: false' prevents red fatal output if the service unit is not found.
+  # 'changed_when: false' ensures the task always reports 'ok' as it's a read-only operation.
 
 - name: Set facts for agent existence and running status (Linux)
   ansible.builtin.set_fact:
@@ -24,19 +27,95 @@
     instana_agent_running: "{{ instana_service_status_linux.rc == 0 and (instana_service_status_linux.stdout is defined and 'Active: active (running)' in instana_service_status_linux.stdout) }}"
   when: ansible_os_family == 'RedHat'
   tags: [check_status]
-  # Parse the output of 'systemctl status' to determine if the service exists and is running.
+  # Parse the output of 'systemctl status' to accurately determine if the service exists and is actively running.
 
-- name: Display current Instana agent status
-  ansible.builtin.debug:
-    msg: "Instana agent service '{{ instana_service_name }}' exists: {{ instana_service_exists }}. Running: {{ instana_agent_running }}"
+- name: Check if Instana package is already installed (Linux)
+  ansible.builtin.yum:
+    list: "{{ instana_service_name }}" # Use the service name as the package name for checking
+    state: installed # This parameter checks for installation status without attempting to install
+  register: instana_package_check
+  failed_when: false # Do not fail if the package is not found; this is an expected scenario
+  changed_when: false # This is purely a check operation, no system change is intended
+  when: ansible_os_family == 'RedHat'
   tags: [check_status]
 
-- name: Exit if Instana agent is already installed and running
+- name: Set fact for Instana package installed status (Linux)
+  ansible.builtin.set_fact:
+    instana_package_installed: "{{ (instana_package_check.results | default([]) | length > 0) }}"
+  when: ansible_os_family == 'RedHat'
+  tags: [check_status]
+  # Determine if the Instana package is installed by checking if 'yum list' returned any results.
+
+- name: Display current Instana agent status summary
+  ansible.builtin.debug:
+    msg: |
+      "Instana agent service '{{ instana_service_name }}' exists: {{ instana_service_exists }}. Running: {{ instana_agent_running }}"
+      "Instana package installed: {{ instana_package_installed }}"
+  tags: [check_status]
+
+# --- Comprehensive Checks if Agent is Running and Package is Installed ---
+- name: Perform additional configuration and certificate checks if Instana agent is running and package is installed
+  when: instana_agent_running and instana_package_installed
+  block:
+    - name: Check if environment variables script is in place
+      ansible.builtin.stat:
+        path: "{{ instana_env_vars_script }}"
+      register: env_vars_script_stat
+      tags: [check_status]
+
+    - name: Check if host entries file was processed (by checking existence of env vars script)
+      # This is a simplified check. A more robust check for /etc/hosts would involve parsing its content.
+      # For now, we assume if the env var script is present, host entries were likely handled.
+      ansible.builtin.set_fact:
+        instana_host_entries_ok: "{{ env_vars_script_stat.stat.exists }}"
+      tags: [check_status]
+
+    - name: Check if all 6 custom config files are in place
+      ansible.builtin.stat:
+        path: "{{ item.dest }}"
+      register: config_files_stat_results
+      loop:
+        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_1.yaml" }
+        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_2.yaml" }
+        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_3.yaml" }
+        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_4.yaml" }
+        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_5.yaml" }
+        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_6.yaml" }
+      tags: [check_status]
+
+    - name: Check if certificate is imported into cacerts keystore
+      ansible.builtin.command: "{{ instana_keytool_path }} -list -keystore {{ instana_cacerts_path }} -alias {{ instana_certificate_alias }} -storepass {{ instana_cacerts_password }}"
+      register: cert_import_check
+      ignore_errors: true # Ignore error if alias is not found (expected on first run or if not imported)
+      changed_when: false # This command only checks status, it doesn't change anything
+      tags: [check_status]
+
+    - name: Set flag if all additional checks pass for early exit
+      ansible.builtin.set_fact:
+        instana_all_checks_pass_for_exit: >-
+          {{ env_vars_script_stat.stat.exists and
+             instana_host_entries_ok and
+             (config_files_stat_results.results | selectattr('stat.exists', 'equalto', true) | list | length == 6) and
+             (cert_import_check.rc == 0) }}
+      tags: [check_status]
+
+    - name: Debug - Display results of additional checks
+      ansible.builtin.debug:
+        msg: |
+          Env vars script in place: {{ env_vars_script_stat.stat.exists }}
+          Host entries likely handled (via env script check): {{ instana_host_entries_ok }}
+          All 6 config files in place: {{ config_files_stat_results.results | selectattr('stat.exists', 'equalto', true) | list | length == 6 }}
+          Certificate imported: {{ cert_import_check.rc == 0 }}
+          All additional checks pass: {{ instana_all_checks_pass_for_exit }}
+      tags: [check_status]
+
+- name: Exit playbook for this host if Instana agent is fully installed, configured, and running
   ansible.builtin.meta:
     end_play
-  when: instana_service_exists and instana_agent_running
+  when: instana_agent_running and instana_package_installed and instana_all_checks_pass_for_exit
   tags: [check_status]
-  # If the agent is found and already running, end the playbook execution gracefully.
+  # The playbook will now only exit early for a host if the agent service is running,
+  # the package is installed, AND all necessary configuration files and the certificate are confirmed to be in place.
 
 - name: Start Instana agent service if installed but not running (Linux)
   ansible.builtin.systemd:
@@ -46,3 +125,5 @@
   when: ansible_os_family == 'RedHat' and instana_service_exists and not instana_agent_running
   tags: [check_status]
   # For Linux, use the systemd module to start and enable the service if it's not running.
+  # This task runs if the service exists but is not active, regardless of full configuration status,
+  # allowing the rest of the role to fix any missing config.
