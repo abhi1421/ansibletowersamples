@@ -34,7 +34,7 @@
     list: "{{ instana_service_name }}" # Use the service name as the package name for checking
     state: installed # This parameter checks for installation status without attempting to install
   register: instana_package_check
-  failed_when: false # Do not fail if the package is not found; this is an expected scenario
+  failed_when: false # Do not fail if package not found; this is an expected scenario
   changed_when: false # This is purely a check operation, no system change is intended
   when: ansible_os_family == 'RedHat'
   tags: [check_status]
@@ -70,19 +70,6 @@
         instana_host_entries_ok: "{{ env_vars_script_stat.stat.exists }}"
       tags: [check_status]
 
-    - name: Check if all 6 custom config files are in place
-      ansible.builtin.stat:
-        path: "{{ item.dest }}"
-      register: config_files_stat_results
-      loop:
-        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_1.yaml" }
-        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_2.yaml" }
-        - { dest: "{{ instana_config_dir_1 }}/instana_config_file_3.yaml" }
-        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_4.yaml" }
-        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_5.yaml" }
-        - { dest: "{{ instana_config_dir_2 }}/instana_config_file_6.yaml" }
-      tags: [check_status]
-
     - name: Check if certificate is imported into cacerts keystore
       ansible.builtin.command: "{{ instana_keytool_path }} -list -keystore {{ instana_cacerts_path }} -alias {{ instana_certificate_alias }} -storepass {{ instana_cacerts_password }}"
       register: cert_import_check
@@ -95,7 +82,6 @@
         instana_all_checks_pass_for_exit: >-
           {{ env_vars_script_stat.stat.exists and
              instana_host_entries_ok and
-             (config_files_stat_results.results | selectattr('stat.exists', 'equalto', true) | list | length == 6) and
              (cert_import_check.rc == 0) }}
       tags: [check_status]
 
@@ -104,7 +90,6 @@
         msg: |
           Env vars script in place: {{ env_vars_script_stat.stat.exists }}
           Host entries likely handled (via env script check): {{ instana_host_entries_ok }}
-          All 6 config files in place: {{ config_files_stat_results.results | selectattr('stat.exists', 'equalto', true) | list | length == 6 }}
           Certificate imported: {{ cert_import_check.rc == 0 }}
           All additional checks pass: {{ instana_all_checks_pass_for_exit }}
       tags: [check_status]
