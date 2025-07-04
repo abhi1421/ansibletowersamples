@@ -21,24 +21,24 @@
 # Removed: - name: Copy environment variables file to temporary location
 # The file is now read directly from the control machine's 'files/' directory.
 
-- name: Create Instana environment script directory
-  ansible.builtin.file:
-    path: "{{ instana_env_vars_script | ansible.builtin.dirname }}"
-    state: directory
-    mode: '0755'
-  tags: [configure_system]
-  # Ensure the directory for the environment script (e.g., /etc/profile.d/) exists.
-
-- name: Add/Ensure environment variables in Instana script
-  ansible.builtin.lineinfile:
-    path: "{{ instana_env_vars_script }}"
-    line: "{{ item }}"
-    state: present # Ensures the line is present; if it exists, it won't be added again.
-    create: true # Create the file if it doesn't exist.
-    mode: '0644' # Set appropriate permissions for the script.
-    insertafter: EOF # Add new lines at the end of the file.
-  # Read directly from the role's 'files/' directory on the control machine
-  loop: "{{ lookup('ansible.builtin.file', 'instana_env_vars.txt').splitlines() }}"
-  tags: [configure_system]
-  # Read each line from the env vars file and ensure it's in the script.
-  # This also handles idempotency, preventing duplicate environment variable definitions.
+#- name: Create Instana environment script directory
+#  ansible.builtin.file:
+#    path: "{{ instana_env_vars_script | ansible.builtin.dirname }}"
+#    state: directory
+#    mode: '0755'
+#  tags: [configure_system]
+#  # Ensure the directory for the environment script (e.g., /etc/profile.d/) exists.
+#
+#- name: Add/Ensure environment variables in Instana script
+#  ansible.builtin.lineinfile:
+#    path: "{{ instana_env_vars_script }}"
+#    line: "{{ item }}"
+#    state: present # Ensures the line is present; if it exists, it won't be added again.
+#    create: true # Create the file if it doesn't exist.
+#    mode: '0644' # Set appropriate permissions for the script.
+#    insertafter: EOF # Add new lines at the end of the file.
+#  # Read directly from the role's 'files/' directory on the control machine
+#  loop: "{{ lookup('ansible.builtin.file', 'instana_env_vars.txt').splitlines() }}"
+#  tags: [configure_system]
+#  # Read each line from the env vars file and ensure it's in the script.
+#  # This also handles idempotency, preventing duplicate environment variable definitions.
