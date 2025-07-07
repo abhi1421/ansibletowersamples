@@ -5,7 +5,7 @@
     - name: Fetch /etc/passwd from remote host
       ansible.builtin.fetch:
         src: /etc/passwd
-        dest: /tmp/  # This is the directory on the Ansible controller where files will be placed
+        dest: /home/ansible/  # This is the directory on the Ansible controller where files will be placed
         flat: yes    # Important: Puts the file directly into /tmp/passwd on the controller
       register: fetch_result
 
