@@ -1,0 +1,19 @@
+---
+- name: Fetch task
+  hosts: download_servers
+  tasks:
+    - name: Fetch a file from remote host
+      ansible.builtin.fetch:
+        src: /etc/passwd  # Replace with the actual path on the remote host
+        dest: /tmp  # Replace with the desired local path
+        flat: yes  # Optional:  Keeps the directory structure flat on the local machine
+      register: fetch_result
+
+- name: Copy task
+  hosts: upload_servers
+  tasks:
+    - name: Copy file from local to remotw host
+      ansible.builtin.copy:
+        src: /tmp/passwd # Replace with the actual path on the local machine
+        dest: /tmp/passwd # Replace with the desired remote path
+      when: fetch_result.changed  # Only copy if the fetch was successful
