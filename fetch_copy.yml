@@ -1,35 +1,34 @@
 ---
 - name: Fetch task - Download from remote servers to controller
-  hosts: download_servers # Target: The servers you're pulling from
+  hosts: download_servers
   tasks:
     - name: Fetch /etc/passwd from remote host
       ansible.builtin.fetch:
         src: /etc/passwd
-        dest: /home/ansible/  # This is the directory on the Ansible controller where files will be placed
-        flat: yes    # Important: Puts the file directly into /tmp/passwd on the controller
+        dest: /mnt/host_share/  # <--- This is the path INSIDE the container that will be mapped to the host
+        flat: yes
       register: fetch_result
 
-    # Optional: Debug the fetch result to verify
+    # You can keep your debug tasks if you wish
     - name: Debug fetch result
       ansible.builtin.debug:
         var: fetch_result
 
-    - name: Check file existence on controller
+    - name: Check if /mnt/host_share/passwd exists on Ansible Controller (via volume mount)
       ansible.builtin.stat:
-        path: /tmp/passwd
-      register: passwd_stat
-      delegate_to: localhost # THIS IS KEY - runs the stat on the controller
+        path: /mnt/host_share/passwd # Check the path *inside* the container, which is mounted
+      register: controller_passwd_stat
+      delegate_to: localhost # This still means "the host running this task" (i.e., inside the EE)
 
-    - name: Debug stat result
+    - name: Debug controller_passwd_stat
       ansible.builtin.debug:
-        var: passwd_stat
-      when: passwd_stat is defined      
+        var: controller_passwd_stat
 
-- name: Copy task
+- name: Copy task - Upload from controller to remote servers
   hosts: upload_servers
   tasks:
-    - name: Copy file from local to remotw host
+    - name: Copy fetched file from local controller to remote host
       ansible.builtin.copy:
-        src: /tmp/passwd # Replace with the actual path on the local machine
-        dest: /tmp/passwd # Replace with the desired remote path
-      when: fetch_result.changed  # Only copy if the fetch was successful
+        src: /mnt/host_share/passwd # Source is the path inside the container, which is mounted
+        dest: /tmp/passwd
+      when: fetch_result.changed
