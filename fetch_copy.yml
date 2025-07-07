@@ -5,7 +5,7 @@
     - name: Fetch a file from remote host
       ansible.builtin.fetch:
         src: /etc/passwd  # Replace with the actual path on the remote host
-        dest: /tmp  # Replace with the desired local path
+        dest: /tmp/ # Replace with the desired local path
         flat: yes  # Optional:  Keeps the directory structure flat on the local machine
       register: fetch_result
 
