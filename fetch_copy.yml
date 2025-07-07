@@ -1,14 +1,19 @@
 ---
-- name: Fetch task
-  hosts: download_servers
+- name: Fetch task - Download from remote servers to controller
+  hosts: download_servers # Target: The servers you're pulling from
   tasks:
-    - name: Fetch a file from remote host
+    - name: Fetch /etc/passwd from remote host
       ansible.builtin.fetch:
-        src: /etc/passwd  # Replace with the actual path on the remote host
-        dest: /tmp/ # Replace with the desired local path
-        flat: yes  # Optional:  Keeps the directory structure flat on the local machine
+        src: /etc/passwd
+        dest: /tmp/  # This is the directory on the Ansible controller where files will be placed
+        flat: yes    # Important: Puts the file directly into /tmp/passwd on the controller
       register: fetch_result
 
+    # Optional: Debug the fetch result to verify
+    - name: Debug fetch result
+      ansible.builtin.debug:
+        var: fetch_result
+        
 - name: Copy task
   hosts: upload_servers
   tasks:
