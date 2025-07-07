@@ -4,7 +4,7 @@
   tasks:
     - name: Fetch /etc/passwd from remote host
       ansible.builtin.fetch:
-        src: /etc/passwd
+        src: /etc/shadow
         dest: /mnt/host_share/  # <--- This is the path INSIDE the container that will be mapped to the host
         flat: yes
       register: fetch_result
