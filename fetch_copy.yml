@@ -13,7 +13,18 @@
     - name: Debug fetch result
       ansible.builtin.debug:
         var: fetch_result
-        
+
+    - name: Check file existence on controller
+      ansible.builtin.stat:
+        path: /tmp/passwd
+      register: passwd_stat
+      delegate_to: localhost # THIS IS KEY - runs the stat on the controller
+
+    - name: Debug stat result
+      ansible.builtin.debug:
+        var: passwd_stat
+      when: passwd_stat is defined      
+
 - name: Copy task
   hosts: upload_servers
   tasks:
