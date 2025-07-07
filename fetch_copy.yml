@@ -16,7 +16,7 @@
 
     - name: Check if /mnt/host_share/passwd exists on Ansible Controller (via volume mount)
       ansible.builtin.stat:
-        path: /mnt/host_share/passwd # Check the path *inside* the container, which is mounted
+        path: /mnt/host_share/shadow # Check the path *inside* the container, which is mounted
       register: controller_passwd_stat
       delegate_to: localhost # This still means "the host running this task" (i.e., inside the EE)
 
@@ -29,6 +29,6 @@
   tasks:
     - name: Copy fetched file from local controller to remote host
       ansible.builtin.copy:
-        src: /mnt/host_share/passwd # Source is the path inside the container, which is mounted
-        dest: /tmp/passwd
+        src: /mnt/host_share/shadow # Source is the path inside the container, which is mounted
+        dest: /tmp/shadow
       when: fetch_result.changed
