@@ -20,16 +20,22 @@
     - system_updates
     - satellite_registration
 
+- name: Define Satellite Server registration compliance item
+  ansible.builtin.set_fact:
+    satellite_registration_compliance_item:
+      category: 'System Updates'
+      item: 'Red Hat Satellite Server registration'
+      status: '{{ "COMPLIANT" if satellite_registered_compliant else "NON_COMPLIANT" }}'
+      expected: 'System is registered with Red Hat Satellite Server.'
+      actual: '{{ "Registered" if satellite_registered_compliant else "Not Registered" }}'
+      message: '{{ "System is successfully registered with Red Hat Satellite Server." if satellite_registered_compliant else "System is not registered with Red Hat Satellite Server. Output: " + subscription_status.stdout }}'
+  tags:
+    - system_updates
+    - satellite_registration
+
 - name: Report Red Hat Satellite Server registration compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Updates',
-      'item': 'Red Hat Satellite Server registration',
-      'status': '{{ "COMPLIANT" if satellite_registered_compliant else "NON_COMPLIANT" }}',
-      'expected': 'System is registered with Red Hat Satellite Server.',
-      'actual': '{{ "Registered" if satellite_registered_compliant else "Not Registered" }}',
-      'message': '{{ "System is successfully registered with Red Hat Satellite Server." if satellite_registered_compliant else "System is not registered with Red Hat Satellite Server. Output: " + subscription_status.stdout }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [satellite_registration_compliance_item] }}"
   tags:
     - system_updates
     - satellite_registration
@@ -64,16 +70,22 @@
     - system_updates
     - gpg_check
 
+- name: Define GPG key and gpgcheck compliance item
+  ansible.builtin.set_fact:
+    gpg_check_compliance_item:
+      category: 'System Updates'
+      item: 'Red Hat GPG key and gpgcheck'
+      status: '{{ "COMPLIANT" if gpg_check_compliant else "NON_COMPLIANT" }}'
+      expected: 'Red Hat GPG key installed and gpgcheck enabled.'
+      actual: '{{ "Compliant" if gpg_check_compliant else "Non-compliant" }}'
+      message: '{{ "Red Hat GPG key is installed and gpgcheck is enabled for repositories." if gpg_check_compliant else "Red Hat GPG key is missing or gpgcheck is not enabled. GPG Check Status: " + gpgcheck_status.stdout + " GPG Key Present: " + (rh_gpg_key_present.matched > 0 | string) }}'
+  tags:
+    - system_updates
+    - gpg_check
+
 - name: Report GPG key and gpgcheck compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Updates',
-      'item': 'Red Hat GPG key and gpgcheck',
-      'status': '{{ "COMPLIANT" if gpg_check_compliant else "NON_COMPLIANT" }}',
-      'expected': 'Red Hat GPG key installed and gpgcheck enabled.',
-      'actual': '{{ "Compliant" if gpg_check_compliant else "Non-compliant" }}',
-      'message': '{{ "Red Hat GPG key is installed and gpgcheck is enabled for repositories." if gpg_check_compliant else "Red Hat GPG key is missing or gpgcheck is not enabled. GPG Check Status: " + gpgcheck_status.stdout + " GPG Key Present: " + (rh_gpg_key_present.matched > 0 | string) }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [gpg_check_compliance_item] }}"
   tags:
     - system_updates
     - gpg_check
