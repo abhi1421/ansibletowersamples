@@ -47,6 +47,15 @@
     - os_hardening
     - legacy_services
 
+- name: Get list of non-compliant legacy services
+  ansible.builtin.set_fact:
+    non_compliant_legacy_services_list: "{{ legacy_services_check.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ') }}"
+  when: not legacy_services_compliant
+  # Pre-calculate the list of services that are still present.
+  tags:
+    - os_hardening
+    - legacy_services
+
 - name: Define legacy services removal compliance item
   ansible.builtin.set_fact:
     legacy_services_compliance_item:
@@ -55,7 +64,7 @@
       status: '{{ "COMPLIANT" if legacy_services_compliant else "NON_COMPLIANT" }}'
       expected: 'Legacy services (telnet, rsh, etc.) are removed.'
       actual: '{{ "Removed" if legacy_services_compliant else "Present" }}'
-      message: '{{ "All specified legacy services are removed or not installed." if legacy_services_compliant else "The following legacy services are still present: " + (legacy_services_check.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ')) }}'
+      message: '{{ "All specified legacy services are removed or not installed." if legacy_services_compliant else "The following legacy services are still present: " + non_compliant_legacy_services_list }}'
   tags:
     - os_hardening
     - legacy_services
