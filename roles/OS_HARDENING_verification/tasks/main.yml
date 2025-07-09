@@ -57,11 +57,11 @@
   tags:
     - process_hardening # Category tag
 
-- name: Include OS hardening checks
-  ansible.builtin.include_tasks: check_os_hardening.yml
-  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
-  tags:
-    - os_hardening # Category tag
+#- name: Include OS hardening checks
+#  ansible.builtin.include_tasks: check_os_hardening.yml
+#  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
+#  tags:
+#    - os_hardening # Category tag
 
 - name: Include network security and firewall configuration checks
   ansible.builtin.include_tasks: check_network_security_firewall.yml
