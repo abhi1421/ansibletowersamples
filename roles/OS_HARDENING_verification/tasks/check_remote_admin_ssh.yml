@@ -13,8 +13,8 @@
 
 - name: Decode SSHD configuration content
   ansible.builtin.set_fact:
-    sshd_config_lines: "{{ sshd_config_content.content | b64decode | splitlines }}"
-  # Decode the base64 content and split into lines.
+    sshd_config_lines: "{{ sshd_config_content.content | b64decode | split('\n') }}"
+  # Decode the base64 content and split into lines using '\n'.
   tags:
     - remote_admin_ssh
     - ssh_config
