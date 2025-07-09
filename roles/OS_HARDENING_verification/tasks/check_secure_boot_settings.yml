@@ -24,16 +24,22 @@
     - secure_boot_settings
     - grub_permissions
 
+- name: Define grub.cfg permissions compliance item
+  ansible.builtin.set_fact:
+    grub_cfg_permissions_compliance_item:
+      category: 'Secure Boot Settings'
+      item: '/boot/grub2/grub.cfg permissions'
+      status: '{{ "COMPLIANT" if grub_cfg_permissions_compliant else "NON_COMPLIANT" }}'
+      expected: 'User/group owner root, permissions read/write for root only (0600).'
+      actual: '{{ "Compliant" if grub_cfg_permissions_compliant else "Non-compliant" }}'
+      message: '{{ "Permissions and ownership for /boot/grub2/grub.cfg are correct." if grub_cfg_permissions_compliant else "Permissions or ownership for /boot/grub2/grub.cfg are incorrect. Actual mode: " + (grub_cfg_stat.stat.mode | default("N/A")) + ", Actual UID: " + (grub_cfg_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (grub_cfg_stat.stat.gid | default("N/A") | string) }}'
+  tags:
+    - secure_boot_settings
+    - grub_permissions
+
 - name: Report grub.cfg permissions compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Secure Boot Settings',
-      'item': '/boot/grub2/grub.cfg permissions',
-      'status': '{{ "COMPLIANT" if grub_cfg_permissions_compliant else "NON_COMPLIANT" }}',
-      'expected': 'User/group owner root, permissions read/write for root only (0600).',
-      'actual': '{{ "Compliant" if grub_cfg_permissions_compliant else "Non-compliant" }}',
-      'message': '{{ "Permissions and ownership for /boot/grub2/grub.cfg are correct." if grub_cfg_permissions_compliant else "Permissions or ownership for /boot/grub2/grub.cfg are incorrect. Actual mode: " + (grub_cfg_stat.stat.mode | default("N/A")) + ", Actual UID: " + (grub_cfg_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (grub_cfg_stat.stat.gid | default("N/A") | string) }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [grub_cfg_permissions_compliance_item] }}"
   tags:
     - secure_boot_settings
     - grub_permissions
@@ -57,16 +63,22 @@
     - secure_boot_settings
     - grub_password
 
+- name: Define boot loader password compliance item
+  ansible.builtin.set_fact:
+    boot_loader_password_compliance_item:
+      category: 'Secure Boot Settings'
+      item: 'Boot loader password'
+      status: '{{ "COMPLIANT" if boot_loader_password_compliant else "NON_COMPLIANT" }}'
+      expected: 'Boot loader password is set.'
+      actual: '{{ "Password set" if boot_loader_password_compliant else "Password not set" }}'
+      message: '{{ "Boot loader password is configured in grub.cfg." if boot_loader_password_compliant else "Boot loader password is not found in grub.cfg. This is a critical security gap." }}'
+  tags:
+    - secure_boot_settings
+    - grub_password
+
 - name: Report boot loader password compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Secure Boot Settings',
-      'item': 'Boot loader password',
-      'status': '{{ "COMPLIANT" if boot_loader_password_compliant else "NON_COMPLIANT" }}',
-      'expected': 'Boot loader password is set.',
-      'actual': '{{ "Password set" if boot_loader_password_compliant else "Password not set" }}',
-      'message': '{{ "Boot loader password is configured in grub.cfg." if boot_loader_password_compliant else "Boot loader password is not found in grub.cfg. This is a critical security gap." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [boot_loader_password_compliance_item] }}"
   tags:
     - secure_boot_settings
     - grub_password
@@ -89,16 +101,22 @@
     - secure_boot_settings
     - x_window_system
 
+- name: Define X Window System removal compliance item
+  ansible.builtin.set_fact:
+    x_window_system_compliance_item:
+      category: 'Secure Boot Settings'
+      item: 'X Window System removal'
+      status: '{{ "COMPLIANT" if x_window_system_compliant else "NON_COMPLIANT" }}'
+      expected: 'X Window System is removed.'
+      actual: '{{ "Removed" if x_window_system_compliant else "Present" }}'
+      message: '{{ "X Window System (xorg-x11-server-Xorg) is not installed." if x_window_system_compliant else "X Window System (xorg-x11-server-Xorg) is present and should be removed." }}'
+  tags:
+    - secure_boot_settings
+    - x_window_system
+
 - name: Report X Window System removal compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Secure Boot Settings',
-      'item': 'X Window System removal',
-      'status': '{{ "COMPLIANT" if x_window_system_compliant else "NON_COMPLIANT" }}',
-      'expected': 'X Window System is removed.',
-      'actual': '{{ "Removed" if x_window_system_compliant else "Present" }}',
-      'message': '{{ "X Window System (xorg-x11-server-Xorg) is not installed." if x_window_system_compliant else "X Window System (xorg-x11-server-Xorg) is present and should be removed." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [x_window_system_compliance_item] }}"
   tags:
     - secure_boot_settings
     - x_window_system
@@ -118,16 +136,22 @@
     - secure_boot_settings
     - x_font_server
 
+- name: Define X font server compliance item
+  ansible.builtin.set_fact:
+    x_font_server_compliance_item:
+      category: 'Secure Boot Settings'
+      item: 'X font server disabled'
+      status: '{{ "COMPLIANT" if x_font_server_compliant else "NON_COMPLIANT" }}'
+      expected: 'X font server (xfs) is disabled.'
+      actual: '{{ "Disabled/Not Running" if x_font_server_compliant else "Running" }}'
+      message: '{{ "X font server (xfs) is disabled or not installed." if x_font_server_compliant else "X font server (xfs) is running and should be disabled." }}'
+  tags:
+    - secure_boot_settings
+    - x_font_server
+
 - name: Report X font server compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Secure Boot Settings',
-      'item': 'X font server disabled',
-      'status': '{{ "COMPLIANT" if x_font_server_compliant else "NON_COMPLIANT" }}',
-      'expected': 'X font server (xfs) is disabled.',
-      'actual': '{{ "Disabled/Not Running" if x_font_server_compliant else "Running" }}',
-      'message': '{{ "X font server (xfs) is disabled or not installed." if x_font_server_compliant else "X font server (xfs) is running and should be disabled." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [x_font_server_compliance_item] }}"
   tags:
     - secure_boot_settings
     - x_font_server
