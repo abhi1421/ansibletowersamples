@@ -27,65 +27,65 @@
   tags:
     - facts_gathering # Tag for fact gathering, useful if you want to skip it for some reason
 
-#- name: Include preparation and installation checks
-#  ansible.builtin.include_tasks: check_preparation_installation.yml
-#  # This task includes a separate file for verifying BIOS/firmware and boot order settings.
-#  tags:
-#    - preparation_installation # Category tag
+- name: Include preparation and installation checks
+  ansible.builtin.include_tasks: check_preparation_installation.yml
+  # This task includes a separate file for verifying BIOS/firmware and boot order settings.
+  tags:
+    - preparation_installation # Category tag
 
-#- name: Include filesystem configuration checks
-#  ansible.builtin.include_tasks: check_filesystem_config.yml
-#  # This task includes a separate file for verifying filesystem mount options and permissions.
-#  tags:
-#    - filesystem_config # Category tag
+- name: Include filesystem configuration checks
+  ansible.builtin.include_tasks: check_filesystem_config.yml
+  # This task includes a separate file for verifying filesystem mount options and permissions.
+  tags:
+    - filesystem_config # Category tag
 
-#- name: Include system updates checks
-#  ansible.builtin.include_tasks: check_system_updates.yml
-#  # This task includes a separate file for verifying update mechanisms and GPG key settings.
-#  tags:
-#    - system_updates # Category tag
+- name: Include system updates checks
+  ansible.builtin.include_tasks: check_system_updates.yml
+  # This task includes a separate file for verifying update mechanisms and GPG key settings.
+  tags:
+    - system_updates # Category tag
 
-#- name: Include secure boot settings checks
-#  ansible.builtin.include_tasks: check_secure_boot_settings.yml
-#  # This task includes a separate file for verifying GRUB and X Window system settings.
-#  tags:
-#    - secure_boot_settings # Category tag
+- name: Include secure boot settings checks
+  ansible.builtin.include_tasks: check_secure_boot_settings.yml
+  # This task includes a separate file for verifying GRUB and X Window system settings.
+  tags:
+    - secure_boot_settings # Category tag
 
-#- name: Include process hardening checks
-#  ansible.builtin.include_tasks: check_process_hardening.yml
-#  # This task includes a separate file for verifying core dump and memory randomization settings.
-#  tags:
-#    - process_hardening # Category tag
+- name: Include process hardening checks
+  ansible.builtin.include_tasks: check_process_hardening.yml
+  # This task includes a separate file for verifying core dump and memory randomization settings.
+  tags:
+    - process_hardening # Category tag
 
-#- name: Include OS hardening checks
-#  ansible.builtin.include_tasks: check_os_hardening.yml
-#  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
-#  tags:
-#    - os_hardening # Category tag
+- name: Include OS hardening checks
+  ansible.builtin.include_tasks: check_os_hardening.yml
+  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
+  tags:
+    - os_hardening # Category tag
 
-#- name: Include network security and firewall configuration checks
-#  ansible.builtin.include_tasks: check_network_security_firewall.yml
-#  # This task includes a separate file for verifying network kernel parameters and firewall rules.
-#  tags:
-#    - network_security_firewall # Category tag
+- name: Include network security and firewall configuration checks
+  ansible.builtin.include_tasks: check_network_security_firewall.yml
+  # This task includes a separate file for verifying network kernel parameters and firewall rules.
+  tags:
+    - network_security_firewall # Category tag
 
-#- name: Include remote administration via SSH checks
-#  ansible.builtin.include_tasks: check_remote_admin_ssh.yml
-#  # This task includes a separate file for verifying SSH server configuration.
-#  tags:
-#    - remote_admin_ssh # Category tag
+- name: Include remote administration via SSH checks
+  ansible.builtin.include_tasks: check_remote_admin_ssh.yml
+  # This task includes a separate file for verifying SSH server configuration.
+  tags:
+    - remote_admin_ssh # Category tag
 
-#- name: Include system integrity and intrusion detection checks
-#  ansible.builtin.include_tasks: check_system_integrity_intrusion.yml
-#  # This task includes a separate file for verifying AIDE, SELinux, OSsec, NTP, and auditd settings.
-#  tags:
-#    - system_integrity_intrusion # Category tag
+- name: Include system integrity and intrusion detection checks
+  ansible.builtin.include_tasks: check_system_integrity_intrusion.yml
+  # This task includes a separate file for verifying AIDE, SELinux, OSsec, NTP, and auditd settings.
+  tags:
+    - system_integrity_intrusion # Category tag
 
-#- name: Include files/directory permissions/access checks
-#  ansible.builtin.include_tasks: check_files_directory_permissions.yml
-#  # This task includes a separate file for verifying system account and directory permissions.
-#  tags:
-#    - files_permissions # Category tag
+- name: Include files/directory permissions/access checks
+  ansible.builtin.include_tasks: check_files_directory_permissions.yml
+  # This task includes a separate file for verifying system account and directory permissions.
+  tags:
+    - files_permissions # Category tag
 
 - name: Include PAM configuration checks
   ansible.builtin.include_tasks: check_pam_config.yml
