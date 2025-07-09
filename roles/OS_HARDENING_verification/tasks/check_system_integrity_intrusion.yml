@@ -85,12 +85,10 @@
     - system_integrity_intrusion
     - selinux
 
-- name: Check if OSsec HIDS is installed (check for ossec-hids-client package)
-  ansible.builtin.package:
-    name: ossec-hids-client
-    state: present
-  register: ossec_package_check
-  check_mode: true
+- name: Check if OSsec HIDS agent binary exists
+  ansible.builtin.stat:
+    path: /var/ossec/bin/ossec-agentd # Common path for OSsec agent binary
+  register: ossec_binary_check
   tags:
     - system_integrity_intrusion
     - ossec
@@ -101,15 +99,15 @@
     state: started
   register: ossec_service_check
   check_mode: true
-  ignore_errors: true # Service might not exist if package isn't installed
+  ignore_errors: true # Service might not exist or be named differently
   tags:
     - system_integrity_intrusion
     - ossec
 
 - name: Set fact for OSsec HIDS compliance
   ansible.builtin.set_fact:
-    ossec_compliant: "{{ ossec_package_check.changed == false and (ossec_service_check.status.ActiveState | default('inactive')) == 'active' }}"
-  # OSsec package should be present and service should be active.
+    ossec_compliant: "{{ ossec_binary_check.stat.exists and (ossec_service_check.status.ActiveState | default('inactive')) == 'active' }}"
+  # OSsec binary should exist AND its service should be active.
   tags:
     - system_integrity_intrusion
     - ossec
@@ -122,7 +120,14 @@
       status: '{{ "COMPLIANT" if ossec_compliant else "NON_COMPLIANT" }}'
       expected: 'OSsec HIDS is installed and running.'
       actual: '{{ "Installed and Running" if ossec_compliant else "Not Installed or Running" }}'
-      message: '{{ "OSsec HIDS is installed and its service is active." if ossec_compliant else "OSsec HIDS is not installed or its service is not running. Package status changed: " + (ossec_package_check.changed | string) + ", Service ActiveState: " + (ossec_service_check.status.ActiveState | default("N/A")) }}'
+      message: >-
+        {% if ossec_compliant %}
+        OSsec HIDS agent binary found at {{ ossec_binary_check.stat.path }} and its service is active.
+        {% else %}
+        OSsec HIDS agent binary not found at {{ ossec_binary_check.stat.path }} (Exists: {{ ossec_binary_check.stat.exists | default(false) | string }}).
+        OSsec service ActiveState: {{ ossec_service_check.status.ActiveState | default("N/A") }}.
+        OSsec HIDS is not installed or its service is not running.
+        {% endif %}
   tags:
     - system_integrity_intrusion
     - ossec
