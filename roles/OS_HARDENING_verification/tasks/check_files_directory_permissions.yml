@@ -2,6 +2,19 @@
 # os_hardening_verification/tasks/check_files_directory_permissions.yml
 # This file contains tasks to verify files/directory permissions/access hardening points.
 
+- name: Define integrity checking compliance item (manual)
+  ansible.builtin.set_fact:
+    account_integrity_compliance_item:
+      category: 'Files/Directory Permissions/Access'
+      item: 'Integrity checking of system accounts, group memberships, and privileges'
+      status: 'MANUAL_REQUIRED'
+      expected: 'Integrity checking of system accounts, group memberships, and their associated privileges is enabled and tested.'
+      actual: 'N/A (requires manual verification)'
+      message: 'Automated verification of all aspects of account/group integrity and privileges is complex and often requires manual review or specialized tools beyond basic Ansible modules.'
+  tags:
+    - files_permissions
+    - account_integrity_manual
+
 - name: Check integrity of system accounts, group memberships, and privileges (manual verification)
   ansible.builtin.debug:
     msg: |
@@ -10,15 +23,13 @@
       Description: This involves reviewing /etc/passwd, /etc/shadow, /etc/group, and sudoers files, and potentially using tools like `pwck`, `grpck`, or `aide` for integrity checks.
       Expected: Integrity checking is enabled and tested.
       Note: Automated verification of all aspects of account/group integrity and privileges is complex and often requires manual review or specialized tools beyond basic Ansible modules."
+  tags:
+    - files_permissions
+    - account_integrity_manual
+
+- name: Report integrity checking compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Files/Directory Permissions/Access',
-      'item': 'Integrity checking of system accounts, group memberships, and privileges',
-      'status': 'MANUAL_REQUIRED',
-      'expected': 'Integrity checking of system accounts, group memberships, and their associated privileges is enabled and tested.',
-      'actual': 'N/A (requires manual verification)',
-      'message': 'Automated verification of all aspects of account/group integrity and privileges is complex and often requires manual review or specialized tools beyond basic Ansible modules.'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [account_integrity_compliance_item] }}"
   tags:
     - files_permissions
     - account_integrity_manual
