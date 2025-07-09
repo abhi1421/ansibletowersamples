@@ -15,8 +15,8 @@
 
 - name: Read content of issue files
   ansible.builtin.slurp:
-    src: "{{ item.path }}"
-  loop: "{{ issue_files_stat.results | selectattr('stat.exists', 'equalto', true) | map(attribute='path') | list }}"
+    src: "{{ item.stat.path }}" # Corrected from item.path to item.stat.path
+  loop: "{{ issue_files_stat.results | selectattr('stat.exists', 'equalto', true) | list }}" # Removed map(attribute='path') here
   register: issue_files_content
   tags:
     - warning_banners
