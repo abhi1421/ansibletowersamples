@@ -3,7 +3,7 @@
   register: ssh_protocol
   failed_when: ssh_protocol.rc != 0
   vars:
-    check_name: "SSH Protocol 2 enforced"
+    check_name: "Ensure SSH Protocol is 2"
   notify: Append result to report
 
 - name: Ensure SSH log level is INFO
@@ -29,3 +29,5 @@
   vars:
     check_name: "SSH empty passwords not allowed"
   notify: Append result to report
+
+  
