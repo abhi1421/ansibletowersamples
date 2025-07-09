@@ -22,16 +22,22 @@
     - process_hardening
     - core_dumps
 
+- name: Define core dump restriction compliance item
+  ansible.builtin.set_fact:
+    core_dump_compliance_item:
+      category: 'Process Hardening'
+      item: 'Restrict core dumps (fs.suid_dumpable)'
+      status: '{{ "COMPLIANT" if core_dump_compliant else "NON_COMPLIANT" }}'
+      expected: 'fs.suid_dumpable is set to 0.'
+      actual: '{{ "0" if core_dump_compliant else "Not 0" }}'
+      message: '{{ "Core dumps are restricted (fs.suid_dumpable=0)." if core_dump_compliant else "Core dumps are not restricted (fs.suid_dumpable is not 0)." }}'
+  tags:
+    - process_hardening
+    - core_dumps
+
 - name: Report core dump restriction compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Process Hardening',
-      'item': 'Restrict core dumps (fs.suid_dumpable)',
-      'status': '{{ "COMPLIANT" if core_dump_compliant else "NON_COMPLIANT" }}',
-      'expected': 'fs.suid_dumpable is set to 0.',
-      'actual': '{{ "0" if core_dump_compliant else "Not 0" }}',
-      'message': '{{ "Core dumps are restricted (fs.suid_dumpable=0)." if core_dump_compliant else "Core dumps are not restricted (fs.suid_dumpable is not 0)." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [core_dump_compliance_item] }}"
   tags:
     - process_hardening
     - core_dumps
@@ -56,16 +62,22 @@
     - process_hardening
     - randomize_va_space
 
+- name: Define randomized VA space compliance item
+  ansible.builtin.set_fact:
+    randomize_va_space_compliance_item:
+      category: 'Process Hardening'
+      item: 'Enable randomized virtual memory region placement (kernel.randomize_va_space)'
+      status: '{{ "COMPLIANT" if randomize_va_space_compliant else "NON_COMPLIANT" }}'
+      expected: 'kernel.randomize_va_space is set to 2.'
+      actual: '{{ "2" if randomize_va_space_compliant else "Not 2" }}'
+      message: '{{ "Randomized virtual memory region placement is enabled (kernel.randomize_va_space=2)." if randomize_va_space_compliant else "Randomized virtual memory region placement is not enabled (kernel.randomize_va_space is not 2)." }}'
+  tags:
+    - process_hardening
+    - randomize_va_space
+
 - name: Report randomized VA space compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Process Hardening',
-      'item': 'Enable randomized virtual memory region placement (kernel.randomize_va_space)',
-      'status': '{{ "COMPLIANT" if randomize_va_space_compliant else "NON_COMPLIANT" }}',
-      'expected': 'kernel.randomize_va_space is set to 2.',
-      'actual': '{{ "2" if randomize_va_space_compliant else "Not 2" }}',
-      'message': '{{ "Randomized virtual memory region placement is enabled (kernel.randomize_va_space=2)." if randomize_va_space_compliant else "Randomized virtual memory region placement is not enabled (kernel.randomize_va_space is not 2)." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [randomize_va_space_compliance_item] }}"
   tags:
     - process_hardening
     - randomize_va_space
