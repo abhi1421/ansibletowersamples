@@ -31,16 +31,22 @@
     - warning_banners
     - network_banner
 
+- name: Define network/physical access banner compliance item
+  ansible.builtin.set_fact:
+    network_banner_compliance_item:
+      category: 'Warning Banners'
+      item: 'Network or physical access services warning banner'
+      status: '{{ "COMPLIANT" if network_banner_compliant else "NON_COMPLIANT" }}'
+      expected: 'University warning banner is displayed for network/physical access services.'
+      actual: '{{ "Present" if network_banner_compliant else "Not Present" }}'
+      message: '{{ "University warning banner found in /etc/issue or /etc/issue.net." if network_banner_compliant else "University warning banner not found in /etc/issue or /etc/issue.net." }}'
+  tags:
+    - warning_banners
+    - network_banner
+
 - name: Report network/physical access warning banner compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Warning Banners',
-      'item': 'Network or physical access services warning banner',
-      'status': '{{ "COMPLIANT" if network_banner_compliant else "NON_COMPLIANT" }}',
-      'expected': 'University warning banner is displayed for network/physical access services.',
-      'actual': '{{ "Present" if network_banner_compliant else "Not Present" }}',
-      'message': '{{ "University warning banner found in /etc/issue or /etc/issue.net." if network_banner_compliant else "University warning banner not found in /etc/issue or /etc/issue.net." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [network_banner_compliance_item] }}"
   tags:
     - warning_banners
     - network_banner
@@ -53,15 +59,26 @@
       Description: This requires checking the configuration of the display manager (e.g., GDM, KDM, LightDM) to ensure a warning banner is displayed prior to login. This often involves files like /etc/gdm/custom.conf or similar.
       Expected: University warning banner is displayed prior to graphical login.
       Note: Automated verification of graphical login banners is highly display manager specific and often requires manual verification or more complex scripting."
+  tags:
+    - warning_banners
+    - gui_banner_manual
+
+- name: Define graphical user interface warning banner compliance item
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Warning Banners',
-      'item': 'Graphical user interface warning banner',
-      'status': 'MANUAL_REQUIRED',
-      'expected': 'University warning banner is displayed prior to graphical login.',
-      'actual': 'N/A (requires manual verification)',
-      'message': 'Automated verification of graphical login banners is highly display manager specific and often requires manual verification or more complex scripting.'
-    }] }}"
+    gui_banner_compliance_item:
+      category: 'Warning Banners'
+      item: 'Graphical user interface warning banner'
+      status: 'MANUAL_REQUIRED'
+      expected: 'University warning banner is displayed prior to graphical login.'
+      actual: 'N/A (requires manual verification)'
+      message: 'Automated verification of graphical login banners is highly display manager specific and often requires manual verification or more complex scripting.'
+  tags:
+    - warning_banners
+    - gui_banner_manual
+
+- name: Report graphical user interface warning banner compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [gui_banner_compliance_item] }}"
   tags:
     - warning_banners
     - gui_banner_manual
