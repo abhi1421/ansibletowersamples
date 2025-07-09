@@ -1,16 +1,26 @@
-- name: Set network login banner
-  copy:
-    dest: /etc/issue
-    content: "Authorized uses only. All activity may be monitored and reported."
+- name: Check if /etc/motd has warning banner
+  shell: grep 'Authorized uses only' /etc/motd
+  register: motd_banner
+  ignore_errors: yes
 
-- name: Set GUI login banner
-  copy:
-    dest: /etc/dconf/db/gdm.d/01-banner-message
-    content: |
-      [org/gnome/login-screen]
-      banner-message-enable=true
-      banner-message-text='Authorized uses only. All activity may be monitored.'
-  notify: Update dconf
+- name: Fix /etc/motd banner if missing
+  block:
+    - name: Set warning banner in /etc/motd
+      copy:
+        dest: /etc/motd
+        content: |
+          WARNING: Authorized uses only. All activity may be monitored and reported.
 
-- name: Update dconf
-  command: dconf update
+    - name: Log banner fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Set login warning banner'] }}"
+  when: motd_banner.rc != 0
+
+- name: Re-check banner
+  shell: grep 'Authorized uses only' /etc/motd
+  register: motd_banner_after
+
+- name: Fail if banner not in place
+  fail:
+    msg: "Login banner not set correctly"
+  when: motd_banner_after.rc != 0

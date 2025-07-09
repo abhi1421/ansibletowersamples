@@ -1,0 +1,37 @@
+---
+# os_hardening_verification/tasks/check_preparation_installation.yml
+# This file contains tasks to verify preparation and installation hardening points.
+
+- name: Check for BIOS/firmware password (manual verification required)
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Preparation and Installation',
+      'item': 'BIOS/firmware password',
+      'status': 'MANUAL_REQUIRED',
+      'expected': 'A strong BIOS/firmware password is set.',
+      'actual': 'N/A (requires manual verification)',
+      'message': 'This check cannot be automated via Ansible at the OS level. Please verify manually during physical access.'
+    }] }}"
+  # This is a critical security control, but it's outside the scope of OS-level Ansible automation.
+  # It requires physical access or out-of-band management tools.
+  # We log it as a manual check in the report.
+  tags:
+    - preparation_installation
+    - bios_password
+
+- name: Check device boot order (manual verification required)
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Preparation and Installation',
+      'item': 'Device boot order',
+      'status': 'MANUAL_REQUIRED',
+      'expected': 'Boot order is set to boot from primary disk only, with other options disabled or password-protected.',
+      'actual': 'N/A (requires manual verification)',
+      'message': 'This check cannot be automated via Ansible at the OS level. Please verify manually during physical access.'
+    }] }}"
+  # Similar to the BIOS password, boot order configuration is a hardware-level setting.
+  # It's not directly manageable by OS-level Ansible modules.
+  # We log it as a manual check in the report.
+  tags:
+    - preparation_installation
+    - boot_order

@@ -1,33 +1,32 @@
-- name: Ensure SSH protocol is 2
+- name: Check SSH Protocol is 2
   shell: grep -E '^Protocol\s+2' /etc/ssh/sshd_config
   register: ssh_protocol
-  failed_when: ssh_protocol.rc != 0
-  vars:
-    check_name: "Ensure SSH Protocol is 2"
-  notify: Append result to report
+  ignore_errors: yes
 
-- name: Ensure SSH log level is INFO
-  shell: grep -E '^LogLevel\s+INFO' /etc/ssh/sshd_config
-  register: ssh_loglevel
-  failed_when: ssh_loglevel.rc != 0
-  vars:
-    check_name: "SSH LogLevel INFO"
-  notify: Append result to report
+- name: Fix SSH Protocol if needed
+  block:
+    - name: Set Protocol to 2
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^Protocol'
+        line: 'Protocol 2'
+        backup: yes
 
-- name: Ensure root login is disabled
-  shell: grep -E '^PermitRootLogin\s+no' /etc/ssh/sshd_config
-  register: ssh_root
-  failed_when: ssh_root.rc != 0
-  vars:
-    check_name: "SSH root login disabled"
-  notify: Append result to report
+    - name: Restart SSH service
+      systemd:
+        name: sshd
+        state: restarted
 
-- name: Ensure PermitEmptyPasswords is no
-  shell: grep -E '^PermitEmptyPasswords\s+no' /etc/ssh/sshd_config
-  register: ssh_empty
-  failed_when: ssh_empty.rc != 0
-  vars:
-    check_name: "SSH empty passwords not allowed"
-  notify: Append result to report
+    - name: Log SSH Protocol fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Set SSH Protocol to 2'] }}"
+  when: ssh_protocol.rc != 0
 
-  
+- name: Re-check SSH Protocol
+  shell: grep -E '^Protocol\s+2' /etc/ssh/sshd_config
+  register: ssh_protocol_after
+
+- name: Fail if SSH Protocol fix failed
+  fail:
+    msg: "SSH Protocol 2 fix failed"
+  when: ssh_protocol_after.rc != 0

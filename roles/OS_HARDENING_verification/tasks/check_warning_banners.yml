@@ -1,0 +1,67 @@
+---
+# os_hardening_verification/tasks/check_warning_banners.yml
+# This file contains tasks to verify warning banners hardening points.
+
+- name: Check network or physical access services warning banner (/etc/issue, /etc/issue.net)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/issue
+    - /etc/issue.net
+  register: issue_files_stat
+  tags:
+    - warning_banners
+    - network_banner
+
+- name: Read content of issue files
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ issue_files_stat.results | selectattr('stat.exists', 'equalto', true) | map(attribute='path') | list }}"
+  register: issue_files_content
+  tags:
+    - warning_banners
+    - network_banner
+
+- name: Set fact for network/physical access banner compliance
+  ansible.builtin.set_fact:
+    network_banner_compliant: >-
+      {{ (issue_files_content.results | selectattr('content', 'defined') | map(attribute='content') | list | map('b64decode') | join('\n') | lower | regex_search('university warning banner')) != '' }}
+  # Check if "university warning banner" (case-insensitive) is present in /etc/issue or /etc/issue.net.
+  tags:
+    - warning_banners
+    - network_banner
+
+- name: Report network/physical access warning banner compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Warning Banners',
+      'item': 'Network or physical access services warning banner',
+      'status': '{{ "COMPLIANT" if network_banner_compliant else "NON_COMPLIANT" }}',
+      'expected': 'University warning banner is displayed for network/physical access services.',
+      'actual': '{{ "Present" if network_banner_compliant else "Not Present" }}',
+      'message': '{{ "University warning banner found in /etc/issue or /etc/issue.net." if network_banner_compliant else "University warning banner not found in /etc/issue or /etc/issue.net." }}'
+    }] }}"
+  tags:
+    - warning_banners
+    - network_banner
+
+- name: Check graphical user interface warning banner (GDM/KDM/LightDM)
+  ansible.builtin.debug:
+    msg: |
+      "Graphical user interface warning banner check:
+      Compliance Status: MANUAL VERIFICATION REQUIRED
+      Description: This requires checking the configuration of the display manager (e.g., GDM, KDM, LightDM) to ensure a warning banner is displayed prior to login. This often involves files like /etc/gdm/custom.conf or similar.
+      Expected: University warning banner is displayed prior to graphical login.
+      Note: Automated verification of graphical login banners is highly display manager specific and often requires manual verification or more complex scripting."
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Warning Banners',
+      'item': 'Graphical user interface warning banner',
+      'status': 'MANUAL_REQUIRED',
+      'expected': 'University warning banner is displayed prior to graphical login.',
+      'actual': 'N/A (requires manual verification)',
+      'message': 'Automated verification of graphical login banners is highly display manager specific and often requires manual verification or more complex scripting.'
+    }] }}"
+  tags:
+    - warning_banners
+    - gui_banner_manual

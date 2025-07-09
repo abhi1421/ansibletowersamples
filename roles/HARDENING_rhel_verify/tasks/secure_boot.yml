@@ -1,22 +1,14 @@
-- name: Check grub.cfg owner is root
-  stat:
-    path: /boot/grub2/grub.cfg
-  register: grub_stat
-  failed_when:
-    - grub_stat.stat.pw_name != 'root'
-    - grub_stat.stat.gid != 0
-  vars:
-    check_name: "grub.cfg owner is root"
-  notify: Append result to report
+- name: Check if Secure Boot is enabled
+  shell: mokutil --sb-state
+  register: sb_state
+  ignore_errors: yes
 
-- name: Check grub.cfg permissions
-  file:
-    path: /boot/grub2/grub.cfg
-    state: file
-    mode: '0600'
-  check_mode: yes
-  register: grub_perms
-  failed_when: grub_perms.mode != '0600'
-  vars:
-    check_name: "grub.cfg permissions 0600"
-  notify: Append result to report
+- name: Fail if Secure Boot is disabled
+  fail:
+    msg: "Secure Boot is DISABLED. Please enable it in BIOS/UEFI."
+  when: "'SecureBoot enabled' not in sb_state.stdout"
+
+- name: Log Secure Boot check
+  set_fact:
+    hardening_report: "{{ hardening_report + ['Verified Secure Boot is enabled'] }}"
+  when: "'SecureBoot enabled' in sb_state.stdout"

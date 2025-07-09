@@ -1,43 +1,27 @@
-- name: Remove legacy services
-  package:
-    name:
-      - telnet-server
-      - rsh
-      - ypserv
-      - ypbind
-      - tftp
-      - talk
-    state: absent
+- name: Check if IP forwarding is disabled
+  shell: sysctl net.ipv4.ip_forward
+  register: ip_forward
+  ignore_errors: yes
 
-- name: Remove xinetd
-  package:
-    name: xinetd
-    state: absent
+- name: Disable IP forwarding if needed
+  block:
+    - name: Set net.ipv4.ip_forward to 0
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: 0
+        state: present
+        sysctl_set: yes
 
-- name: Disable legacy systemd services
-  service:
-    name: "{{ item }}"
-    enabled: no
-    state: stopped
-  loop:
-    - chargen-dgram
-    - daytime-dgram
-    - echo-dgram
-  ignore_errors: true
+    - name: Log IP forwarding fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Disabled IP forwarding'] }}"
+  when: "'0' not in ip_forward.stdout"
 
-- name: Remove unused servers
-  package:
-    name:
-      - vsftpd
-      - bind
-      - samba
-      - dhcp
-      - nfs-utils
-      - net-snmp
-    state: absent
+- name: Re-check IP forwarding
+  shell: sysctl net.ipv4.ip_forward
+  register: ip_forward_after
 
-- name: Set system umask
-  lineinfile:
-    path: /etc/systemd/system.conf
-    regexp: '^#?DefaultUmask='
-    line: 'DefaultUmask=027'
+- name: Fail if IP forwarding is still enabled
+  fail:
+    msg: "IP forwarding is still enabled"
+  when: "'0' not in ip_forward_after.stdout"

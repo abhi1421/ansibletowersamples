@@ -1,6 +1,28 @@
-- name: Check for world-writable files and set sticky bit
-  shell: find / -type d -perm -0002 -exec chmod +t {} \;
+- name: Check /etc/passwd permissions
+  stat:
+    path: /etc/passwd
+  register: passwd_stat
 
-- name: Check for unnecessary users/groups manually
-  debug:
-    msg: "🔍 Run manual review of /etc/passwd, /etc/group for least privilege."
+- name: Fix /etc/passwd permissions if needed
+  block:
+    - name: Set permissions on /etc/passwd
+      file:
+        path: /etc/passwd
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Log /etc/passwd fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Fixed /etc/passwd permissions'] }}"
+  when: passwd_stat.stat.mode != '0644'
+
+- name: Re-check /etc/passwd permissions
+  stat:
+    path: /etc/passwd
+  register: passwd_stat_after
+
+- name: Fail if /etc/passwd permissions wrong
+  fail:
+    msg: "/etc/passwd permissions are still incorrect"
+  when: passwd_stat_after.stat.mode != '0644'

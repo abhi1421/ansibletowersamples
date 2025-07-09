@@ -1,0 +1,50 @@
+---
+# os_hardening_verification/tasks/generate_report.yml
+# This file compiles all compliance check results and generates a human-readable report.
+
+- name: Prepare report content
+  ansible.builtin.set_fact:
+    report_content: |
+      # Compliance Report for Host: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+      ## Date: {{ ansible_date_time.iso8601_micro }}
+
+      This report summarizes the compliance status of the host against the defined hardening requirements.
+
+      ### Summary of Compliance Status:
+      - **COMPLIANT:** {{ compliance_report_results | selectattr('status', 'equalto', 'COMPLIANT') | list | length }} items
+      - **NON_COMPLIANT:** {{ compliance_report_results | selectattr('status', 'equalto', 'NON_COMPLIANT') | list | length }} items
+      - **MANUAL_REQUIRED:** {{ compliance_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }} items
+
+      ### Detailed Compliance Information:
+
+      {% for category in compliance_report_results | map(attribute='category') | unique | sort %}
+      #### {{ category }}
+
+      | Item | Status | Expected | Actual | Message |
+      |---|---|---|---|---|
+      {% for item in compliance_report_results | selectattr('category', 'equalto', category) %}
+      | {{ item.item }} | **{{ item.status }}** | {{ item.expected }} | {{ item.actual }} | {{ item.message }} |
+      {% endfor %}
+
+      {% endfor %}
+  # This Jinja2 template generates a Markdown-formatted report.
+  # It groups results by category for better readability.
+  tags:
+    - report_generation # Tag for report generation
+
+- name: Display compliance report (console output)
+  ansible.builtin.debug:
+    msg: "{{ report_content }}"
+  # Output the report to the console for immediate viewing.
+  tags:
+    - report_generation
+
+- name: Save compliance report to file
+  ansible.builtin.copy:
+    content: "{{ report_content }}"
+    dest: "/tmp/compliance_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.md"
+    mode: '0644'
+  # Save the report to a file on the target host.
+  # The filename includes hostname and timestamp for uniqueness.
+  tags:
+    - report_generation

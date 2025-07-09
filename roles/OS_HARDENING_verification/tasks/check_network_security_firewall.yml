@@ -1,0 +1,103 @@
+---
+# os_hardening_verification/tasks/check_network_security_firewall.yml
+# This file contains tasks to verify network security and firewall configuration.
+
+- name: Define network kernel parameters to check
+  ansible.builtin.set_fact:
+    network_params:
+      - { name: 'net.ipv4.ip_forward', value: '0', description: 'IP forwarding' }
+      - { name: 'net.ipv4.conf.all.send_redirects', value: '0', description: 'Send packet redirects (all interfaces)' }
+      - { name: 'net.ipv4.conf.default.send_redirects', value: '0', description: 'Send packet redirects (default interface)' }
+      - { name: 'net.ipv4.conf.all.accept_source_route', value: '0', description: 'Source routed packet acceptance (all interfaces)' }
+      - { name: 'net.ipv4.conf.default.accept_source_route', value: '0', description: 'Source routed packet acceptance (default interface)' }
+      - { name: 'net.ipv4.conf.all.accept_redirects', value: '0', description: 'ICMP redirect acceptance (all interfaces)' }
+      - { name: 'net.ipv4.conf.default.accept_redirects', value: '0', description: 'ICMP redirect acceptance (default interface)' }
+      - { name: 'net.ipv4.icmp_echo_ignore_broadcasts', value: '1', description: 'Ignore broadcast requests' }
+      - { name: 'net.ipv4.icmp_ignore_bogus_error_responses', value: '1', description: 'Bad error message protection' }
+      - { name: 'net.ipv4.tcp_syncookies', value: '1', description: 'TCP/SYN cookies' }
+  # List of kernel parameters and their expected values.
+  tags:
+    - network_security_firewall
+    - network_kernel_params
+
+- name: Check network kernel parameters
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+  loop: "{{ network_params }}"
+  register: network_params_check
+  check_mode: true
+  # Check if each kernel parameter is set to its expected value.
+  tags:
+    - network_security_firewall
+    - network_kernel_params
+
+- name: Report network kernel parameters compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Network Security and Firewall Configuration',
+      'item': 'Network Kernel Parameter: ' + item.description + ' (' + item.name + ')',
+      'status': '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}',
+      'expected': '{{ item.name }} is set to {{ item.value }}.',
+      'actual': '{{ item.name }} is set to {{ item.value }}' if item.changed == false else '{{ item.name }} is not set to {{ item.value }}',
+      'message': '{{ "Parameter is correctly configured." if item.changed == false else "Parameter is not configured to the expected value. Actual: " + item.before }}'
+    }] }}"
+  loop: "{{ network_params_check.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  # Iterate through the results of the sysctl checks and append to the report.
+  tags:
+    - network_security_firewall
+    - network_kernel_params
+
+- name: Check firewall status and basic rules (manual verification for specific rules)
+  ansible.builtin.command: firewall-cmd --state
+  register: firewall_state
+  changed_when: false
+  failed_when: false
+  tags:
+    - network_security_firewall
+    - firewall_status
+
+- name: Check if firewall is active
+  ansible.builtin.set_fact:
+    firewall_active: "{{ firewall_state.rc == 0 and firewall_state.stdout == 'running' }}"
+  tags:
+    - network_security_firewall
+    - firewall_status
+
+- name: Report firewall status
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Network Security and Firewall Configuration',
+      'item': 'Firewall Status',
+      'status': '{{ "COMPLIANT" if firewall_active else "NON_COMPLIANT" }}',
+      'expected': 'Firewall (firewalld) is active and running.',
+      'actual': '{{ "Active" if firewall_active else "Inactive" }}',
+      'message': '{{ "Firewall (firewalld) is active." if firewall_active else "Firewall (firewalld) is inactive and should be enabled." }}'
+    }] }}"
+  tags:
+    - network_security_firewall
+    - firewall_status
+
+- name: Check for specific firewall rules (manual verification for "authorized users")
+  ansible.builtin.debug:
+    msg: |
+      "Firewall rule check: Limit connections to services running on the host to authorized users.
+      Compliance Status: MANUAL VERIFICATION REQUIRED
+      Description: This requires reviewing the specific firewall rules (e.g., in firewalld or iptables) to ensure only necessary ports are open and access is restricted to authorized sources/users.
+      Expected: Firewall rules are in place to limit connections to services to authorized users/IPs.
+      Note: Automated verification of complex firewall rules and "authorized users" concept is highly context-dependent and often requires manual review of firewall configurations (e.g., `firewall-cmd --list-all`, `iptables -L`)."
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Network Security and Firewall Configuration',
+      'item': 'Limit connections to services via firewalls',
+      'status': 'MANUAL_REQUIRED',
+      'expected': 'Firewall rules limit connections to services to authorized users/IPs.',
+      'actual': 'N/A (requires manual verification)',
+      'message': 'Automated verification of complex firewall rules and "authorized users" concept is highly context-dependent and often requires manual review of firewall configurations.'
+    }] }}"
+  tags:
+    - network_security_firewall
+    - firewall_rules_manual
