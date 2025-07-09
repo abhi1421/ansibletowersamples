@@ -38,6 +38,7 @@
   ansible.builtin.lineinfile:
     path: /etc/login.defs
     regexp: '^ENCRYPT_METHOD SHA512'
+    line: 'ENCRYPT_METHOD SHA512' # Added the 'line' parameter
     state: present
   register: encrypt_method_check
   check_mode: true
