@@ -1,10 +1,11 @@
 - name: Check /tmp mount options include nodev, noexec, nosuid
   shell: mount | grep '/tmp'
   register: tmp_mount
+  ignore_errors: yes
   failed_when:
-    - "'nodev' not in tmp_mount.stdout"
-    - "'nosuid' not in tmp_mount.stdout"
-    - "'noexec' not in tmp_mount.stdout"
+    - tmp_mount.rc == 0 and "'nodev' not in tmp_mount.stdout"
+    - tmp_mount.rc == 0 and "'nosuid' not in tmp_mount.stdout"
+    - tmp_mount.rc == 0 and "'noexec' not in tmp_mount.stdout"
   vars:
     check_name: "Check /tmp mount options"
   notify: Append result to report
