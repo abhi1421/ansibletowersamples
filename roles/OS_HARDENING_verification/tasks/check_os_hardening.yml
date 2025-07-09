@@ -184,6 +184,7 @@
   ansible.builtin.lineinfile:
     path: /etc/sysconfig/init
     regexp: '^umask\s+027'
+    line: 'umask 027' # Added the 'line' parameter
     state: present
   register: umask_check
   check_mode: true
