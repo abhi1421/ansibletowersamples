@@ -1,0 +1,132 @@
+---
+# os_hardening_verification/tasks/check_pam_config.yml
+# This file contains tasks to verify PAM configuration hardening points.
+
+- name: Check /etc/pam.d/* security (manual verification)
+  ansible.builtin.debug:
+    msg: |
+      "PAM configuration files security check (/etc/pam.d/*):
+      Compliance Status: MANUAL VERIFICATION REQUIRED
+      Description: This requires a thorough review of each PAM configuration file to ensure appropriate modules are used for authentication, authorization, session management, and password policies.
+      Expected: PAM configuration files are secure.
+      Note: Automated verification of all PAM security aspects is highly complex and context-dependent. Manual review of each file in /etc/pam.d/ is recommended."
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'PAM Configuration',
+      'item': 'Ensure /etc/pam.d/* are secure',
+      'status': 'MANUAL_REQUIRED',
+      'expected': 'PAM configuration files are secure.',
+      'actual': 'N/A (requires manual verification)',
+      'message': 'Automated verification of all PAM security aspects is highly complex and context-dependent. Manual review of each file in /etc/pam.d/ is recommended.'
+    }] }}"
+  tags:
+    - pam_config
+    - pam_security_manual
+
+- name: Check password hashing algorithm to SHA-512
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: '^ENCRYPT_METHOD SHA512'
+    state: present
+  register: encrypt_method_check
+  check_mode: true
+  tags:
+    - pam_config
+    - password_hashing
+
+- name: Set fact for password hashing algorithm compliance
+  ansible.builtin.set_fact:
+    password_hashing_compliant: "{{ encrypt_method_check.changed == false }}"
+  tags:
+    - pam_config
+    - password_hashing
+
+- name: Report password hashing algorithm compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'PAM Configuration',
+      'item': 'Upgrade password hashing algorithm to SHA-512',
+      'status': '{{ "COMPLIANT" if password_hashing_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Password hashing algorithm is SHA-512.',
+      'actual': '{{ "SHA-512" if password_hashing_compliant else "Not SHA-512 or missing" }}',
+      'message': '{{ "Password hashing algorithm is set to SHA-512 in /etc/login.defs." if password_hashing_compliant else "Password hashing algorithm is not set to SHA-512 in /etc/login.defs." }}'
+    }] }}"
+  tags:
+    - pam_config
+    - password_hashing
+
+- name: Check password creation requirements (pam_pwquality.so)
+  ansible.builtin.shell: |
+    grep -E 'minlen|dcredit|ucredit|ocredit|lcredit|difok' /etc/security/pwquality.conf || true
+  register: pwquality_conf_check
+  changed_when: false
+  failed_when: false
+  # Check for common password quality parameters in pwquality.conf.
+  tags:
+    - pam_config
+    - password_requirements
+
+- name: Set fact for password creation requirements compliance
+  ansible.builtin.set_fact:
+    password_requirements_compliant: "{{ pwquality_conf_check.stdout | length > 0 }}"
+  # If any of the common parameters are found, assume some requirements are set.
+  # This is a basic check; a more robust check would parse and validate specific values.
+  tags:
+    - pam_config
+    - password_requirements
+
+- name: Report password creation requirements compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'PAM Configuration',
+      'item': 'Set password creation requirements',
+      'status': '{{ "COMPLIANT" if password_requirements_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Password creation requirements (e.g., minlen, complexity) are set.',
+      'actual': '{{ "Requirements set" if password_requirements_compliant else "Requirements not set or missing" }}',
+      'message': '{{ "Password creation requirements appear to be set in /etc/security/pwquality.conf." if password_requirements_compliant else "Password creation requirements are not clearly set in /etc/security/pwquality.conf. Manual review recommended." }}'
+    }] }}"
+  tags:
+    - pam_config
+    - password_requirements
+
+- name: Check restrict root login to system console (pam_securetty)
+  ansible.builtin.stat:
+    path: /etc/securetty
+  register: securetty_file_check
+  tags:
+    - pam_config
+    - root_login_restriction
+
+- name: Check content of /etc/securetty if it exists
+  ansible.builtin.slurp:
+    src: /etc/securetty
+  register: securetty_content
+  when: securetty_file_check.stat.exists
+  tags:
+    - pam_config
+    - root_login_restriction
+
+- name: Set fact for root login restriction compliance
+  ansible.builtin.set_fact:
+    root_login_restriction_compliant: >-
+      {{ securetty_file_check.stat.exists and
+         ((securetty_content.content | b64decode | splitlines | select('match', '^tty[0-9]+$') | list | length) > 0 or
+          (securetty_content.content | b64decode | splitlines | select('match', '^console$') | list | length) > 0) }}
+  # Check if /etc/securetty exists and contains console/tty entries.
+  tags:
+    - pam_config
+    - root_login_restriction
+
+- name: Report root login restriction compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'PAM Configuration',
+      'item': 'Restrict root login to system console',
+      'status': '{{ "COMPLIANT" if root_login_restriction_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Root login is restricted to system console via /etc/securetty.',
+      'actual': '{{ "Restricted" if root_login_restriction_compliant else "Not Restricted" }}',
+      'message': '{{ "Root login appears restricted to console via /etc/securetty." if root_login_restriction_compliant else "Root login is not restricted to console via /etc/securetty or the file is missing/empty." }}'
+    }] }}"
+  tags:
+    - pam_config
+    - root_login_restriction

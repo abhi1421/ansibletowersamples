@@ -1,0 +1,178 @@
+---
+# os_hardening_verification/tasks/check_os_hardening.yml
+# This file contains tasks to verify OS hardening points.
+
+- name: Define legacy services to remove/disable
+  ansible.builtin.set_fact:
+    legacy_services:
+      - telnet-server
+      - rsh
+      - rlogin
+      - rcp
+      - ypserv
+      - ypbind
+      - tftp
+      - tftp-server
+      - talk
+      - talk-server
+      - chargen-dgram
+      - chargen-stream
+      - daytime-dgram
+      - daytime-stream
+      - echo-dgram
+      - echo-stream
+      - tcpmux-server
+  # List of services that should be removed or disabled.
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Check for presence of legacy services
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ legacy_services }}"
+  register: legacy_services_check
+  check_mode: true
+  # Check if legacy service packages are absent.
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Set fact for legacy services removal compliance
+  ansible.builtin.set_fact:
+    legacy_services_compliant: "{{ legacy_services_check.results | selectattr('changed', 'equalto', false) | list | length == legacy_services | length }}"
+  # All services must show no change (meaning they are already absent).
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Report legacy services removal compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'OS Hardening',
+      'item': 'Remove legacy services',
+      'status': '{{ "COMPLIANT" if legacy_services_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Legacy services (telnet, rsh, etc.) are removed.',
+      'actual': '{{ "Removed" if legacy_services_compliant else "Present" }}',
+      'message': '{{ "All specified legacy services are removed or not installed." if legacy_services_compliant else "The following legacy services are still present: " + (legacy_services_check.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ')) }}'
+    }] }}"
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Check for xinetd removal
+  ansible.builtin.package:
+    name: xinetd
+    state: absent
+  register: xinetd_check
+  check_mode: true
+  tags:
+    - os_hardening
+    - xinetd_removal
+
+- name: Set fact for xinetd removal compliance
+  ansible.builtin.set_fact:
+    xinetd_compliant: "{{ xinetd_check.changed == false }}"
+  tags:
+    - os_hardening
+    - xinetd_removal
+
+- name: Report xinetd removal compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'OS Hardening',
+      'item': 'Remove xinetd',
+      'status': '{{ "COMPLIANT" if xinetd_compliant else "NON_COMPLIANT" }}',
+      'expected': 'xinetd is removed.',
+      'actual': '{{ "Removed" if xinetd_compliant else "Present" }}',
+      'message': '{{ "xinetd is not installed." if xinetd_compliant else "xinetd is present and should be removed." }}'
+    }] }}"
+  tags:
+    - os_hardening
+    - xinetd_removal
+
+- name: Define server services to disable/remove if not utilized (example list)
+  ansible.builtin.set_fact:
+    server_services_to_check:
+      - vsftpd # FTP
+      - named # DNS
+      - slapd # LDAP
+      - smb # SMB
+      - dhcpd # DHCP
+      - nfs-server # NFS
+      - snmpd # SNMP
+  # This list should be customized based on actual utilized services.
+  # For an air-gapped environment, most of these should likely be disabled/removed.
+  tags:
+    - os_hardening
+    - unutilized_services
+
+- name: Check status of common server services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ server_services_to_check }}"
+  register: server_services_status
+  check_mode: true
+  ignore_errors: true # Some services might not be installed, which is desired.
+  tags:
+    - os_hardening
+    - unutilized_services
+
+- name: Set fact for server services compliance
+  ansible.builtin.set_fact:
+    server_services_compliant: >-
+      {{ (server_services_status.results | selectattr('changed', 'equalto', false) | list | length) == (server_services_to_check | length) }}
+  # Check if all services were already stopped and disabled (no change in check_mode).
+  tags:
+    - os_hardening
+    - unutilized_services
+
+- name: Report server services compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'OS Hardening',
+      'item': 'Disable or remove unutilized server services',
+      'status': '{{ "COMPLIANT" if server_services_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Unutilized server services (FTP, DNS, LDAP, SMB, DHCP, NFS, SNMP) are disabled or removed.',
+      'actual': '{{ "Disabled/Removed" if server_services_compliant else "Active" }}',
+      'message': '{{ "All specified unutilized server services are disabled or removed." if server_services_compliant else "The following server services might still be active or enabled: " + (server_services_status.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ')) + ". Please verify if these are truly unutilized." }}'
+    }] }}"
+  tags:
+    - os_hardening
+    - unutilized_services
+
+- name: Check daemon umask in /etc/sysconfig/init (deprecated, but still common check)
+  ansible.builtin.lineinfile:
+    path: /etc/sysconfig/init
+    regexp: '^umask\s+027'
+    state: present
+  register: umask_check
+  check_mode: true
+  # Check for umask 027 in /etc/sysconfig/init.
+  tags:
+    - os_hardening
+    - daemon_umask
+
+- name: Set fact for daemon umask compliance
+  ansible.builtin.set_fact:
+    daemon_umask_compliant: "{{ umask_check.changed == false }}"
+  tags:
+    - os_hardening
+    - daemon_umask
+
+- name: Report daemon umask compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'OS Hardening',
+      'item': 'Set daemon umask',
+      'status': '{{ "COMPLIANT" if daemon_umask_compliant else "NON_COMPLIANT" }}',
+      'expected': 'Daemon umask is set to a restrictive value (e.g., 027).',
+      'actual': '{{ "027" if daemon_umask_compliant else "Not 027 or not set" }}',
+      'message': '{{ "Daemon umask is correctly set to 027." if daemon_umask_compliant else "Daemon umask is not set to 027 in /etc/sysconfig/init or similar configuration." }}'
+    }] }}"
+  tags:
+    - os_hardening
+    - daemon_umask

@@ -1,17 +1,27 @@
-- name: Ensure Red Hat GPG key is installed
-  stat:
-    path: /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
-  register: gpg_key
-  failed_when: not gpg_key.stat.exists
-  vars:
-    check_name: "Red Hat GPG key installed"
-  notify: Append result to report
-
-- name: Ensure gpgcheck is enabled in repos
+- name: Check if gpgcheck is enabled
   shell: grep -r 'gpgcheck=1' /etc/yum.repos.d/
   register: gpgcheck
   ignore_errors: yes
-  failed_when: gpgcheck.rc != 0
-  vars:
-    check_name: "Ensure gpgcheck=1 in all repos"
-  notify: Append result to report
+
+- name: Fix gpgcheck if needed
+  block:
+    - name: Enable gpgcheck in all repo files
+      replace:
+        path: "{{ item }}"
+        regexp: 'gpgcheck=0'
+        replace: 'gpgcheck=1'
+      with_fileglob:
+        - /etc/yum.repos.d/*.repo
+    - name: Log gpgcheck fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Enabled gpgcheck in repos'] }}"
+  when: gpgcheck.rc != 0
+
+- name: Re-check gpgcheck
+  shell: grep -r 'gpgcheck=1' /etc/yum.repos.d/
+  register: gpgcheck_after
+
+- name: Fail if gpgcheck still disabled
+  fail:
+    msg: "gpgcheck is still not enforced in repos"
+  when: gpgcheck_after.rc != 0

@@ -1,12 +1,27 @@
-- name: Restrict core dumps
-  lineinfile:
-    path: /etc/security/limits.conf
-    line: '* hard core 0'
-    create: yes
+- name: Check core dump is disabled
+  shell: sysctl fs.suid_dumpable
+  register: core_dump
+  ignore_errors: yes
 
-- name: Enable ASLR
-  sysctl:
-    name: kernel.randomize_va_space
-    value: 2
-    state: present
-    reload: yes
+- name: Disable core dump if needed
+  block:
+    - name: Set fs.suid_dumpable to 0
+      sysctl:
+        name: fs.suid_dumpable
+        value: 0
+        state: present
+        sysctl_set: yes
+
+    - name: Log core dump fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Disabled core dumps'] }}"
+  when: "'0' not in core_dump.stdout"
+
+- name: Re-check core dump
+  shell: sysctl fs.suid_dumpable
+  register: core_dump_after
+
+- name: Fail if core dump is still enabled
+  fail:
+    msg: "Core dump is still enabled"
+  when: "'0' not in core_dump_after.stdout"

@@ -1,0 +1,108 @@
+---
+# os_hardening_verification/tasks/check_remote_admin_ssh.yml
+# This file contains tasks to verify remote administration via SSH hardening points.
+
+- name: Read SSHD configuration
+  ansible.builtin.slurp:
+    src: /etc/ssh/sshd_config
+  register: sshd_config_content
+  # Read the content of the sshd_config file.
+  tags:
+    - remote_admin_ssh
+    - ssh_config
+
+- name: Decode SSHD configuration content
+  ansible.builtin.set_fact:
+    sshd_config_lines: "{{ sshd_config_content.content | b64decode | splitlines }}"
+  # Decode the base64 content and split into lines.
+  tags:
+    - remote_admin_ssh
+    - ssh_config
+
+- name: Check SSH protocol to 2
+  ansible.builtin.set_fact:
+    ssh_protocol_compliant: "{{ sshd_config_lines | select('match', '^\\s*Protocol\\s+2$') | list | length > 0 }}"
+  # Check if 'Protocol 2' is explicitly set.
+  tags:
+    - remote_admin_ssh
+    - ssh_protocol
+
+- name: Report SSH protocol compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'SSH protocol set to 2',
+      'status': '{{ "COMPLIANT" if ssh_protocol_compliant else "NON_COMPLIANT" }}',
+      'expected': 'SSH protocol is set to 2.',
+      'actual': '{{ "Protocol 2" if ssh_protocol_compliant else "Protocol not explicitly 2 or missing" }}',
+      'message': '{{ "SSH protocol is correctly set to 2." if ssh_protocol_compliant else "SSH protocol is not explicitly set to 2 in sshd_config. This is a critical security setting." }}'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_protocol
+
+- name: Check SSH loglevel to INFO
+  ansible.builtin.set_fact:
+    ssh_loglevel_compliant: "{{ sshd_config_lines | select('match', '^\\s*LogLevel\\s+INFO$') | list | length > 0 }}"
+  # Check if 'LogLevel INFO' is set.
+  tags:
+    - remote_admin_ssh
+    - ssh_loglevel
+
+- name: Report SSH loglevel compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'SSH loglevel to INFO',
+      'status': '{{ "COMPLIANT" if ssh_loglevel_compliant else "NON_COMPLIANT" }}',
+      'expected': 'SSH loglevel is set to INFO.',
+      'actual': '{{ "INFO" if ssh_loglevel_compliant else "Not INFO or missing" }}',
+      'message': '{{ "SSH loglevel is correctly set to INFO." if ssh_loglevel_compliant else "SSH loglevel is not set to INFO in sshd_config." }}'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_loglevel
+
+- name: Check SSH root login disabled
+  ansible.builtin.set_fact:
+    ssh_root_login_compliant: "{{ sshd_config_lines | select('match', '^\\s*PermitRootLogin\\s+no$') | list | length > 0 }}"
+  # Check if 'PermitRootLogin no' is set.
+  tags:
+    - remote_admin_ssh
+    - ssh_root_login
+
+- name: Report SSH root login compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'Disable SSH root login',
+      'status': '{{ "COMPLIANT" if ssh_root_login_compliant else "NON_COMPLIANT" }}',
+      'expected': 'SSH root login is disabled.',
+      'actual': '{{ "Disabled" if ssh_root_login_compliant else "Enabled or missing" }}',
+      'message': '{{ "SSH root login is correctly disabled." if ssh_root_login_compliant else "SSH root login is not disabled in sshd_config. This is a critical security vulnerability." }}'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_root_login
+
+- name: Check SSH permitemptypasswords to no
+  ansible.builtin.set_fact:
+    ssh_permit_empty_passwords_compliant: "{{ sshd_config_lines | select('match', '^\\s*PermitEmptyPasswords\\s+no$') | list | length > 0 }}"
+  # Check if 'PermitEmptyPasswords no' is set.
+  tags:
+    - remote_admin_ssh
+    - ssh_empty_passwords
+
+- name: Report SSH permitemptypasswords compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'Set SSH permitemptypasswords to no',
+      'status': '{{ "COMPLIANT" if ssh_permit_empty_passwords_compliant else "NON_COMPLIANT" }}',
+      'expected': 'SSH PermitEmptyPasswords is set to no.',
+      'actual': '{{ "No" if ssh_permit_empty_passwords_compliant else "Yes or missing" }}',
+      'message': '{{ "SSH PermitEmptyPasswords is correctly set to no." if ssh_permit_empty_passwords_compliant else "SSH PermitEmptyPasswords is not set to no in sshd_config. This is a critical security vulnerability." }}'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_empty_passwords

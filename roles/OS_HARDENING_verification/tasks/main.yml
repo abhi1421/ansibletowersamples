@@ -1,0 +1,108 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for OS_HARDENING_verification
+---
+# os_hardening_verification/tasks/main.yml
+# This file orchestrates the execution of all verification checks
+# and the final report generation.
+
+- name: Initialize compliance report structure
+  ansible.builtin.set_fact:
+    # Initialize an empty list to store results of all compliance checks.
+    # Each check will append a dictionary containing its status and details.
+    compliance_report_results: []
+  # Ensure this fact is reset at the beginning of each run.
+
+- name: Gather system facts for verification
+  ansible.builtin.setup:
+    gather_subset:
+      - network
+      - hardware
+      - virtual
+      - os
+      - packages
+      - mount
+      - service_mgr
+  # This task gathers various facts about the target system,
+  # which are often necessary for performing compliance checks.
+  # We specify a subset to optimize fact gathering.
+  tags:
+    - facts_gathering # Tag for fact gathering, useful if you want to skip it for some reason
+
+- name: Include preparation and installation checks
+  ansible.builtin.include_tasks: check_preparation_installation.yml
+  # This task includes a separate file for verifying BIOS/firmware and boot order settings.
+  tags:
+    - preparation_installation # Category tag
+
+- name: Include filesystem configuration checks
+  ansible.builtin.include_tasks: check_filesystem_config.yml
+  # This task includes a separate file for verifying filesystem mount options and permissions.
+  tags:
+    - filesystem_config # Category tag
+
+- name: Include system updates checks
+  ansible.builtin.include_tasks: check_system_updates.yml
+  # This task includes a separate file for verifying update mechanisms and GPG key settings.
+  tags:
+    - system_updates # Category tag
+
+- name: Include secure boot settings checks
+  ansible.builtin.include_tasks: check_secure_boot_settings.yml
+  # This task includes a separate file for verifying GRUB and X Window system settings.
+  tags:
+    - secure_boot_settings # Category tag
+
+- name: Include process hardening checks
+  ansible.builtin.include_tasks: check_process_hardening.yml
+  # This task includes a separate file for verifying core dump and memory randomization settings.
+  tags:
+    - process_hardening # Category tag
+
+- name: Include OS hardening checks
+  ansible.builtin.include_tasks: check_os_hardening.yml
+  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
+  tags:
+    - os_hardening # Category tag
+
+- name: Include network security and firewall configuration checks
+  ansible.builtin.include_tasks: check_network_security_firewall.yml
+  # This task includes a separate file for verifying network kernel parameters and firewall rules.
+  tags:
+    - network_security_firewall # Category tag
+
+- name: Include remote administration via SSH checks
+  ansible.builtin.include_tasks: check_remote_admin_ssh.yml
+  # This task includes a separate file for verifying SSH server configuration.
+  tags:
+    - remote_admin_ssh # Category tag
+
+- name: Include system integrity and intrusion detection checks
+  ansible.builtin.include_tasks: check_system_integrity_intrusion.yml
+  # This task includes a separate file for verifying AIDE, SELinux, OSsec, NTP, and auditd settings.
+  tags:
+    - system_integrity_intrusion # Category tag
+
+- name: Include files/directory permissions/access checks
+  ansible.builtin.include_tasks: check_files_directory_permissions.yml
+  # This task includes a separate file for verifying system account and directory permissions.
+  tags:
+    - files_permissions # Category tag
+
+- name: Include PAM configuration checks
+  ansible.builtin.include_tasks: check_pam_config.yml
+  # This task includes a separate file for verifying PAM password policies and root login restrictions.
+  tags:
+    - pam_config # Category tag
+
+- name: Include warning banners checks
+  ansible.builtin.include_tasks: check_warning_banners.yml
+  # This task includes a separate file for verifying the presence of warning banners.
+  tags:
+    - warning_banners # Category tag
+
+- name: Generate final compliance report
+  ansible.builtin.include_tasks: generate_report.yml
+  # This final task compiles all collected results and generates a human-readable report.
+  tags:
+    - report_generation # Tag for report generation

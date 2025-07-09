@@ -17,3 +17,32 @@
 - name: Print RHEL version
   debug:
     var: os_version.stdout
+
+
+
+- name: Check if auditd service is running
+  shell: systemctl is-active auditd
+  register: auditd_status
+  ignore_errors: yes
+
+- name: Start and enable auditd if not running
+  block:
+    - name: Start and enable auditd
+      systemd:
+        name: auditd
+        state: started
+        enabled: yes
+
+    - name: Log auditd fix
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Started and enabled auditd'] }}"
+  when: "'active' not in auditd_status.stdout"
+
+- name: Re-check auditd
+  shell: systemctl is-active auditd
+  register: auditd_status_after
+
+- name: Fail if auditd is still inactive
+  fail:
+    msg: "auditd service is not active"
+  when: "'active' not in auditd_status_after.stdout"

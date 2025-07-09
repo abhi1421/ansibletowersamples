@@ -1,34 +1,28 @@
-- name: Install AIDE
-  package:
-    name: aide
-    state: present
-  when: aide_enabled
+- name: Check if AIDE is installed
+  shell: rpm -q aide
+  register: aide_installed
+  ignore_errors: yes
 
-- name: Initialize AIDE DB
-  shell: /usr/sbin/aide --init
-  when: aide_enabled
+- name: Install AIDE if missing
+  block:
+    - name: Install AIDE package
+      yum:
+        name: aide
+        state: present
 
-- name: Enable SELinux
-  selinux:
-    policy: targeted
-    state: enforcing
+    - name: Initialize AIDE
+      command: /usr/sbin/aide --init
 
-- name: Enable auditd
-  service:
-    name: auditd
-    enabled: yes
-    state: started
-  when: auditd_enabled
+    - name: Log AIDE install
+      set_fact:
+        hardening_report: "{{ hardening_report + ['Installed and initialized AIDE'] }}"
+  when: aide_installed.rc != 0
 
-- name: Enable rsyslog
-  service:
-    name: rsyslog
-    enabled: yes
-    state: started
-  when: rsyslog_enabled
+- name: Re-check AIDE installation
+  shell: rpm -q aide
+  register: aide_installed_after
 
-- name: Configure log forwarding
-  lineinfile:
-    path: /etc/rsyslog.conf
-    line: "*.* @@{{ splunk_host }}"
-  when: splunk_forwarding_enabled
+- name: Fail if AIDE not installed
+  fail:
+    msg: "AIDE is not installed"
+  when: aide_installed_after.rc != 0
