@@ -28,16 +28,22 @@
     - system_integrity_intrusion
     - aide
 
+- name: Define AIDE compliance item
+  ansible.builtin.set_fact:
+    aide_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Install and configure AIDE'
+      status: '{{ "COMPLIANT" if aide_compliant else "NON_COMPLIANT" }}'
+      expected: 'AIDE is installed and configured (database initialized).'
+      actual: '{{ "Installed and Configured" if aide_compliant else "Not Installed or Configured" }}'
+      message: '{{ "AIDE is installed and its database appears to be initialized." if aide_compliant else "AIDE is not installed or its database (/var/lib/aide/aide.db.gz) does not exist, indicating it may not be configured." }}'
+  tags:
+    - system_integrity_intrusion
+    - aide
+
 - name: Report AIDE compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Install and configure AIDE',
-      'status': '{{ "COMPLIANT" if aide_compliant else "NON_COMPLIANT" }}',
-      'expected': 'AIDE is installed and configured (database initialized).',
-      'actual': '{{ "Installed and Configured" if aide_compliant else "Not Installed or Configured" }}',
-      'message': '{{ "AIDE is installed and its database appears to be initialized." if aide_compliant else "AIDE is not installed or its database (/var/lib/aide/aide.db.gz) does not exist, indicating it may not be configured." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [aide_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - aide
@@ -59,16 +65,22 @@
     - system_integrity_intrusion
     - selinux
 
+- name: Define SELinux compliance item
+  ansible.builtin.set_fact:
+    selinux_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Configure SELinux'
+      status: '{{ "COMPLIANT" if selinux_compliant else "NON_COMPLIANT" }}'
+      expected: 'SELinux is configured and in enforcing mode.'
+      actual: '{{ selinux_status.stdout }}'
+      message: '{{ "SELinux is in enforcing mode." if selinux_compliant else "SELinux is not in enforcing mode. Current status: " + selinux_status.stdout }}'
+  tags:
+    - system_integrity_intrusion
+    - selinux
+
 - name: Report SELinux compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Configure SELinux',
-      'status': '{{ "COMPLIANT" if selinux_compliant else "NON_COMPLIANT" }}',
-      'expected': 'SELinux is configured and in enforcing mode.',
-      'actual': '{{ selinux_status.stdout }}',
-      'message': '{{ "SELinux is in enforcing mode." if selinux_compliant else "SELinux is not in enforcing mode. Current status: " + selinux_status.stdout }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [selinux_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - selinux
@@ -102,16 +114,22 @@
     - system_integrity_intrusion
     - ossec
 
+- name: Define OSsec HIDS compliance item
+  ansible.builtin.set_fact:
+    ossec_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Install and configure OSsec HIDS'
+      status: '{{ "COMPLIANT" if ossec_compliant else "NON_COMPLIANT" }}'
+      expected: 'OSsec HIDS is installed and running.'
+      actual: '{{ "Installed and Running" if ossec_compliant else "Not Installed or Running" }}'
+      message: '{{ "OSsec HIDS is installed and its service is active." if ossec_compliant else "OSsec HIDS is not installed or its service is not running. Package status changed: " + (ossec_package_check.changed | string) + ", Service ActiveState: " + (ossec_service_check.status.ActiveState | default("N/A")) }}'
+  tags:
+    - system_integrity_intrusion
+    - ossec
+
 - name: Report OSsec HIDS compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Install and configure OSsec HIDS',
-      'status': '{{ "COMPLIANT" if ossec_compliant else "NON_COMPLIANT" }}',
-      'expected': 'OSsec HIDS is installed and running.',
-      'actual': '{{ "Installed and Running" if ossec_compliant else "Not Installed or Running" }}',
-      'message': '{{ "OSsec HIDS is installed and its service is active." if ossec_compliant else "OSsec HIDS is not installed or its service is not running. Package status changed: " + (ossec_package_check.changed | string) + ", Service ActiveState: " + (ossec_service_check.status.ActiveState | default("N/A")) }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ossec_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - ossec
@@ -144,16 +162,22 @@
     - system_integrity_intrusion
     - ntp
 
+- name: Define NTP compliance item
+  ansible.builtin.set_fact:
+    ntp_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Configure network time protocol (NTP)'
+      status: '{{ "COMPLIANT" if ntp_compliant else "NON_COMPLIANT" }}'
+      expected: 'NTP is configured and synchronized.'
+      actual: '{{ "Synchronized" if ntp_compliant else "Not Synchronized" }}'
+      message: '{{ "NTP (chrony or ntpd) appears to be configured and synchronized." if ntp_compliant else "NTP (chrony or ntpd) is not configured or not synchronized. Chrony status RC: " + (chrony_tracking.rc | string) + ", NTPD active: " + (ntpd_service_check.status.ActiveState | default("N/A")) }}'
+  tags:
+    - system_integrity_intrusion
+    - ntp
+
 - name: Report NTP compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Configure network time protocol (NTP)',
-      'status': '{{ "COMPLIANT" if ntp_compliant else "NON_COMPLIANT" }}',
-      'expected': 'NTP is configured and synchronized.',
-      'actual': '{{ "Synchronized" if ntp_compliant else "Not Synchronized" }}',
-      'message': '{{ "NTP (chrony or ntpd) appears to be configured and synchronized." if ntp_compliant else "NTP (chrony or ntpd) is not configured or not synchronized. Chrony status RC: " + (chrony_tracking.rc | string) + ", NTPD active: " + (ntpd_service_check.status.ActiveState | default("N/A")) }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ntp_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - ntp
@@ -186,16 +210,22 @@
     - system_integrity_intrusion
     - auditd
 
+- name: Define auditd compliance item
+  ansible.builtin.set_fact:
+    auditd_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Enable system accounting (auditd)'
+      status: '{{ "COMPLIANT" if auditd_compliant else "NON_COMPLIANT" }}'
+      expected: 'auditd is installed and running.'
+      actual: '{{ "Installed and Running" if auditd_compliant else "Not Installed or Running" }}'
+      message: '{{ "auditd is installed and its service is active." if auditd_compliant else "auditd is not installed or its service is not running." }}'
+  tags:
+    - system_integrity_intrusion
+    - auditd
+
 - name: Report auditd compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Enable system accounting (auditd)',
-      'status': '{{ "COMPLIANT" if auditd_compliant else "NON_COMPLIANT" }}',
-      'expected': 'auditd is installed and running.',
-      'actual': '{{ "Installed and Running" if auditd_compliant else "Not Installed or Running" }}',
-      'message': '{{ "auditd is installed and its service is active." if auditd_compliant else "auditd is not installed or its service is not running." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [auditd_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - auditd
@@ -228,19 +258,38 @@
     - system_integrity_intrusion
     - rsyslog
 
-- name: Report rsyslog compliance
+- name: Define rsyslog compliance item
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Install and configure rsyslog',
-      'status': '{{ "COMPLIANT" if rsyslog_compliant else "NON_COMPLIANT" }}',
-      'expected': 'rsyslog is installed and running.',
-      'actual': '{{ "Installed and Running" if rsyslog_compliant else "Not Installed or Running" }}',
-      'message': '{{ "rsyslog is installed and its service is active." if rsyslog_compliant else "rsyslog is not installed or its service is not running." }}'
-    }] }}"
+    rsyslog_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'Install and configure rsyslog'
+      status: '{{ "COMPLIANT" if rsyslog_compliant else "NON_COMPLIANT" }}'
+      expected: 'rsyslog is installed and running.'
+      actual: '{{ "Installed and Running" if rsyslog_compliant else "Not Installed or Running" }}'
+      message: '{{ "rsyslog is installed and its service is active." if rsyslog_compliant else "rsyslog is not installed or its service is not running." }}'
   tags:
     - system_integrity_intrusion
     - rsyslog
+
+- name: Report rsyslog compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [rsyslog_compliance_item] }}"
+  tags:
+    - system_integrity_intrusion
+    - rsyslog
+
+- name: Define administrator/root access logging compliance item (manual)
+  ansible.builtin.set_fact:
+    admin_logging_compliance_item:
+      category: 'System Integrity and Intrusion Detection'
+      item: 'All administrator or root access must be logged'
+      status: 'MANUAL_REQUIRED'
+      expected: 'All administrator or root access is logged.'
+      actual: 'N/A (requires manual verification)'
+      message: 'Automated verification of specific logging rules for root/admin access requires manual review of /etc/audit/audit.rules or `auditctl -l` output.'
+  tags:
+    - system_integrity_intrusion
+    - admin_logging_manual
 
 - name: Check for administrator/root access logging (manual verification)
   ansible.builtin.debug:
@@ -250,15 +299,13 @@
       Description: This requires reviewing auditd rules, sudoer configurations, and potentially SSH logs to ensure all administrator and root access attempts are logged.
       Expected: All administrator or root access is logged.
       Note: While auditd is checked for installation, specific logging rules for root/admin access require manual review of /etc/audit/audit.rules or `auditctl -l` output."
+  tags:
+    - system_integrity_intrusion
+    - admin_logging_manual
+
+- name: Report administrator/root access logging compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'All administrator or root access must be logged',
-      'status': 'MANUAL_REQUIRED',
-      'expected': 'All administrator or root access is logged.',
-      'actual': 'N/A (requires manual verification)',
-      'message': 'Automated verification of specific logging rules for root/admin access requires manual review of /etc/audit/audit.rules or `auditctl -l` output.'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [admin_logging_compliance_item] }}"
   tags:
     - system_integrity_intrusion
     - admin_logging_manual
