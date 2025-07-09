@@ -110,7 +110,7 @@
     - network_security_firewall
     - firewall_rules_manual
 
-- name: Check for specific firewall rules (manual verification for "authorized users")
+- name: Display manual firewall rules verification message
   ansible.builtin.debug:
     msg: |
       "Firewall rule check: Limit connections to services running on the host to authorized users.
@@ -118,6 +118,11 @@
       Description: This requires reviewing the specific firewall rules (e.g., in firewalld or iptables) to ensure only necessary ports are open and access is restricted to authorized sources/users.
       Expected: Firewall rules are in place to limit connections to services to authorized users/IPs.
       Note: Automated verification of complex firewall rules and "authorized users" concept is highly context-dependent and often requires manual review of firewall configurations (e.g., `firewall-cmd --list-all`, `iptables -L`)."
+  tags:
+    - network_security_firewall
+    - firewall_rules_manual
+
+- name: Report manual firewall rules compliance
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [manual_firewall_rules_compliance_item] }}"
   tags:
