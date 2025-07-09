@@ -1,0 +1,6 @@
+---
+- name: HARDENING_rhel_verify
+  hosts: all
+  become: true # Use sudo for privileged operations
+  roles:
+    - HARDENING_rhel_verify
