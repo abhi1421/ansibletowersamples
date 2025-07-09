@@ -134,8 +134,8 @@
   ansible.builtin.set_fact:
     root_login_restriction_compliant: >-
       {{ securetty_file_check.stat.exists and
-         ((securetty_content.content | b64decode | splitlines | select('match', '^tty[0-9]+$') | list | length) > 0 or
-          (securetty_content.content | b64decode | splitlines | select('match', '^console$') | list | length) > 0) }}
+         ((securetty_content.content | b64decode | split('\n') | select('match', '^tty[0-9]+$') | list | length) > 0 or
+          (securetty_content.content | b64decode | split('\n') | select('match', '^console$') | list | length) > 0) }}
   # Check if /etc/securetty exists and contains console/tty entries.
   tags:
     - pam_config
