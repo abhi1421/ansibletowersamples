@@ -9,22 +9,26 @@
          'nodev' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/tmp') | first).options and
          'nosuid' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/tmp') | first).options and
          'noexec' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/tmp') | first).options }}
-  # Check if /tmp is a separate mount point and has the required options.
-  # This uses ansible_facts.mounts, which provides details about mounted filesystems.
+  tags:
+    - filesystem_config
+    - tmp_partition
+
+- name: Define /tmp partition options compliance item
+  ansible.builtin.set_fact:
+    tmp_partition_compliance_item:
+      category: 'Filesystem Configuration'
+      item: '/tmp partition options'
+      status: '{{ "COMPLIANT" if tmp_options_compliant else "NON_COMPLIANT" }}'
+      expected: '/tmp is a separate partition with nodev, nosuid, and noexec options.'
+      actual: '{{ "Compliant" if tmp_options_compliant else "Non-compliant" }}'
+      message: '{{ "All required options (nodev, nosuid, noexec) are set for /tmp." if tmp_options_compliant else "One or more required options (nodev, nosuid, noexec) are missing or /tmp is not a separate partition." }}'
   tags:
     - filesystem_config
     - tmp_partition
 
 - name: Report /tmp partition options compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': '/tmp partition options',
-      'status': '{{ "COMPLIANT" if tmp_options_compliant else "NON_COMPLIANT" }}',
-      'expected': '/tmp is a separate partition with nodev, nosuid, and noexec options.',
-      'actual': '{{ "Compliant" if tmp_options_compliant else "Non-compliant" }}',
-      'message': '{{ "All required options (nodev, nosuid, noexec) are set for /tmp." if tmp_options_compliant else "One or more required options (nodev, nosuid, noexec) are missing or /tmp is not a separate partition." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [tmp_partition_compliance_item] }}"
   tags:
     - filesystem_config
     - tmp_partition
@@ -36,21 +40,26 @@
          '/var/log' in ansible_facts.mounts | map(attribute='mount') | list and
          '/var/log/audit' in ansible_facts.mounts | map(attribute='mount') | list and
          '/home' in ansible_facts.mounts | map(attribute='mount') | list }}
-  # Verify if these directories are mounted as separate filesystems.
+  tags:
+    - filesystem_config
+    - separate_partitions
+
+- name: Define separate partitions compliance item
+  ansible.builtin.set_fact:
+    separate_partitions_compliance_item:
+      category: 'Filesystem Configuration'
+      item: 'Separate partitions for /var, /var/log, /var/log/audit, /home'
+      status: '{{ "COMPLIANT" if separate_partitions_compliant else "NON_COMPLIANT" }}'
+      expected: 'Separate partitions exist for /var, /var/log, /var/log/audit, and /home.'
+      actual: '{{ "Compliant" if separate_partitions_compliant else "Non-compliant" }}'
+      message: '{{ "All required separate partitions are in place." if separate_partitions_compliant else "One or more required separate partitions are missing." }}'
   tags:
     - filesystem_config
     - separate_partitions
 
 - name: Report separate partitions compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': 'Separate partitions for /var, /var/log, /var/log/audit, /home',
-      'status': '{{ "COMPLIANT" if separate_partitions_compliant else "NON_COMPLIANT" }}',
-      'expected': 'Separate partitions exist for /var, /var/log, /var/log/audit, and /home.',
-      'actual': '{{ "Compliant" if separate_partitions_compliant else "Non-compliant" }}',
-      'message': '{{ "All required separate partitions are in place." if separate_partitions_compliant else "One or more required separate partitions are missing." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [separate_partitions_compliance_item] }}"
   tags:
     - filesystem_config
     - separate_partitions
@@ -59,7 +68,6 @@
   ansible.builtin.stat:
     path: /var/tmp
   register: var_tmp_stat
-  # Get file system information about /var/tmp.
   tags:
     - filesystem_config
     - bind_mount_vartmp
@@ -69,7 +77,6 @@
   register: findmnt_var_tmp
   changed_when: false
   failed_when: false
-  # Use findmnt to check for bind mount.
   tags:
     - filesystem_config
     - bind_mount_vartmp
@@ -79,21 +86,26 @@
     var_tmp_bind_compliant: >-
       {{ var_tmp_stat.stat.islnk is defined and var_tmp_stat.stat.islnk and var_tmp_stat.stat.lnk_target == '/tmp' or
          (findmnt_var_tmp.rc == 0 and '/tmp' in findmnt_var_tmp.stdout and findmnt_var_tmp.stdout | split(' ')[0] == '/var/tmp') }}
-  # Check if /var/tmp is a symlink to /tmp or if findmnt indicates a bind mount.
+  tags:
+    - filesystem_config
+    - bind_mount_vartmp
+
+- name: Define /var/tmp bind mount compliance item
+  ansible.builtin.set_fact:
+    var_tmp_bind_compliance_item:
+      category: 'Filesystem Configuration'
+      item: 'Bind mount /var/tmp to /tmp'
+      status: '{{ "COMPLIANT" if var_tmp_bind_compliant else "NON_COMPLIANT" }}'
+      expected: '/var/tmp is bind-mounted or symlinked to /tmp.'
+      actual: '{{ "Compliant" if var_tmp_bind_compliant else "Non-compliant" }}'
+      message: '{{ "/var/tmp is correctly bind-mounted or symlinked to /tmp." if var_tmp_bind_compliant else "/var/tmp is not correctly bind-mounted or symlinked to /tmp." }}'
   tags:
     - filesystem_config
     - bind_mount_vartmp
 
 - name: Report /var/tmp bind mount compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': 'Bind mount /var/tmp to /tmp',
-      'status': '{{ "COMPLIANT" if var_tmp_bind_compliant else "NON_COMPLIANT" }}',
-      'expected': '/var/tmp is bind-mounted or symlinked to /tmp.',
-      'actual': '{{ "Compliant" if var_tmp_bind_compliant else "Non-compliant" }}',
-      'message': '{{ "/var/tmp is correctly bind-mounted or symlinked to /tmp." if var_tmp_bind_compliant else "/var/tmp is not correctly bind-mounted or symlinked to /tmp." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [var_tmp_bind_compliance_item] }}"
   tags:
     - filesystem_config
     - bind_mount_vartmp
@@ -103,21 +115,26 @@
     home_nodev_compliant: >-
       {{ '/home' in ansible_facts.mounts | map(attribute='mount') | list and
          'nodev' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/home') | first).options }}
-  # Check if /home is a separate mount point and has the nodev option.
+  tags:
+    - filesystem_config
+    - home_nodev
+
+- name: Define /home nodev compliance item
+  ansible.builtin.set_fact:
+    home_nodev_compliance_item:
+      category: 'Filesystem Configuration'
+      item: '/home nodev option'
+      status: '{{ "COMPLIANT" if home_nodev_compliant else "NON_COMPLIANT" }}'
+      expected: '/home has the nodev option set.'
+      actual: '{{ "Compliant" if home_nodev_compliant else "Non-compliant" }}'
+      message: '{{ "The nodev option is set for /home." if home_nodev_compliant else "The nodev option is not set for /home or /home is not a separate partition." }}'
   tags:
     - filesystem_config
     - home_nodev
 
 - name: Report /home nodev compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': '/home nodev option',
-      'status': '{{ "COMPLIANT" if home_nodev_compliant else "NON_COMPLIANT" }}',
-      'expected': '/home has the nodev option set.',
-      'actual': '{{ "Compliant" if home_nodev_compliant else "Non-compliant" }}',
-      'message': '{{ "The nodev option is set for /home." if home_nodev_compliant else "The nodev option is not set for /home or /home is not a separate partition." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [home_nodev_compliance_item] }}"
   tags:
     - filesystem_config
     - home_nodev
@@ -129,21 +146,26 @@
          'nodev' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/dev/shm') | first).options and
          'nosuid' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/dev/shm') | first).options and
          'noexec' in (ansible_facts.mounts | selectattr('mount', 'equalto', '/dev/shm') | first).options }}
-  # Check if /dev/shm has the required options.
+  tags:
+    - filesystem_config
+    - dev_shm
+
+- name: Define /dev/shm options compliance item
+  ansible.builtin.set_fact:
+    dev_shm_options_compliance_item:
+      category: 'Filesystem Configuration'
+      item: '/dev/shm options'
+      status: '{{ "COMPLIANT" if dev_shm_options_compliant else "NON_COMPLIANT" }}'
+      expected: '/dev/shm has nodev, nosuid, and noexec options set.'
+      actual: '{{ "Compliant" if dev_shm_options_compliant else "Non-compliant" }}'
+      message: '{{ "All required options (nodev, nosuid, noexec) are set for /dev/shm." if dev_shm_options_compliant else "One or more required options (nodev, nosuid, noexec) are missing for /dev/shm." }}'
   tags:
     - filesystem_config
     - dev_shm
 
 - name: Report /dev/shm options compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': '/dev/shm options',
-      'status': '{{ "COMPLIANT" if dev_shm_options_compliant else "NON_COMPLIANT" }}',
-      'expected': '/dev/shm has nodev, nosuid, and noexec options set.',
-      'actual': '{{ "Compliant" if dev_shm_options_compliant else "Non-compliant" }}',
-      'message': '{{ "All required options (nodev, nosuid, noexec) are set for /dev/shm." if dev_shm_options_compliant else "One or more required options (nodev, nosuid, noexec) are missing for /dev/shm." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [dev_shm_options_compliance_item] }}"
   tags:
     - filesystem_config
     - dev_shm
@@ -157,7 +179,6 @@
     # The find module alone cannot directly filter for world-writable directories.
     # We will use a shell command for more precise checking.
   register: world_writable_dirs_raw
-  # This task is a placeholder. A more robust check will involve `find / -perm /o+w`.
   tags:
     - filesystem_config
     - sticky_bit
@@ -184,16 +205,22 @@
     - filesystem_config
     - sticky_bit
 
+- name: Define sticky bit compliance item
+  ansible.builtin.set_fact:
+    sticky_bit_compliance_item:
+      category: 'Filesystem Configuration'
+      item: 'Sticky bit on world-writable directories'
+      status: '{{ "COMPLIANT" if sticky_bit_compliant else "NON_COMPLIANT" }}'
+      expected: 'Sticky bit is set on all world-writable directories.'
+      actual: '{{ "Compliant" if sticky_bit_compliant else "Non-compliant" }}'
+      message: '{{ "All world-writable directories have the sticky bit set." if sticky_bit_compliant else "The following world-writable directories are missing the sticky bit: " + world_writable_no_sticky.stdout }}'
+  tags:
+    - filesystem_config
+    - sticky_bit
+
 - name: Report sticky bit compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Filesystem Configuration',
-      'item': 'Sticky bit on world-writable directories',
-      'status': '{{ "COMPLIANT" if sticky_bit_compliant else "NON_COMPLIANT" }}',
-      'expected': 'Sticky bit is set on all world-writable directories.',
-      'actual': '{{ "Compliant" if sticky_bit_compliant else "Non-compliant" }}',
-      'message': '{{ "All world-writable directories have the sticky bit set." if sticky_bit_compliant else "The following world-writable directories are missing the sticky bit: " + world_writable_no_sticky.stdout }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [sticky_bit_compliance_item] }}"
   tags:
     - filesystem_config
     - sticky_bit
