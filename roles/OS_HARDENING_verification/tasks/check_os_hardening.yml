@@ -180,27 +180,37 @@
     - os_hardening
     - unutilized_services
 
+- name: Check if /etc/sysconfig/init exists for daemon umask check
+  ansible.builtin.stat:
+    path: /etc/sysconfig/init
+  register: sysconfig_init_stat
+  tags:
+    - os_hardening
+    - daemon_umask
+
 - name: Check daemon umask in /etc/sysconfig/init (deprecated, but still common check)
   ansible.builtin.lineinfile:
     path: /etc/sysconfig/init
     regexp: '^umask\s+027'
-    line: 'umask 027' # Added the 'line' parameter
+    line: 'umask 027'
     state: present
   register: umask_check
   check_mode: true
-  # Check for umask 027 in /etc/sysconfig/init.
+  when: sysconfig_init_stat.stat.exists
+  # Only run this task if the file exists.
   tags:
     - os_hardening
     - daemon_umask
 
-- name: Set fact for daemon umask compliance
+- name: Set fact for daemon umask compliance (if file exists)
   ansible.builtin.set_fact:
     daemon_umask_compliant: "{{ umask_check.changed == false }}"
+  when: sysconfig_init_stat.stat.exists
   tags:
     - os_hardening
     - daemon_umask
 
-- name: Define daemon umask compliance item
+- name: Define daemon umask compliance item (file exists)
   ansible.builtin.set_fact:
     daemon_umask_compliance_item:
       category: 'OS Hardening'
@@ -208,7 +218,22 @@
       status: '{{ "COMPLIANT" if daemon_umask_compliant else "NON_COMPLIANT" }}'
       expected: 'Daemon umask is set to a restrictive value (e.g., 027).'
       actual: '{{ "027" if daemon_umask_compliant else "Not 027 or not set" }}'
-      message: '{{ "Daemon umask is correctly set to 027." if daemon_umask_compliant else "Daemon umask is not set to 027 in /etc/sysconfig/init or similar configuration." }}'
+      message: '{{ "Daemon umask is correctly set to 027 in /etc/sysconfig/init." if daemon_umask_compliant else "Daemon umask is not set to 027 in /etc/sysconfig/init or similar configuration." }}'
+  when: sysconfig_init_stat.stat.exists
+  tags:
+    - os_hardening
+    - daemon_umask
+
+- name: Define daemon umask compliance item (file does not exist)
+  ansible.builtin.set_fact:
+    daemon_umask_compliance_item:
+      category: 'OS Hardening'
+      item: 'Set daemon umask'
+      status: 'MANUAL_REQUIRED'
+      expected: 'Daemon umask is set to a restrictive value (e.g., 027).'
+      actual: 'N/A (file /etc/sysconfig/init not found)'
+      message: 'The file /etc/sysconfig/init does not exist on this system. Daemon umask configuration might be handled by systemd or other mechanisms. Please verify manually.'
+  when: not sysconfig_init_stat.stat.exists
   tags:
     - os_hardening
     - daemon_umask
