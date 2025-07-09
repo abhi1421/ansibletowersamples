@@ -27,16 +27,22 @@
     - remote_admin_ssh
     - ssh_protocol
 
+- name: Define SSH protocol compliance item
+  ansible.builtin.set_fact:
+    ssh_protocol_compliance_item:
+      category: 'Remote Administration Via SSH'
+      item: 'SSH protocol set to 2'
+      status: '{{ "COMPLIANT" if ssh_protocol_compliant else "NON_COMPLIANT" }}'
+      expected: 'SSH protocol is set to 2.'
+      actual: '{{ "Protocol 2" if ssh_protocol_compliant else "Protocol not explicitly 2 or missing" }}'
+      message: '{{ "SSH protocol is correctly set to 2." if ssh_protocol_compliant else "SSH protocol is not explicitly set to 2 in sshd_config. This is a critical security setting." }}'
+  tags:
+    - remote_admin_ssh
+    - ssh_protocol
+
 - name: Report SSH protocol compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Remote Administration Via SSH',
-      'item': 'SSH protocol set to 2',
-      'status': '{{ "COMPLIANT" if ssh_protocol_compliant else "NON_COMPLIANT" }}',
-      'expected': 'SSH protocol is set to 2.',
-      'actual': '{{ "Protocol 2" if ssh_protocol_compliant else "Protocol not explicitly 2 or missing" }}',
-      'message': '{{ "SSH protocol is correctly set to 2." if ssh_protocol_compliant else "SSH protocol is not explicitly set to 2 in sshd_config. This is a critical security setting." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ssh_protocol_compliance_item] }}"
   tags:
     - remote_admin_ssh
     - ssh_protocol
@@ -49,16 +55,22 @@
     - remote_admin_ssh
     - ssh_loglevel
 
+- name: Define SSH loglevel compliance item
+  ansible.builtin.set_fact:
+    ssh_loglevel_compliance_item:
+      category: 'Remote Administration Via SSH'
+      item: 'SSH loglevel to INFO'
+      status: '{{ "COMPLIANT" if ssh_loglevel_compliant else "NON_COMPLIANT" }}'
+      expected: 'SSH loglevel is set to INFO.'
+      actual: '{{ "INFO" if ssh_loglevel_compliant else "Not INFO or missing" }}'
+      message: '{{ "SSH loglevel is correctly set to INFO." if ssh_loglevel_compliant else "SSH loglevel is not set to INFO in sshd_config." }}'
+  tags:
+    - remote_admin_ssh
+    - ssh_loglevel
+
 - name: Report SSH loglevel compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Remote Administration Via SSH',
-      'item': 'SSH loglevel to INFO',
-      'status': '{{ "COMPLIANT" if ssh_loglevel_compliant else "NON_COMPLIANT" }}',
-      'expected': 'SSH loglevel is set to INFO.',
-      'actual': '{{ "INFO" if ssh_loglevel_compliant else "Not INFO or missing" }}',
-      'message': '{{ "SSH loglevel is correctly set to INFO." if ssh_loglevel_compliant else "SSH loglevel is not set to INFO in sshd_config." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ssh_loglevel_compliance_item] }}"
   tags:
     - remote_admin_ssh
     - ssh_loglevel
@@ -71,16 +83,22 @@
     - remote_admin_ssh
     - ssh_root_login
 
+- name: Define SSH root login compliance item
+  ansible.builtin.set_fact:
+    ssh_root_login_compliance_item:
+      category: 'Remote Administration Via SSH'
+      item: 'Disable SSH root login'
+      status: '{{ "COMPLIANT" if ssh_root_login_compliant else "NON_COMPLIANT" }}'
+      expected: 'SSH root login is disabled.'
+      actual: '{{ "Disabled" if ssh_root_login_compliant else "Enabled or missing" }}'
+      message: '{{ "SSH root login is correctly disabled." if ssh_root_login_compliant else "SSH root login is not disabled in sshd_config. This is a critical security vulnerability." }}'
+  tags:
+    - remote_admin_ssh
+    - ssh_root_login
+
 - name: Report SSH root login compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Remote Administration Via SSH',
-      'item': 'Disable SSH root login',
-      'status': '{{ "COMPLIANT" if ssh_root_login_compliant else "NON_COMPLIANT" }}',
-      'expected': 'SSH root login is disabled.',
-      'actual': '{{ "Disabled" if ssh_root_login_compliant else "Enabled or missing" }}',
-      'message': '{{ "SSH root login is correctly disabled." if ssh_root_login_compliant else "SSH root login is not disabled in sshd_config. This is a critical security vulnerability." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ssh_root_login_compliance_item] }}"
   tags:
     - remote_admin_ssh
     - ssh_root_login
@@ -93,16 +111,22 @@
     - remote_admin_ssh
     - ssh_empty_passwords
 
+- name: Define SSH permitemptypasswords compliance item
+  ansible.builtin.set_fact:
+    ssh_permit_empty_passwords_compliance_item:
+      category: 'Remote Administration Via SSH'
+      item: 'Set SSH permitemptypasswords to no'
+      status: '{{ "COMPLIANT" if ssh_permit_empty_passwords_compliant else "NON_COMPLIANT" }}'
+      expected: 'SSH PermitEmptyPasswords is set to no.'
+      actual: '{{ "No" if ssh_permit_empty_passwords_compliant else "Yes or missing" }}'
+      message: '{{ "SSH PermitEmptyPasswords is correctly set to no." if ssh_permit_empty_passwords_compliant else "SSH PermitEmptyPasswords is not set to no in sshd_config. This is a critical security vulnerability." }}'
+  tags:
+    - remote_admin_ssh
+    - ssh_empty_passwords
+
 - name: Report SSH permitemptypasswords compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Remote Administration Via SSH',
-      'item': 'Set SSH permitemptypasswords to no',
-      'status': '{{ "COMPLIANT" if ssh_permit_empty_passwords_compliant else "NON_COMPLIANT" }}',
-      'expected': 'SSH PermitEmptyPasswords is set to no.',
-      'actual': '{{ "No" if ssh_permit_empty_passwords_compliant else "Yes or missing" }}',
-      'message': '{{ "SSH PermitEmptyPasswords is correctly set to no." if ssh_permit_empty_passwords_compliant else "SSH PermitEmptyPasswords is not set to no in sshd_config. This is a critical security vulnerability." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [ssh_permit_empty_passwords_compliance_item] }}"
   tags:
     - remote_admin_ssh
     - ssh_empty_passwords
