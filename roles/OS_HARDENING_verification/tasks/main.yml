@@ -16,7 +16,8 @@
       - network
       - hardware
       - virtual
-      - os
+      - distribution
+      - os_family
       - packages
       - mount
       - service_mgr
