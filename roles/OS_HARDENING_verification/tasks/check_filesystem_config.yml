@@ -84,8 +84,8 @@
 - name: Set fact for /var/tmp bind mount compliance
   ansible.builtin.set_fact:
     var_tmp_bind_compliant: >-
-      {{ var_tmp_stat.stat.islnk is defined and var_tmp_stat.stat.islnk and var_tmp_stat.stat.lnk_target == '/tmp' or
-         (findmnt_var_tmp.rc == 0 and '/tmp' in findmnt_var_tmp.stdout and findmnt_var_tmp.stdout | split(' ')[0] == '/var/tmp') }}
+      {{ (var_tmp_stat.stat.islnk is defined and var_tmp_stat.stat.islnk and var_tmp_stat.stat.lnk_target == '/tmp') or
+         (findmnt_var_tmp.rc == 0 and '/tmp' in findmnt_var_tmp.stdout and (findmnt_var_tmp.stdout | split(' '))[0] == '/var/tmp') }}
   tags:
     - filesystem_config
     - bind_mount_vartmp
