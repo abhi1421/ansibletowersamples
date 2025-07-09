@@ -97,6 +97,19 @@
     - network_security_firewall
     - firewall_status
 
+- name: Define manual firewall rules compliance item
+  ansible.builtin.set_fact:
+    manual_firewall_rules_compliance_item:
+      category: 'Network Security and Firewall Configuration'
+      item: 'Limit connections to services via firewalls'
+      status: 'MANUAL_REQUIRED'
+      expected: 'Firewall rules limit connections to services to authorized users/IPs.'
+      actual: 'N/A (requires manual verification)'
+      message: "Automated verification of complex firewall rules and \"authorized users\" concept is highly context-dependent and often requires manual review of firewall configurations."
+  tags:
+    - network_security_firewall
+    - firewall_rules_manual
+
 - name: Check for specific firewall rules (manual verification for "authorized users")
   ansible.builtin.debug:
     msg: |
@@ -106,14 +119,7 @@
       Expected: Firewall rules are in place to limit connections to services to authorized users/IPs.
       Note: Automated verification of complex firewall rules and "authorized users" concept is highly context-dependent and often requires manual review of firewall configurations (e.g., `firewall-cmd --list-all`, `iptables -L`)."
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Network Security and Firewall Configuration',
-      'item': 'Limit connections to services via firewalls',
-      'status': 'MANUAL_REQUIRED',
-      'expected': 'Firewall rules limit connections to services to authorized users/IPs.',
-      'actual': 'N/A (requires manual verification)',
-      'message': "Automated verification of complex firewall rules and \"authorized users\" concept is highly context-dependent and often requires manual review of firewall configurations."
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [manual_firewall_rules_compliance_item] }}"
   tags:
     - network_security_firewall
     - firewall_rules_manual
