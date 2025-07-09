@@ -18,7 +18,7 @@
       - virtual
       - distribution
       - os_family
-      - packages
+      - pkg_mgr
       - mount
       - service_mgr
   # This task gathers various facts about the target system,
