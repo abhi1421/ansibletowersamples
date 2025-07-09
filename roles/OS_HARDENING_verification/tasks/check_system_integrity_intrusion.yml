@@ -122,9 +122,9 @@
       actual: '{{ "Installed and Running" if ossec_compliant else "Not Installed or Running" }}'
       message: >-
         {% if ossec_compliant %}
-        OSsec HIDS agent binary found at {{ ossec_binary_check.stat.path }} and its service is active.
+        OSsec HIDS agent binary found at {{ ossec_binary_check.stat.path | default('N/A') }} and its service is active.
         {% else %}
-        OSsec HIDS agent binary not found at {{ ossec_binary_check.stat.path }} (Exists: {{ ossec_binary_check.stat.exists | default(false) | string }}).
+        OSsec HIDS agent binary not found at {{ ossec_binary_check.stat.path | default('N/A') }} (Exists: {{ ossec_binary_check.stat.exists | default(false) | string }}).
         OSsec service ActiveState: {{ ossec_service_check.status.ActiveState | default("N/A") }}.
         OSsec HIDS is not installed or its service is not running.
         {% endif %}
