@@ -15,9 +15,9 @@
   ansible.builtin.set_fact:
     grub_cfg_permissions_compliant: >-
       {{ grub_cfg_stat.stat.exists and
-         grub_cfg_stat.stat.uid == 0 and # root owner
-         grub_cfg_stat.stat.gid == 0 and # root group owner
-         grub_cfg_stat.stat.mode == "0600" # -rw------- permissions
+         grub_cfg_stat.stat.uid == 0 and
+         grub_cfg_stat.stat.gid == 0 and
+         grub_cfg_stat.stat.mode == "0600"
       }}
   # Check for existence, owner (root), group (root), and permissions (0600).
   tags:
