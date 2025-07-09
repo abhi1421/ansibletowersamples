@@ -1,3 +1,19 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for OS_HARDENING_verification
+# Tags for main categories of checks
+enable_preparation_installation_checks: true
+enable_filesystem_config_checks: true
+enable_system_updates_checks: true
+enable_secure_boot_settings_checks: true
+enable_process_hardening_checks: true
+enable_os_hardening_checks: true
+enable_network_security_firewall_checks: true
+enable_remote_admin_ssh_checks: true
+enable_system_integrity_intrusion_checks: true
+enable_files_permissions_checks: true
+enable_pam_config_checks: true
+enable_warning_banners_checks: true
+
+# Tag for report generation
+enable_report_generation: true
