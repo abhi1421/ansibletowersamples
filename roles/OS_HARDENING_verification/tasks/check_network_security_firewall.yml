@@ -33,20 +33,28 @@
     - network_security_firewall
     - network_kernel_params
 
-- name: Report network kernel parameters compliance
+- name: Define network kernel parameter compliance item
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Network Security and Firewall Configuration',
-      'item': 'Network Kernel Parameter: ' + item.description + ' (' + item.name + ')',
-      'status': '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}',
-      'expected': '{{ item.name }} is set to {{ item.value }}.',
-      'actual': '{{ item.name }} is set to {{ item.value }}' if item.changed == false else '{{ item.name }} is not set to {{ item.value }}',
-      'message': '{{ "Parameter is correctly configured." if item.changed == false else "Parameter is not configured to the expected value. Actual: " + item.before }}'
-    }] }}"
+    network_param_compliance_item:
+      category: 'Network Security and Firewall Configuration'
+      item: 'Network Kernel Parameter: {{ item.item.description }} ({{ item.item.name }})'
+      status: '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}'
+      expected: '{{ item.item.name }} is set to {{ item.item.value }}.'
+      actual: '{{ item.item.name }} is set to {{ item.item.value }}' if item.changed == false else '{{ item.item.name }} is not set to {{ item.item.value }}. Actual: {{ item.before | default("N/A") }}'
+      message: '{{ "Parameter is correctly configured." if item.changed == false else "Parameter is not configured to the expected value. Actual: " + item.before | default("N/A") }}'
   loop: "{{ network_params_check.results }}"
   loop_control:
-    label: "{{ item.item.name }}"
-  # Iterate through the results of the sysctl checks and append to the report.
+    label: "Define item for {{ item.item.name }}"
+  tags:
+    - network_security_firewall
+    - network_kernel_params
+
+- name: Report network kernel parameters compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [network_param_compliance_item] }}"
+  loop: "{{ network_params_check.results }}"
+  loop_control:
+    label: "Report for {{ item.item.name }}"
   tags:
     - network_security_firewall
     - network_kernel_params
@@ -67,16 +75,22 @@
     - network_security_firewall
     - firewall_status
 
+- name: Define firewall status compliance item
+  ansible.builtin.set_fact:
+    firewall_status_compliance_item:
+      category: 'Network Security and Firewall Configuration'
+      item: 'Firewall Status'
+      status: '{{ "COMPLIANT" if firewall_active else "NON_COMPLIANT" }}'
+      expected: 'Firewall (firewalld) is active and running.'
+      actual: '{{ "Active" if firewall_active else "Inactive" }}'
+      message: '{{ "Firewall (firewalld) is active." if firewall_active else "Firewall (firewalld) is inactive and should be enabled." }}'
+  tags:
+    - network_security_firewall
+    - firewall_status
+
 - name: Report firewall status
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Network Security and Firewall Configuration',
-      'item': 'Firewall Status',
-      'status': '{{ "COMPLIANT" if firewall_active else "NON_COMPLIANT" }}',
-      'expected': 'Firewall (firewalld) is active and running.',
-      'actual': '{{ "Active" if firewall_active else "Inactive" }}',
-      'message': '{{ "Firewall (firewalld) is active." if firewall_active else "Firewall (firewalld) is inactive and should be enabled." }}'
-    }] }}"
+    compliance_report_results: "{{ compliance_report_results + [firewall_status_compliance_item] }}"
   tags:
     - network_security_firewall
     - firewall_status
