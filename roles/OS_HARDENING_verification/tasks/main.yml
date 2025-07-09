@@ -19,7 +19,7 @@
       - distribution
       - os_family
       - pkg_mgr
-      - mount
+      - mounts
       - service_mgr
   # This task gathers various facts about the target system,
   # which are often necessary for performing compliance checks.
