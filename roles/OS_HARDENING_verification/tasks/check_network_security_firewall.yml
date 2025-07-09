@@ -112,7 +112,7 @@
       'status': 'MANUAL_REQUIRED',
       'expected': 'Firewall rules limit connections to services to authorized users/IPs.',
       'actual': 'N/A (requires manual verification)',
-      'message': 'Automated verification of complex firewall rules and "authorized users" concept is highly context-dependent and often requires manual review of firewall configurations.'
+      'message': "Automated verification of complex firewall rules and \"authorized users\" concept is highly context-dependent and often requires manual review of firewall configurations."
     }] }}"
   tags:
     - network_security_firewall
