@@ -13,7 +13,9 @@
 - name: Ensure /home is mounted with nodev
   shell: mount | grep '/home'
   register: home_mount
-  failed_when: "'nodev' not in home_mount.stdout"
+  ignore_errors: yes
+  failed_when:
+    - home_mount.rc == 0 and "'nodev' not in home_mount.stdout"
   vars:
     check_name: "Check /home mount with nodev"
   notify: Append result to report
@@ -21,15 +23,16 @@
 - name: Ensure /dev/shm has nodev, nosuid, noexec
   shell: mount | grep '/dev/shm'
   register: shm_mount
+  ignore_errors: yes
   failed_when:
-    - "'nodev' not in shm_mount.stdout"
-    - "'nosuid' not in shm_mount.stdout"
-    - "'noexec' not in shm_mount.stdout"
+    - shm_mount.rc == 0 and "'nodev' not in shm_mount.stdout"
+    - shm_mount.rc == 0 and "'nosuid' not in shm_mount.stdout"
+    - shm_mount.rc == 0 and "'noexec' not in shm_mount.stdout"
   vars:
     check_name: "Check /dev/shm mount options"
   notify: Append result to report
 
-- name: Check sticky bit on world-writable dirs
+- name: Check sticky bit on world-writable directories
   shell: find / -xdev -type d -perm -0002 ! -perm -1000
   register: sticky_dirs
   failed_when: sticky_dirs.stdout != ""
