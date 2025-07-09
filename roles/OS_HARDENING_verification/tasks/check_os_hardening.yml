@@ -151,6 +151,15 @@
     - os_hardening
     - unutilized_services
 
+- name: Get list of non-compliant server services
+  ansible.builtin.set_fact:
+    non_compliant_server_services_list: "{{ server_services_status.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ') }}"
+  when: not server_services_compliant
+  # Pre-calculate the list of services that are still active/enabled.
+  tags:
+    - os_hardening
+    - unutilized_services
+
 - name: Define server services compliance item
   ansible.builtin.set_fact:
     server_services_compliance_item:
@@ -159,7 +168,7 @@
       status: '{{ "COMPLIANT" if server_services_compliant else "NON_COMPLIANT" }}'
       expected: 'Unutilized server services (FTP, DNS, LDAP, SMB, DHCP, NFS, SNMP) are disabled or removed.'
       actual: '{{ "Disabled/Removed" if server_services_compliant else "Active" }}'
-      message: '{{ "All specified unutilized server services are disabled or removed." if server_services_compliant else "The following server services might still be active or enabled: " + (server_services_status.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list | join(', ')) + ". Please verify if these are truly unutilized." }}'
+      message: '{{ "All specified unutilized server services are disabled or removed." if server_services_compliant else "The following server services might still be active or enabled: " + non_compliant_server_services_list + ". Please verify if these are truly unutilized." }}'
   tags:
     - os_hardening
     - unutilized_services
