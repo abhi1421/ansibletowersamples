@@ -1,5 +1,5 @@
 - name: Check /tmp mount options include nodev, noexec, nosuid
-  command: mount | grep '/tmp'
+  shell: mount | grep '/tmp'
   register: tmp_mount
   failed_when:
     - "'nodev' not in tmp_mount.stdout"
@@ -10,7 +10,7 @@
   notify: Append result to report
 
 - name: Ensure /home is mounted with nodev
-  command: mount | grep '/home'
+  shell: mount | grep '/home'
   register: home_mount
   failed_when: "'nodev' not in home_mount.stdout"
   vars:
@@ -18,7 +18,7 @@
   notify: Append result to report
 
 - name: Ensure /dev/shm has nodev, nosuid, noexec
-  command: mount | grep '/dev/shm'
+  shell: mount | grep '/dev/shm'
   register: shm_mount
   failed_when:
     - "'nodev' not in shm_mount.stdout"

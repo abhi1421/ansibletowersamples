@@ -5,7 +5,7 @@
   when: aide_enabled
 
 - name: Initialize AIDE DB
-  command: /usr/sbin/aide --init
+  shell: /usr/sbin/aide --init
   when: aide_enabled
 
 - name: Enable SELinux
