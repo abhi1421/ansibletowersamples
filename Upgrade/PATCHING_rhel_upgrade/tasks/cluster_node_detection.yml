@@ -1,0 +1,84 @@
+## tasks/cluster_node_detection.yml
+#---
+## This file contains tasks to determine if a host is a Pacemaker cluster node
+## and to check its current cluster status.
+#
+#- name: Determine if /usr/sbin/pcs binary exists (indicates Pacemaker packages are installed)
+#  ansible.builtin.stat:
+#    path: /usr/sbin/pcs
+#  register: pcs_binary_status
+#  changed_when: false
+#  when: facts_gathered_successfully | bool # Only check stat if facts were gathered
+#  tags:
+#    - cluster_node_detection
+#
+#- name: Set fact if host has pcs installed
+#  ansible.builtin.set_fact:
+#    has_pcs_installed: "{{ pcs_binary_status.stat.exists | default(false) }}"
+#  when: facts_gathered_successfully | bool # Only set fact if facts were gathered
+#  tags:
+#    - cluster_node_detection
+#
+#- name: Check pcs cluster status to determine if node is online/active
+#  ansible.builtin.command: pcs cluster status
+#  register: pcs_online_status_check
+#  changed_when: false
+#  failed_when: false # Do NOT fail this task even if pcs status returns an error (e.g., cluster is offline)
+#  when: facts_gathered_successfully | bool and has_pcs_installed | bool # Only run if facts gathered and pcs installed
+#  tags:
+#    - cluster_status_check
+#
+#- name: Set fact if cluster is currently online on this node
+#  ansible.builtin.set_fact:
+#    is_cluster_online: "{{
+#      (pcs_online_status_check.rc == 0 and 'Cluster Manager status: Online' in pcs_online_status_check.stdout)
+#      if (facts_gathered_successfully | bool and has_pcs_installed | bool) else false
+#    }}"
+#  when: facts_gathered_successfully | bool # Only set fact if facts were gathered
+#  tags:
+#    - cluster_status_check
+
+
+# tasks/cluster_node_detection.yml
+---
+# This file contains tasks to determine if a host is a Pacemaker cluster node
+# and to check its current cluster status.
+
+# Task 1: Check for the 'pcs' binary
+- name: Determine if /usr/sbin/pcs binary exists (indicates Pacemaker packages are installed)
+  ansible.builtin.stat:
+    path: /usr/sbin/pcs
+  register: pcs_binary_status
+  changed_when: false
+  when: facts_gathered_successfully | bool # Only check stat if facts were gathered
+  tags:
+    - cluster_node_detection
+
+# Task 2: Set fact based on binary existence
+- name: Set fact if host has pcs installed
+  ansible.builtin.set_fact:
+    has_pcs_installed: "{{ pcs_binary_status.stat.exists | default(false) }}"
+  when: facts_gathered_successfully | bool # Only set fact if facts were gathered
+  tags:
+    - cluster_node_detection
+
+# Task 3: Run 'pcs cluster status' to check cluster health/activity
+- name: Check pcs cluster status to determine if node is online/active
+  ansible.builtin.command: pcs cluster status
+  register: pcs_online_status_check
+  changed_when: false
+  failed_when: false # IMPORTANT: Do NOT fail this task even if pcs status returns an error (e.g., cluster is offline or not running)
+  when: facts_gathered_successfully | bool and has_pcs_installed | bool # Only run if facts gathered and pcs installed
+  tags:
+    - cluster_status_check
+
+# Task 4: Set fact based on 'pcs cluster status' output
+- name: Set fact if cluster is currently online on this node
+  ansible.builtin.set_fact:
+    is_cluster_online: "{{
+      (pcs_online_status_check.rc == 0 and 'Cluster Manager status: Online' in pcs_online_status_check.stdout)
+      if (facts_gathered_successfully | bool and has_pcs_installed | bool) else false
+    }}"
+  when: facts_gathered_successfully | bool # Only set fact if facts were gathered
+  tags:
+    - cluster_status_check

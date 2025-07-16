@@ -1,0 +1,9 @@
+# tasks/check_registration.yml
+# Task to check if the system is registered to Satellite
+
+- name: Check if system is registered to Satellite
+  ansible.builtin.shell: subscription-manager status | grep 'Overall Status' | awk '{print $3}'
+  register: subscription_status_check
+  changed_when: false # This task only checks, doesn't change anything
+  tags:
+    - registration_check
