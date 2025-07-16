@@ -1,0 +1,16 @@
+# tasks/register_system.yml
+# Task to register the system to Satellite if not already registered
+
+- name: Register system to Satellite if not registered
+  ansible.builtin.command: >
+    subscription-manager register
+    --org={{ satellite_org_id }} --activationkey={{ satellite_activation_key }}  --force
+  when: subscription_status_check.stdout != "Current"
+  tags:
+    - registration
+
+- name: Set release version for subscription-manager to current RHEL version
+  ansible.builtin.command: "subscription-manager release --set {{ ansible_distribution_version }}"
+  changed_when: true # Setting the release version is a change
+  tags:
+    - registration

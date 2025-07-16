@@ -1,0 +1,46 @@
+
+---
+# main tasks file for INSTALLATION_Instana_Agent
+
+- name: Ensure facts are gathered for architecture detection
+  ansible.builtin.setup:
+  # This task explicitly gathers all facts from the target host,
+  # including 'ansible_architecture' and 'ansible_os_family',
+  # ensuring they are available for subsequent tasks.
+  # This is crucial if 'gather_facts: no' is set at the playbook level, or for robustness.
+  tags: [always] # Always run this to ensure facts are available
+
+- name: Include task to check Instana agent status
+  ansible.builtin.include_tasks: 01_check_agent_status.yml
+  when: instana_enable_check_agent_status | bool
+  tags: [check_status]
+
+- name: Include task to copy RPMs and other files
+  ansible.builtin.include_tasks: 02_copy_rpms_and_files.yml
+  when: instana_enable_copy_rpms_and_files | bool
+  tags: [copy_files]
+
+- name: Include task to configure host entries and environment variables
+  ansible.builtin.include_tasks: 03_configure_hosts_and_env.yml
+  when: instana_enable_configure_hosts_and_env | bool
+  tags: [configure_system]
+
+- name: Include task to install Instana agent
+  ansible.builtin.include_tasks: 04_install_agent.yml
+  when: instana_enable_install_agent | bool
+  tags: [install_agent]
+
+- name: Include task to create configuration files
+  ansible.builtin.include_tasks: 05_create_config_files.yml
+  when: instana_enable_create_config_files | bool
+  tags: [create_configs]
+
+- name: Include task to import certificate
+  ansible.builtin.include_tasks: 06_import_certificate.yml
+  when: instana_enable_import_certificate | bool
+  tags: [import_cert]
+
+- name: Include task to manage services post-installation
+  ansible.builtin.include_tasks: 07_manage_services_post_install.yml
+  when: instana_enable_manage_services_post_install | bool
+  tags: [manage_services]

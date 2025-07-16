@@ -1,0 +1,42 @@
+## tasks/cluster_management_post_upgrade.yml
+#---
+## This file contains tasks to enable and start Pacemaker cluster services
+## after a system upgrade and reboot.
+#
+#- name: Execute command to enable cluster services (pcs cluster enable)
+#  ansible.builtin.command: pcs cluster enable
+#  register: pcs_enable_output
+#  changed_when: true
+#  # These tasks inherit the 'when' condition from where they are included in main.yml
+#  tags:
+#    - cluster_management
+#
+#- name: Execute command to start cluster services (pcs cluster start)
+#  ansible.builtin.command: pcs cluster start
+#  register: pcs_start_output
+#  changed_when: true
+#  # These tasks inherit the 'when' condition from where they are included in main.yml
+#  tags:
+#    - cluster_management
+
+
+# tasks/cluster_management_post_upgrade.yml
+---
+# This file contains tasks to enable and start Pacemaker cluster services
+# after a system upgrade and reboot.
+
+- name: Execute command to enable cluster services (pcs cluster enable --all)
+  ansible.builtin.command: pcs cluster enable --all
+  register: pcs_enable_output
+  changed_when: true
+  # These tasks inherit the 'when' condition from where they are included in main.yml
+  tags:
+    - cluster_management
+
+- name: Execute command to start cluster services (pcs cluster start --all)
+  ansible.builtin.command: pcs cluster start --all
+  register: pcs_start_output
+  changed_when: true
+  # These tasks inherit the 'when' condition from where they are included in main.yml
+  tags:
+    - cluster_management

@@ -1,0 +1,111 @@
+---
+- name: Set fact if facts were successfully gathered (based on default gathering)
+  ansible.builtin.set_fact:
+    facts_gathered_successfully: "{{ ansible_facts is defined and ansible_facts != {} }}"
+
+- name: Display current RHEL and kernel versions (if facts gathered)
+  ansible.builtin.debug:
+    msg:
+      - "Current RHEL Version: {{ ansible_distribution_version | default('N/A (Facts not gathered)') }}"
+      - "Current Kernel Version: {{ ansible_kernel | default('N/A (Facts not gathered)') }}"
+      - "Target RHEL Version: {{ target_rhel_version }}"
+  when: facts_gathered_successfully | bool
+  
+# --- NEW CRITICAL PRE-CHECK ADDITION START ---
+
+#- name: Critical Pre-check # Verify System Subscription Status and DNF Repository Accessibility
+#  ansible.builtin.shell: |
+#    set -euo pipefail # Exit immediately if a command exits with a non-zero status or undefined variable is used
+#
+#    # First, verify subscription status is 'Current'
+#    # Use || true to prevent grep from failing the script if 'Overall Status' isn't found
+#    SUBSCRIPTION_STATUS=$(subscription-manager status | grep 'Overall Status' | awk '{print $3}' || true)
+#    if [[ "$SUBSCRIPTION_STATUS" != "Current" ]]; then
+#      echo "ERROR: System subscription status is NOT 'Current'. Please ensure the system is properly registered and subscribed." >&2
+#      exit 1
+#    fi
+#
+#    # Then, attempt to list enabled DNF repositories to confirm connectivity to Satellite and repository configuration.
+#    # Redirect stdout and stderr to /dev/null to keep output clean, we only care about the exit code.
+#    echo "Checking DNF repository list for connectivity..."
+#    dnf repolist enabled > /dev/null 2>&1
+#    if [ $? -ne 0 ]; then
+#      echo "ERROR: 'dnf repolist enabled' command failed (exit code $?). This likely indicates an issue with network connectivity to Satellite ({{ satellite_fqdn_or_ip }}) or incorrect repository configuration." >&2
+#      echo "Please verify network path, firewall rules, and repository configurations (e.g., in /etc/yum.repos.d/)." >&2
+#      exit 1
+#    fi
+#    echo "System is subscribed and DNF repositories are accessible. Proceeding with upgrade checks."
+#  register: satellite_connectivity_check
+#  changed_when: false # This task only checks status, doesn't change system state
+#  failed_when: satellite_connectivity_check.rc != 0 # Fail the task if the shell script exits with a non-zero code
+#  tags:
+#    - critical_precheck
+#    - satellite_connectivity
+# --- NEW CRITICAL PRE-CHECK ADDITION END ---
+
+
+- name: Include Pre-Patching Checklist
+  ansible.builtin.include_tasks: pre_patching_checklist.yml
+  when: run_pre_patching_checklist | bool
+  tags:
+    - pre_patching
+
+# --- NEW ADDITION START: Include Cluster Node Detection Tasks ---
+- name: Include tasks to determine if host is a cluster node and its online status (if facts gathered)
+  ansible.builtin.include_tasks: cluster_node_detection.yml
+  when: facts_gathered_successfully | bool
+  tags:
+    - cluster_node_detection
+    - cluster_status_check
+# --- NEW ADDITION END ---
+
+# --- NEW ADDITION START: Capture initial cluster online status --- To handle PCS state gracefully
+- name: Set fact: Was cluster online before upgrade?
+  ansible.builtin.set_fact:
+    cluster_was_online_pre_upgrade: "{{ is_cluster_online | default(false) }}"
+  when: facts_gathered_successfully | bool and has_pcs_installed | bool
+  tags:
+    - cluster_management_state
+# --- NEW ADDITION END ---
+
+# --- NEW ADDITION START: Include Pre-Upgrade Cluster Management Tasks ---
+- name: Include tasks to stop and disable cluster services before upgrade
+  ansible.builtin.include_tasks: cluster_management_pre_upgrade.yml
+  when:
+    - facts_gathered_successfully | bool
+    - manage_cluster_services | bool
+    - has_pcs_installed | bool
+    - cluster_was_online_pre_upgrade | bool # Only stop/disable if currently online
+  tags:
+    - cluster_management
+# --- NEW ADDITION END ---
+
+- name: Include Patch Execution (Same Version Update)
+  ansible.builtin.include_tasks: patch_execution_same_version.yml
+  when: run_patch_execution_same_version | bool
+  tags:
+    - patch_same_version
+
+- name: Include Patch Execution (Higher Version Update)
+  ansible.builtin.include_tasks: patch_execution_higher_version.yml
+  when: run_patch_execution_higher_version | bool
+  tags:
+    - patch_higher_version
+
+# --- NEW ADDITION START: Include Post-Upgrade Cluster Management Tasks ---
+- name: Include tasks to enable and start cluster services after upgrade
+  ansible.builtin.include_tasks: cluster_management_post_upgrade.yml
+  when:
+    - facts_gathered_successfully | bool
+    - manage_cluster_services | bool
+    - has_pcs_installed | bool # We want to try to enable/start if pcs is installed, regardless of prior online status
+    - cluster_was_online_pre_upgrade | bool
+  tags:
+    - cluster_management
+# --- NEW ADDITION END ---
+
+- name: Include Post-Patching Checklist
+  ansible.builtin.include_tasks: post_patching_checklist.yml
+  when: run_post_patching_checklist | bool
+  tags:
+    - post_patching

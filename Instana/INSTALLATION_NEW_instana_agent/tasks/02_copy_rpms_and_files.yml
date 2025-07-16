@@ -1,0 +1,70 @@
+---
+# tasks/02_copy_rpms_and_files.yml
+
+- name: Debug - Display ansible_architecture
+  ansible.builtin.debug:
+    msg: "Detected architecture: {{ ansible_architecture }}"
+  tags: [copy_files, debug]
+
+- name: Determine Instana RPM file based on OS architecture (Step 1 Raw Lookup)
+  ansible.builtin.set_fact:
+    # Get the raw lookup result. This should ideally be a list of paths.
+    _raw_lookup_result: "{{ lookup('ansible.builtin.fileglob', 'instana-agent-*.{{ ansible_architecture }}.rpm') }}"
+  tags: [copy_files, debug]
+
+- name: Debug - Raw _raw_lookup_result
+  ansible.builtin.debug:
+    msg: "Raw _raw_lookup_result: {{ _raw_lookup_result }} (Type: {{ _raw_lookup_result | type_debug }})"
+  tags: [copy_files, debug]
+
+- name: Set instana_rpm_file from processed lookup result (Step 2 Process Result)
+  ansible.builtin.set_fact:
+    # Ensure _raw_lookup_result is treated as a list, then flatten it (if nested),
+    # get the first element, default to empty string if not found, and trim.
+    instana_rpm_file: "{{ ([_raw_lookup_result] | flatten | first | default('')) | string | trim }}"
+  tags: [copy_files]
+  # This task robustly extracts the full path of the RPM file on the control node.
+
+- name: Debug - Display final instana_rpm_file variable
+  ansible.builtin.debug:
+    msg: "Final instana_rpm_file: '{{ instana_rpm_file }}' (Type: {{ instana_rpm_file | type_debug }})"
+  tags: [copy_files, debug]
+
+- name: Fail if no Instana RPM file was found for the architecture
+  ansible.builtin.fail:
+    msg: |
+      FATAL: No Instana RPM file found or path not correctly resolved for architecture '{{ ansible_architecture }}'.
+      Expected pattern: 'instana-agent-*.{{ ansible_architecture }}.rpm'
+      Raw fileglob lookup result (from _raw_lookup_result): '{{ _raw_lookup_result }}'
+      Final instana_rpm_file variable value: '{{ instana_rpm_file }}'
+      Please ensure the correct RPM is present in the 'files/' directory of the role and is accessible.
+  when: instana_rpm_file == ''
+  tags: [copy_files]
+  # This task will explicitly fail the playbook if instana_rpm_file is empty,
+  # providing a clear message about the missing RPM and more context.
+
+- name: Create target directory for Instana agent files
+  ansible.builtin.file:
+    path: "{{ instana_target_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [copy_files]
+  # Ensure the target directory (e.g., /home/ansible) exists on the remote host.
+
+- name: Echo message after creating target directory
+  ansible.builtin.debug:
+    msg: "Target directory '{{ instana_target_dir }}' ensured."
+  tags: [copy_files]
+
+- name: Copy Instana agent RPM to target node
+  ansible.builtin.copy:
+    src: "{{ instana_rpm_file }}" # Use the dynamically determined FULL PATH to the RPM file on the control node
+    dest: "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}" # Use basename for the destination filename
+    mode: '0644'
+  tags: [copy_files]
+  # Copy the selected RPM to the target host's specified directory.
+
+- name: Echo message after copying RPM
+  ansible.builtin.debug:
+    msg: "Instana Agent RPM '{{ instana_rpm_file | ansible.builtin.basename }}' copied to '{{ instana_target_dir }}'."
+  tags: [copy_files]

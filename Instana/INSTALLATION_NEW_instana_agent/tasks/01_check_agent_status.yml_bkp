@@ -1,0 +1,48 @@
+---
+# tasks/01_check_agent_status.yml
+
+- name: Initialize service existence and running facts
+  ansible.builtin.set_fact:
+    instana_service_exists: false
+    instana_agent_running: false
+  tags: [check_status]
+  # Initialize these facts to false to prevent errors if not set by later conditional tasks.
+
+- name: Check Instana agent service status (Linux - systemd based)
+  ansible.builtin.command: "systemctl status {{ instana_service_name }}"
+  register: instana_service_status_linux
+#  failed_when: false
+#  changed_when: false
+  ignore_errors: true # Do not fail if the service is not found or not active
+  when: ansible_os_family == 'RedHat'
+  tags: [check_status]
+  # For Linux systems using systemd (common for RedHat), attempt to get the service status.
+
+- name: Set facts for agent existence and running status (Linux)
+  ansible.builtin.set_fact:
+    instana_service_exists: "{{ instana_service_status_linux.rc == 0 or (instana_service_status_linux.stdout is defined and 'Loaded: loaded' in instana_service_status_linux.stdout) }}"
+    instana_agent_running: "{{ instana_service_status_linux.rc == 0 and (instana_service_status_linux.stdout is defined and 'Active: active (running)' in instana_service_status_linux.stdout) }}"
+  when: ansible_os_family == 'RedHat'
+  tags: [check_status]
+  # Parse the output of 'systemctl status' to determine if the service exists and is running.
+
+- name: Display current Instana agent status
+  ansible.builtin.debug:
+    msg: "Instana agent service '{{ instana_service_name }}' exists: {{ instana_service_exists }}. Running: {{ instana_agent_running }}"
+  tags: [check_status]
+
+- name: Exit if Instana agent is already installed and running
+  ansible.builtin.meta:
+    end_play
+  when: instana_service_exists and instana_agent_running
+  tags: [check_status]
+  # If the agent is found and already running, end the playbook execution gracefully.
+
+- name: Start Instana agent service if installed but not running (Linux)
+  ansible.builtin.systemd:
+    name: "{{ instana_service_name }}"
+    state: started
+    enabled: true # Ensure it starts on boot
+  when: ansible_os_family == 'RedHat' and instana_service_exists and not instana_agent_running
+  tags: [check_status]
+  # For Linux, use the systemd module to start and enable the service if it's not running.

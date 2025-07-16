@@ -1,0 +1,11 @@
+# tasks/apply_kernel.yml
+# Task to apply kernel patches
+
+- name: Apply Kernel Patches
+  ansible.builtin.yum:
+    name: "kernel*" # Target kernel packages specifically
+    state: latest
+  when: apply_kernel_patches | bool
+  tags:
+    - patching
+    - kernel_patches

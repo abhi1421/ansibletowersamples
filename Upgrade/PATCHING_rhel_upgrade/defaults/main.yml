@@ -1,0 +1,27 @@
+# defaults/main.yml
+
+# Target RHEL version for the higher version upgrade.
+# This can be overridden at runtime via extra_vars (e.g., -e "target_rhel_version=8.11")
+target_rhel_version: "8.10"
+manage_cluster_services: true
+
+# --- Stage Execution Control ---
+# These variables control which stages of the upgrade process will run.
+# Set them to 'false' to skip a particular stage.
+# By default, all stages are enabled.
+
+#satellite_fqdn_or_ip: "your.satellite.example.com"
+run_pre_patching_checklist: true
+run_patch_execution_same_version: true
+run_patch_execution_higher_version: true
+run_post_patching_checklist: true
+
+# --- Placeholders for Customer-Specific Commands ---
+# These variables are placeholders for commands that are specific to the customer's
+# applications or services. They should be customized by the customer.
+# If not customized, they will execute a simple echo command.
+application_validation_command: "echo 'No specific application validation command provided. Please customize application_validation_command in defaults/main.yml or via extra_vars.'"
+system_service_validation_command: "echo 'No specific system service validation command provided. Please customize system_service_validation_command in defaults/main.yml or via extra_vars.'"
+
+report_output_dir: "/var/ansible_reports" # Directory on target host to store reports
+report_file_name: "rhel_upgrade_report_{{ inventory_hostname }}_{{ ansible_date_time.iso8601_basic }}.txt"

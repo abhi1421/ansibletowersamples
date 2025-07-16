@@ -1,0 +1,18 @@
+# tasks/fetch_pre_errata.yml
+# Task to fetch and display pre-patching errata information
+
+- name: Fetch pre-patching errata information
+  ansible.builtin.shell: >
+    {{ 'dnf' if ansible_facts['distribution_major_version'] | int >= 8 else 'yum' }} updateinfo list security bugfix | tee {{ errata_report_path }}.pre
+  args:
+    creates: "{{ errata_report_path }}.pre" # Only run if file doesn't exist
+  register: pre_errata_output
+  changed_when: false
+  tags:
+    - errata_info
+
+- name: Display pre-patching errata (for logging/debugging)
+  ansible.builtin.debug:
+    msg: "Pre-patching Errata:\n{{ pre_errata_output.stdout }}"
+  tags:
+    - errata_info

@@ -1,0 +1,54 @@
+# tasks/patch_execution_same_version.yml
+
+---
+- name: Patch Execution (Same Version) - Start
+  ansible.builtin.debug:
+    msg: "Starting Patch Execution for same version update (RHEL {{ ansible_distribution_version }})."
+
+- name: Clean all DNF metadata
+  ansible.builtin.command: dnf clean all
+  changed_when: true # dnf clean all makes changes to cached metadata
+  # When running in an air-gapped env, this is mostly for local consistency
+
+- name: Set release version for subscription-manager to current RHEL version
+  ansible.builtin.command: "subscription-manager release --set {{ ansible_distribution_version }}"
+  changed_when: true # Setting the release version is a change
+
+- name: Verify enabled repositories
+  ansible.builtin.command: subscription-manager repos --list-enabled
+  register: repos_list
+  changed_when: false
+- name: Display enabled repositories
+  ansible.builtin.debug:
+    var: repos_list.stdout_lines
+
+- name: Execute DNF distro-sync for current RHEL version
+  ansible.builtin.shell: "dnf --releasever={{ ansible_distribution_version }} --setopt=deltarpm=false distro-sync -y"
+#  args:
+#    timeout: 3600 # 1 hour timeout
+
+- name: Execute dracut for the current kernel ({{ ansible_kernel }})
+  # The output of 'uname -r' is already available via ansible_kernel fact.
+  # Example: dracut -f /boot/initramfs-4.18.0-553.54.1.el8_10.s390x.img 4.18.0-553.54.1.el8_10.s390x
+  ansible.builtin.command: "dracut -f /boot/initramfs-{{ ansible_kernel }}.img {{ ansible_kernel }}"
+  changed_when: true # dracut creates or updates initramfs
+
+- name: Execute zipl (s390x specific bootloader update)
+  ansible.builtin.command: zipl
+  changed_when: true # zipl updates the bootloader configuration
+
+- name: Reboot system after same version update
+  ansible.builtin.reboot:
+    reboot_timeout: 600 # Wait up to 10 minutes for reboot
+
+- name: Verify RHEL release after same version update
+  ansible.builtin.command: cat /etc/redhat-release
+  register: post_reboot_release
+  changed_when: false
+- name: Display RHEL release after same version update
+  ansible.builtin.debug:
+    var: post_reboot_release.stdout_lines
+
+- name: Patch Execution (Same Version) - End
+  ansible.builtin.debug:
+    msg: "Patch Execution for same version update completed."

@@ -1,0 +1,29 @@
+patching_services_to_manage:
+  - httpd # Example service
+  - postfix # Another example service
+  # Add more services as needed, e.g., your application services
+
+# Satellite Server Registration Details
+# IMPORTANT: Replace with your actual Satellite server URL and activation key
+satellite_server_url: "https://pdcsatellitesrv.rbi.org.in"
+satellite_activation_key: "PROD_NGRTGS"
+satellite_org_id: "NGRTGS"
+
+# Patching Bifurcation - Set to 'true' to apply, 'false' to skip
+# These variables can be overridden from an AAP template at runtime
+apply_security_patches: true
+apply_bugfix_patches: true
+apply_kernel_patches: true
+apply_enhancement_patches: true
+
+# Control whether to reboot after patching
+reboot_after_patching: true
+
+# Path for pre/post errata reports
+errata_report_path: "/var/log/ansible_errata_report.txt"
+
+# New variables for granular task control
+enable_plugin_installation: true
+enable_service_management: true # Controls both stop and start services
+enable_satellite_registration: true # Controls both check and register tasks
+enable_errata_reporting: true # Controls both pre and post errata fetching
