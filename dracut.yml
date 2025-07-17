@@ -23,6 +23,11 @@
       changed_when: true
       when: kernel_for_dracut is defined
     
-    - name: Execute zipl
+    # NEW TASK: Execute zipl only on IBM Z (s390x) systems
+    - name: Execute zipl for IBM Z systems
       ansible.builtin.command: zipl
       changed_when: true
+      when: ansible_architecture == 's390x' # Execute only if architecture is s390x
+      tags:
+        - reboot # Tag it with reboot, as it's part of the boot process updates
+        - zipl_update
