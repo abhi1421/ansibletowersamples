@@ -14,7 +14,7 @@
 
 - name: Set fact for Satellite Server registration compliance
   ansible.builtin.set_fact:
-    satellite_registered_compliant: "{{ 'Current Status: Subscribed' in subscription_status.stdout }}"
+    satellite_registered_compliant: "{{ 'Current Status: Disabled' in subscription_status.stdout }}"
   # Look for the 'Subscribed' status to confirm registration.
   tags:
     - system_updates
