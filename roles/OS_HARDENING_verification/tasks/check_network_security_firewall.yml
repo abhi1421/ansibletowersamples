@@ -134,6 +134,10 @@
 # os_hardening_verification/tasks/check_network_security_firewall.yml
 # This file contains tasks to verify network security and firewall configuration.
 
+---
+# os_hardening_verification/tasks/check_network_security_firewall.yml
+# This file contains tasks to verify network security and firewall configuration.
+
 - name: Define network kernel parameters to check
   ansible.builtin.set_fact:
     network_params:
@@ -165,18 +169,25 @@
     - network_security_firewall
     - network_kernel_params
 
+- name: Define network kernel parameter compliance item for loop
+  ansible.builtin.set_fact:
+    network_param_current_item:
+      category: 'Network Security and Firewall Configuration'
+      item: 'Network Kernel Parameter: {{ item.item.description }} ({{ item.item.name }})'
+      status: '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}'
+      expected: '{{ item.item.name }} is set to {{ item.item.value }}.'
+      actual: "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}"
+      message: "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
+  loop: "{{ network_params_check.results }}"
+  loop_control:
+    label: "Define item for {{ item.item.name }}"
+  tags:
+    - network_security_firewall
+    - network_kernel_params
+
 - name: Report network kernel parameters compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [
-      {
-        'category': 'Network Security and Firewall Configuration',
-        'item': 'Network Kernel Parameter: ' ~ item.item.description ~ ' (' ~ item.item.name ~ ')',
-        'status': '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}',
-        'expected': '{{ item.item.name }} is set to {{ item.item.value }}.',
-        'actual': "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}",
-        'message': "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
-      }
-    ] }}"
+    compliance_report_results: "{{ compliance_report_results + [network_param_current_item] }}"
   loop: "{{ network_params_check.results }}"
   loop_control:
     label: "Report for {{ item.item.name }}"
