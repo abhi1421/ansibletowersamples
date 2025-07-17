@@ -1,4 +1,4 @@
-#---
+---
 ## os_hardening_verification/tasks/check_network_security_firewall.yml
 ## This file contains tasks to verify network security and firewall configuration.
 #
@@ -130,13 +130,6 @@
 #    - firewall_rules_manual
 
 
----
-# os_hardening_verification/tasks/check_network_security_firewall.yml
-# This file contains tasks to verify network security and firewall configuration.
-
----
-# os_hardening_verification/tasks/check_network_security_firewall.yml
-# This file contains tasks to verify network security and firewall configuration.
 
 - name: Define network kernel parameters to check
   ansible.builtin.set_fact:
