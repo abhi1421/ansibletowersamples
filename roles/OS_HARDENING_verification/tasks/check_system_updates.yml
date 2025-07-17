@@ -41,7 +41,7 @@
     - satellite_registration
 
 - name: Check Red Hat GPG key and gpgcheck enablement
-  ansible.builtin.command: yum-config-manager --dump-enabled | grep gpgcheck
+  ansible.builtin.command: yum-config-manager --dump | grep gpgcheck
   register: gpgcheck_status
   changed_when: false
   failed_when: false
