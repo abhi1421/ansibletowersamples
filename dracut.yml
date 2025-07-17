@@ -18,11 +18,11 @@
         kernel_for_dracut: "{{ installed_kernels.files | sort(attribute='path', reverse=true) | map(attribute='path') | first | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
       when: installed_kernels.files | length > 0
 
-#    - name: Execute dracut for the detected kernel ({{ kernel_for_dracut }})
-#      ansible.builtin.command: "dracut -f /boot/initramfs-{{ kernel_for_dracut }}.img {{ kernel_for_dracut }}"
-#      changed_when: true
-#      when: kernel_for_dracut is defined
-#    
-#    - name: Execute zipl
-#      ansible.builtin.command: zipl
-#      changed_when: true
+    - name: Execute dracut for the detected kernel ({{ kernel_for_dracut }})
+      ansible.builtin.command: "dracut -f /boot/initramfs-{{ kernel_for_dracut }}.img {{ kernel_for_dracut }}"
+      changed_when: true
+      when: kernel_for_dracut is defined
+    
+    - name: Execute zipl
+      ansible.builtin.command: zipl
+      changed_when: true
