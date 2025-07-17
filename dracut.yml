@@ -3,12 +3,11 @@
   hosts: all
   become: true
   tasks:
-
     - name: Determine kernel version for dracut based on latest vmlinuz
     # Assuming the latest vmlinuz is the one to use for dracut.
     # This might need refinement if there's a more robust way to get the *target* kernel post-upgrade.
       ansible.builtin.set_fact:
-      kernel_for_dracut: "{{ installed_kernels.files | sort(attribute='path', reverse=true) | map(attribute='path') | first | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
+        kernel_for_dracut: "{{ installed_kernels.files | sort(attribute='path', reverse=true) | map(attribute='path') | first | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
       when: installed_kernels.files | length > 0
 
 #    - name: Execute dracut for the detected kernel ({{ kernel_for_dracut }})
