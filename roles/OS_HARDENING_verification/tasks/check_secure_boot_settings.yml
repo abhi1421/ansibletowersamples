@@ -2,6 +2,48 @@
 # os_hardening_verification/tasks/check_secure_boot_settings.yml
 # This file contains tasks to verify secure boot hardening points.
 
+- name: Check permissions and ownership of /boot/grub2 directory
+  ansible.builtin.stat:
+    path: /boot/grub2
+  register: grub2_dir_stat
+  # Get file system information for /boot/grub2 directory.
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
+
+- name: Set fact for /boot/grub2 directory permissions compliance
+  ansible.builtin.set_fact:
+    grub2_dir_permissions_compliant: >-
+      {{ grub2_dir_stat.stat.exists and
+         grub2_dir_stat.stat.uid == 0 and # root owner
+         grub2_dir_stat.stat.gid == 0 and # root group owner
+         (grub2_dir_stat.stat.mode == "0700" or grub2_dir_stat.stat.mode == "0750") # d-rwx------ or d-rwxr-x---
+      }}
+  # Check for existence, owner (root), group (root), and restrictive permissions.
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
+
+- name: Define /boot/grub2 directory permissions compliance item
+  ansible.builtin.set_fact:
+    grub2_dir_permissions_compliance_item:
+      category: 'Secure Boot Settings'
+      item: '/boot/grub2 directory permissions'
+      status: '{{ "COMPLIANT" if grub2_dir_permissions_compliant else "NON_COMPLIANT" }}'
+      expected: 'User/group owner root, permissions 0700 or 0750.'
+      actual: '{{ "Compliant" if grub2_dir_permissions_compliant else "Non-compliant" }}'
+      message: '{{ "Permissions and ownership for /boot/grub2 directory are correct." if grub2_dir_permissions_compliant else "Permissions or ownership for /boot/grub2 directory are incorrect. Actual mode: " + (grub2_dir_stat.stat.mode | default("N/A")) + ", Actual UID: " + (grub2_dir_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (grub2_dir_stat.stat.gid | default("N/A") | string) }}'
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
+
+- name: Report /boot/grub2 directory permissions compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [grub2_dir_permissions_compliance_item] }}"
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
+
 - name: Check permissions and ownership of /boot/grub2/grub.cfg
   ansible.builtin.stat:
     path: /boot/grub2/grub.cfg

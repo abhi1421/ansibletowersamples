@@ -14,6 +14,7 @@ enable_system_integrity_intrusion_checks: true
 enable_files_permissions_checks: true
 enable_pam_config_checks: true
 enable_warning_banners_checks: true
+enable_device_security_checks: true
 
 # Tag for report generation
 enable_report_generation: true

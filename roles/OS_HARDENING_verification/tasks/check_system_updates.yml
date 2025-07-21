@@ -2,33 +2,33 @@
 # os_hardening_verification/tasks/check_system_updates.yml
 # This file contains tasks to verify system update hardening points.
 
-- name: Check Red Hat Satellite Server registration
-  ansible.builtin.command: subscription-manager status
-  register: subscription_status
+- name: Check Red Hat Satellite Server registration (using identity)
+  ansible.builtin.command: subscription-manager identity
+  register: subscription_identity
   changed_when: false
   failed_when: false
-  # Check the status of Red Hat Subscription Manager.
+  # Check the status of Red Hat Subscription Manager using 'identity'.
   tags:
     - system_updates
     - satellite_registration
 
-- name: Set fact for Satellite Server registration compliance
+- name: Set fact for Satellite Server registration compliance (identity check)
   ansible.builtin.set_fact:
-    satellite_registered_compliant: "{{ 'Current Status: Disabled' in subscription_status.stdout }}"
-  # Look for the 'Subscribed' status to confirm registration.
+    satellite_registered_compliant: "{{ subscription_identity.rc == 0 and 'identity' in subscription_identity.stdout }}"
+  # If 'identity' command succeeds and outputs an identity, consider it registered.
   tags:
     - system_updates
     - satellite_registration
 
-- name: Define Satellite Server registration compliance item
+- name: Define Satellite Server registration compliance item (identity check)
   ansible.builtin.set_fact:
     satellite_registration_compliance_item:
       category: 'System Updates'
       item: 'Red Hat Satellite Server registration'
       status: '{{ "COMPLIANT" if satellite_registered_compliant else "NON_COMPLIANT" }}'
       expected: 'System is registered with Red Hat Satellite Server.'
-      actual: '{{ "Registered" if satellite_registered_compliant else "Not Registered" }}'
-      message: '{{ "System is successfully registered with Red Hat Satellite Server." if satellite_registered_compliant else "System is not registered with Red Hat Satellite Server. Output: " + subscription_status.stdout }}'
+      actual: '{{ "Registered (Identity found)" if satellite_registered_compliant else "Not Registered (Identity not found)" }}'
+      message: '{{ "System is successfully registered with Red Hat Satellite Server." if satellite_registered_compliant else "System is not registered with Red Hat Satellite Server or identity command failed. Output: " + subscription_identity.stdout }}'
   tags:
     - system_updates
     - satellite_registration
@@ -40,8 +40,73 @@
     - system_updates
     - satellite_registration
 
+- name: Define allowed RHEL release versions (highest is desired)
+  ansible.builtin.set_fact:
+    allowed_rhel_versions:
+      - "8.3"
+      - "8.4"
+      - "8.5"
+      - "8.6"
+      - "8.7" # Example list, adjust as per your organization's approved versions
+      - "8.8"
+      - "8.9"
+      - "8.10" 
+  tags:
+    - system_updates
+    - release_version
+
+- name: Get current RHEL release version
+  ansible.builtin.set_fact:
+    current_rhel_version: "{{ ansible_facts.distribution_major_version ~ '.' ~ ansible_facts.distribution_version.split('.')[1] if ansible_facts.distribution == 'RedHat' and ansible_facts.distribution_version.split('.') | length > 1 else ansible_facts.distribution_version }}"
+  when: ansible_facts.distribution == 'RedHat'
+  # Extract major.minor version for comparison.
+  tags:
+    - system_updates
+    - release_version
+
+- name: Check if current RHEL version is among allowed and is the highest
+  ansible.builtin.set_fact:
+    rhel_version_compliant: >-
+      {{ ansible_facts.distribution == 'RedHat' and
+         current_rhel_version is defined and
+         current_rhel_version in allowed_rhel_versions and
+         current_rhel_version == (allowed_rhel_versions | sort | last) }}
+  when: ansible_facts.distribution == 'RedHat'
+  # Check if it's RedHat, version is defined, is in the allowed list, and is the highest.
+  tags:
+    - system_updates
+    - release_version
+
+- name: Define RHEL release version compliance item
+  ansible.builtin.set_fact:
+    rhel_version_compliance_item:
+      category: 'System Updates'
+      item: 'Red Hat Enterprise Linux Release Version'
+      status: '{{ "COMPLIANT" if rhel_version_compliant else "NON_COMPLIANT" }}'
+      expected: 'Red Hat Enterprise Linux is on the highest approved version ({{ allowed_rhel_versions | sort | last }}).'
+      actual: '{{ current_rhel_version | default("Not RedHat or version not found") }}'
+      message: >-
+        {% if rhel_version_compliant %}
+        Current RHEL version ({{ current_rhel_version }}) is compliant and is the highest approved version.
+        {% else %}
+        Current RHEL version ({{ current_rhel_version | default("N/A") }}) is not on the highest approved version ({{ allowed_rhel_versions | sort | last }}).
+        Allowed versions: {{ allowed_rhel_versions | join(', ') }}.
+        {% endif %}
+  when: ansible_facts.distribution == 'RedHat'
+  tags:
+    - system_updates
+    - release_version
+
+- name: Report RHEL release version compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [rhel_version_compliance_item] }}"
+  when: ansible_facts.distribution == 'RedHat'
+  tags:
+    - system_updates
+    - release_version
+
 - name: Check Red Hat GPG key and gpgcheck enablement
-  ansible.builtin.command: yum-config-manager --dump | grep gpgcheck
+  ansible.builtin.command: yum-config-manager --dump-enabled | grep gpgcheck
   register: gpgcheck_status
   changed_when: false
   failed_when: false

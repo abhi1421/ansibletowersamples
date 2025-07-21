@@ -210,16 +210,31 @@
     - os_hardening
     - daemon_umask
 
-- name: Define daemon umask compliance item (file exists)
+- name: Check current effective umask
+  ansible.builtin.command: umask
+  register: current_umask_output
+  changed_when: false
+  failed_when: false
+  tags:
+    - os_hardening
+    - daemon_umask
+
+- name: Set fact for effective umask compliance (0022)
+  ansible.builtin.set_fact:
+    effective_umask_compliant: "{{ current_umask_output.stdout == '0022' }}"
+  tags:
+    - os_hardening
+    - daemon_umask
+
+- name: Define daemon umask compliance item (effective umask)
   ansible.builtin.set_fact:
     daemon_umask_compliance_item:
       category: 'OS Hardening'
-      item: 'Set daemon umask'
-      status: '{{ "COMPLIANT" if daemon_umask_compliant else "NON_COMPLIANT" }}'
-      expected: 'Daemon umask is set to a restrictive value (e.g., 027).'
-      actual: '{{ "027" if daemon_umask_compliant else "Not 027 or not set" }}'
-      message: '{{ "Daemon umask is correctly set to 027 in /etc/sysconfig/init." if daemon_umask_compliant else "Daemon umask is not set to 027 in /etc/sysconfig/init or similar configuration." }}'
-  when: sysconfig_init_stat.stat.exists
+      item: 'Set daemon umask (effective)'
+      status: '{{ "COMPLIANT" if effective_umask_compliant else "NON_COMPLIANT" }}'
+      expected: 'Effective umask is 0022.'
+      actual: '{{ current_umask_output.stdout | default("N/A") }}'
+      message: '{{ "Effective umask is correctly set to 0022." if effective_umask_compliant else "Effective umask is not 0022. Actual: " + current_umask_output.stdout | default("N/A") }}'
   tags:
     - os_hardening
     - daemon_umask
@@ -228,9 +243,9 @@
   ansible.builtin.set_fact:
     daemon_umask_compliance_item:
       category: 'OS Hardening'
-      item: 'Set daemon umask'
+      item: 'Set daemon umask (legacy file)'
       status: 'MANUAL_REQUIRED'
-      expected: 'Daemon umask is set to a restrictive value (e.g., 027).'
+      expected: 'Daemon umask is set to a restrictive value (e.g., 027) via /etc/sysconfig/init or equivalent.'
       actual: 'N/A (file /etc/sysconfig/init not found)'
       message: 'The file /etc/sysconfig/init does not exist on this system. Daemon umask configuration might be handled by systemd or other mechanisms. Please verify manually.'
   when: not sysconfig_init_stat.stat.exists

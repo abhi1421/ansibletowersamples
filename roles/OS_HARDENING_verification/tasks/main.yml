@@ -99,6 +99,12 @@
   tags:
     - warning_banners # Category tag
 
+- name: Include device security checks
+  ansible.builtin.include_tasks: check_device_security.yml
+  # This new task includes a separate file for verifying device-related security settings like USB access.
+  tags:
+    - device_security
+
 - name: Generate final compliance report
   ansible.builtin.include_tasks: generate_report.yml
   # This final task compiles all collected results and generates a human-readable report.
