@@ -37,12 +37,12 @@
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [
       {
-        'category': 'Network Security and Firewall Configuration',
-        'item': 'Network Kernel Parameter: ' ~ item.item.description ~ ' (' ~ item.item.name ~ ')',
-        'status': '{{ "COMPLIANT" if item.changed == false else "NON_COMPLIANT" }}',
-        'expected': '{{ item.item.name }} is set to {{ item.item.value }}.',
-        'actual': "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}",
-        'message': "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
+        "category": "Network Security and Firewall Configuration",
+        "item": "Network Kernel Parameter: {{ item.item.description }} ({{ item.item.name }})",
+        "status": "{{ 'COMPLIANT' if item.changed == false else 'NON_COMPLIANT' }}",
+        "expected": "{{ item.item.name }} is set to {{ item.item.value }}.",
+        "actual": "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}",
+        "message": "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
       }
     ] }}"
   loop: "{{ network_params_check.results }}"
