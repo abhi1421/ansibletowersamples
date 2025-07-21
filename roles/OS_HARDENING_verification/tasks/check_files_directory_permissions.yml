@@ -46,9 +46,9 @@
   ansible.builtin.set_fact:
     passwd_perms_compliant: >-
       {{ passwd_stat.stat.exists and
-         passwd_stat.stat.uid == 0 and # root owner
-         passwd_stat.stat.gid == 0 and # root group owner
-         passwd_stat.stat.mode == "0644" # -rw-r--r--
+         passwd_stat.stat.uid == 0 and
+         passwd_stat.stat.gid == 0 and
+         passwd_stat.stat.mode == "0644"
       }}
   tags:
     - files_permissions
@@ -86,9 +86,9 @@
   ansible.builtin.set_fact:
     shadow_perms_compliant: >-
       {{ shadow_stat.stat.exists and
-         shadow_stat.stat.uid == 0 and # root owner
-         shadow_stat.stat.gid == 0 and # root group owner
-         (shadow_stat.stat.mode == "0000" or shadow_stat.stat.mode == "0400") # ---------- or -r--------
+         shadow_stat.stat.uid == 0 and
+         shadow_stat.stat.gid == 0 and
+         (shadow_stat.stat.mode == "0000" or shadow_stat.stat.mode == "0400")
       }}
   tags:
     - files_permissions
