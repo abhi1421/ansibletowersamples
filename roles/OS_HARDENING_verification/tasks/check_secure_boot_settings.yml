@@ -15,9 +15,9 @@
   ansible.builtin.set_fact:
     grub2_dir_permissions_compliant: >-
       {{ grub2_dir_stat.stat.exists and
-         grub2_dir_stat.stat.uid == 0 and # root owner
-         grub2_dir_stat.stat.gid == 0 and # root group owner
-         (grub2_dir_stat.stat.mode == "0700" or grub2_dir_stat.stat.mode == "0750") # d-rwx------ or d-rwxr-x---
+         grub2_dir_stat.stat.uid == 0 and
+         grub2_dir_stat.stat.gid == 0 and
+         (grub2_dir_stat.stat.mode == "0700" or grub2_dir_stat.stat.mode == "0750")
       }}
   # Check for existence, owner (root), group (root), and restrictive permissions.
   tags:
