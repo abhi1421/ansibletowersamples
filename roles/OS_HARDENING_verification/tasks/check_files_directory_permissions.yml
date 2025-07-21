@@ -33,3 +33,83 @@
   tags:
     - files_permissions
     - account_integrity_manual
+
+- name: Check permissions and ownership of /etc/passwd
+  ansible.builtin.stat:
+    path: /etc/passwd
+  register: passwd_stat
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Set fact for /etc/passwd permissions compliance
+  ansible.builtin.set_fact:
+    passwd_perms_compliant: >-
+      {{ passwd_stat.stat.exists and
+         passwd_stat.stat.uid == 0 and # root owner
+         passwd_stat.stat.gid == 0 and # root group owner
+         passwd_stat.stat.mode == "0644" # -rw-r--r--
+      }}
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Define /etc/passwd permissions compliance item
+  ansible.builtin.set_fact:
+    passwd_perms_compliance_item:
+      category: 'Files/Directory Permissions/Access'
+      item: '/etc/passwd permissions'
+      status: '{{ "COMPLIANT" if passwd_perms_compliant else "NON_COMPLIANT" }}'
+      expected: '/etc/passwd has 0644 permissions and is owned by root:root.'
+      actual: '{{ "Compliant" if passwd_perms_compliant else "Non-compliant" }}'
+      message: '{{ "Permissions and ownership for /etc/passwd are correct." if passwd_perms_compliant else "Permissions or ownership for /etc/passwd are incorrect. Actual mode: " + (passwd_stat.stat.mode | default("N/A")) + ", Actual UID: " + (passwd_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (passwd_stat.stat.gid | default("N/A") | string) }}'
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Report /etc/passwd permissions compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [passwd_perms_compliance_item] }}"
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Check permissions and ownership of /etc/shadow
+  ansible.builtin.stat:
+    path: /etc/shadow
+  register: shadow_stat
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Set fact for /etc/shadow permissions compliance
+  ansible.builtin.set_fact:
+    shadow_perms_compliant: >-
+      {{ shadow_stat.stat.exists and
+         shadow_stat.stat.uid == 0 and # root owner
+         shadow_stat.stat.gid == 0 and # root group owner
+         (shadow_stat.stat.mode == "0000" or shadow_stat.stat.mode == "0400") # ---------- or -r--------
+      }}
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Define /etc/shadow permissions compliance item
+  ansible.builtin.set_fact:
+    shadow_perms_compliance_item:
+      category: 'Files/Directory Permissions/Access'
+      item: '/etc/shadow permissions'
+      status: '{{ "COMPLIANT" if shadow_perms_compliant else "NON_COMPLIANT" }}'
+      expected: '/etc/shadow has 0000 or 0400 permissions and is owned by root:root.'
+      actual: '{{ "Compliant" if shadow_perms_compliant else "Non-compliant" }}'
+      message: '{{ "Permissions and ownership for /etc/shadow are correct." if shadow_perms_compliant else "Permissions or ownership for /etc/shadow are incorrect. Actual mode: " + (shadow_stat.stat.mode | default("N/A")) + ", Actual UID: " + (shadow_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (shadow_stat.stat.gid | default("N/A") | string) }}'
+  tags:
+    - files_permissions
+    - passwd_shadow_perms
+
+- name: Report /etc/shadow permissions compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [shadow_perms_compliance_item] }}"
+  tags:
+    - files_permissions
+    - passwd_shadow_perms

@@ -4,4 +4,4 @@
 # roles/package_mgmt/defaults/main.yml
 
 pkg_action: ""        # install, remove, update, info, list_installed, list_available
-pkg_name: ""          # Single package or list of packages
+pkg_name: ""          # Single package or list of packagespkg_action

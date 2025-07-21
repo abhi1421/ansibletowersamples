@@ -1,0 +1,61 @@
+---
+# os_hardening_verification/tasks/check_device_security.yml
+# This file contains tasks to verify device-related security hardening points.
+
+- name: Check if usb-storage module is blacklisted
+  ansible.builtin.shell: |
+    grep -E '^blacklist usb-storage' /etc/modprobe.d/usb-storage.conf || grep -E '^install usb-storage /bin/true' /etc/modprobe.d/usb-storage.conf || true
+  register: usb_storage_blacklist_check
+  changed_when: false
+  failed_when: false
+  # Check if usb-storage module is blacklisted or prevented from loading.
+  tags:
+    - device_security
+    - usb_access
+
+- name: Check if usb-storage module is currently loaded
+  ansible.builtin.command: lsmod | grep usb-storage || true
+  register: usb_storage_loaded_check
+  changed_when: false
+  failed_when: false
+  # Check if the usb-storage module is currently loaded in the kernel.
+  tags:
+    - device_security
+    - usb_access
+
+- name: Set fact for USB access compliance
+  ansible.builtin.set_fact:
+    usb_access_compliant: >-
+      {{ (usb_storage_blacklist_check.stdout | length > 0) and
+         (usb_storage_loaded_check.stdout | length == 0) }}
+  # USB access is compliant if the module is blacklisted/prevented AND not currently loaded.
+  tags:
+    - device_security
+    - usb_access
+
+- name: Define USB access compliance item
+  ansible.builtin.set_fact:
+    usb_access_compliance_item:
+      category: 'Device Security'
+      item: 'USB access is Disabled'
+      status: '{{ "COMPLIANT" if usb_access_compliant else "NON_COMPLIANT" }}'
+      expected: 'USB mass storage access is disabled.'
+      actual: '{{ "Disabled" if usb_access_compliant else "Enabled or not fully disabled" }}'
+      message: >-
+        {% if usb_access_compliant %}
+        USB mass storage module (usb-storage) is blacklisted/prevented and not currently loaded.
+        {% else %}
+        USB mass storage module (usb-storage) is not fully disabled.
+        Blacklist/Install rule present: {{ (usb_storage_blacklist_check.stdout | length > 0) | string }}.
+        Module currently loaded: {{ (usb_storage_loaded_check.stdout | length > 0) | string }}.
+        {% endif %}
+  tags:
+    - device_security
+    - usb_access
+
+- name: Report USB access compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [usb_access_compliance_item] }}"
+  tags:
+    - device_security
+    - usb_access
