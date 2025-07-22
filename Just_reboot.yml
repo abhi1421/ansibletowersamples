@@ -1,0 +1,15 @@
+---
+- name: Controlled Reboot Playbook
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Initiate reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        test_command: uptime
+      register: reboot_result
+
+    - name: Show reboot result
+      ansible.builtin.debug:
+        var: reboot_result
