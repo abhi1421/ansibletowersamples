@@ -9,7 +9,7 @@ Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
 I. Summary of Privileged Users
 ---------------------------------
-{% set uid_map = user_uid_map | from_json %} {# Parse JSON string to dictionary here #}
+{% set uid_map = user_uid_map | from_json %} {# IMPORTANT: Parse JSON string to dictionary here #}
 The following {{ privileged_users_list | length }} users have been identified with UID 0 or explicit sudo access:
 {% for user in privileged_users_list %}
 - {{ user }} (UID: {{ uid_map[user] | default('N/A') }})
