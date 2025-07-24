@@ -143,7 +143,7 @@
 - name: Extract usernames and home directories
   ansible.builtin.set_fact:
     system_users: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | map(attribute='key') | list }}"
-    user_home_dirs: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | items2dict(key_name='key', value_name='value[5]') }}"
+    user_home_dirs: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | map('community.general.pipe', [('key'), ('value[5]')]) | community.general.combine_as_dict }}"
   # Filter out users without standard home directories (e.g., nologin accounts)
 
 - name: Initialize privileged access report data structure
