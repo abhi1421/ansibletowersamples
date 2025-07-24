@@ -70,10 +70,10 @@ This section contains the raw content of /etc/sudoers and files in /etc/sudoers.
 Review this manually to identify explicit sudo rules.
 
 {% if privileged_report_data.sudoers_files_content %}
-{% for file_path, file_content in privileged_report_data.sudoers_files_content.items() %}
-File: {{ file_path }}
+{% for file_entry in privileged_report_data.sudoers_files_content %} {# Loop over list of dicts #}
+File: {{ file_entry.path }}
 Content:
-{{ file_content }}
+{{ file_entry.content }}
 ---
 {% endfor %}
 {% else %}
