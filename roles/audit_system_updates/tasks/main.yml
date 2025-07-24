@@ -66,7 +66,6 @@
     rpm -qa --qf '%{name}\t%{version}-%{release}\t%{installtime:date}\n'
   register: installed_packages_raw
   changed_when: false
-  comment: "Captures installed package name, version-release, and install time, separated by tabs."
 
 - name: Process installed packages into a structured format
   ansible.builtin.set_fact:
@@ -82,13 +81,11 @@
         {% endif %}
       {% endfor %}
       {{ pkgs | to_nice_json }}
-  comment: "Parses rpm output into a dictionary for easier lookup."
 
 - name: Get list of available updates
   ansible.builtin.command: yum list updates -q
   register: available_updates_raw
   changed_when: false
-  comment: "Gets a list of packages with available updates."
 
 - name: Process available updates into a structured format
   ansible.builtin.set_fact:
@@ -106,7 +103,6 @@
         {% endif %}
       {% endfor %}
       {{ updates | to_nice_json }}
-  comment: "Parses yum update output into a dictionary for easier lookup."
 
 - name: Generate final audit report
   ansible.builtin.copy:
@@ -121,4 +117,3 @@
         {% set update_available = available_updates_data[pkg_name] | default('none') %}
         {{ '%-13s | %-17s | %-20s | %s' | format(pkg_name | truncate(13, True, ''), installed_version | truncate(17, True, ''), installed_on | truncate(20, True, ''), update_available) }}
       {% endfor %}
-  comment: "Combines data and generates the final formatted report in one file."
