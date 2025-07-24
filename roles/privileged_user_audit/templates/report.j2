@@ -1,36 +1,70 @@
 Privileged User Access Audit Report
-==================================
+===================================
 
-Date: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+Date: {{ report_date }}
+Hostname: {{ ansible_hostname }}
+Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
-Users with UID 0 (root or equivalent) and sudo access:
-------------------------------------------------------
+---
 
-{% for user in privileged_users %}
-User: {{ user }}
-Home Directory: {{ user_homes[user] }}
-
-Authorized SSH Key:
-{% if ssh_key_info[user].exists %}
-  Yes
-{% else %}
-  No authorized_keys file found
-{% endif %}
-
-Sudo Privileges:
-{% if sudo_l_output[user] %}
-  Commands allowed:
-  {% set cmds = sudo_l_output[user].split('\n') %}
-  {% for cmd in cmds[:5] %}  - {{ cmd }}
-  {% endfor %}
-  {% if cmds|length > 5 %}  ... (and {{ cmds|length - 5 }} more) {% endif %}
-{% else %}
-  No sudo privileges
-{% endif %}
-
-Files Owned: {{ user_files[user] | length if user_files[user] else 0 }}
-
-------------------------------------------------------
+I. Summary of Privileged Users
+---------------------------------
+The following {{ privileged_users_list | length }} users have been identified with UID 0 or explicit sudo access:
+{% for user in privileged_users_list %}
+- {{ user }} (UID: {{ user_uid_map[user] | default('N/A') }})
 {% endfor %}
 
-End of Report.
+---
+
+II. Detailed Access Information per User
+------------------------------------------
+
+{% for user in privileged_users_list %}
+### User: {{ user }} (UID: {{ user_uid_map[user] | default('N/A') }})
+  Home Directory: {{ user_homes[user] | default('N/A') }}
+
+  Authorized SSH Key ({{ user_homes[user] | default('') }}/.ssh/authorized_keys):
+  {% set ssh_info = ssh_key_info[user] %}
+  {% if ssh_info.exists is defined %}
+    {% if ssh_info.exists %}
+      Path: {{ ssh_info.path }}
+      Permissions: {{ ssh_info.mode | sprintf("%04o") }}
+      Owner: {{ ssh_info.pw_name }} (UID: {{ ssh_info.uid }})
+      Group: {{ ssh_info.gr_name }} (GID: {{ ssh_info.gid }})
+      Size: {{ ssh_info.size }} bytes
+      Modification Time: {{ ssh_info.mtime | default('N/A') | to_datetime('%Y%m%d%H%M%S', '%Y-%m-%d %H:%M:%S') }}
+      {% if ssh_info.mode != '0600' and ssh_info.mode != '0644' %}
+      WARNING: SSH authorized_keys permissions are not optimal (expected 0600 or 0644). Current: {{ ssh_info.mode | sprintf("%04o") }}
+      {% endif %}
+      {% if ssh_info.pw_name != user or ssh_info.gr_name != user %}
+      WARNING: SSH authorized_keys ownership is not optimal (expected {{ user }}:{{ user }}). Current: {{ ssh_info.pw_name }}:{{ ssh_info.gr_name }}
+      {% endif %}
+    {% else %}
+      No authorized_keys file found or accessible.
+    {% endif %}
+  {% else %}
+    Could not check SSH authorized_keys (e.g., home directory not found, permissions issue).
+  {% endif %}
+
+  Sudo Privileges (sudo -U {{ user }} -l):
+  {% set sudo_output = sudo_l_output[user] %}
+  {% if sudo_output %}
+    {{ sudo_output | indent(4) }}
+  {% else %}
+    No sudo privileges found or could not determine (e.g., password required, user not in sudoers).
+  {% endif %}
+
+  Files Owned by {{ user }} (first 50 results):
+  {% set files = user_files[user] %}
+  {% if files %}
+    {% for file_line in files %}
+    {{ file_line | indent(4) }}
+    {% endfor %}
+  {% else %}
+    No specific files found owned by this user (or permissions denied during scan).
+  {% endif %}
+
+------------------------------------------
+{% endfor %}
+
+### End of Report
