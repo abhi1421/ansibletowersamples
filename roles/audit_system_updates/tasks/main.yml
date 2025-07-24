@@ -140,3 +140,4 @@
         {% set update_available_status = 'Yes' if update_version != 'N/A' else 'No' %}
         {{ '%-20s | %-18s | %-20s | %-16s | %s' | format(pkg_name | truncate(20, True, ''), installed_version | truncate(18, True, ''), installed_on | truncate(20, True, ''), update_available_status, update_version | truncate(18, True, '')) }}
       {% endfor %}
+
