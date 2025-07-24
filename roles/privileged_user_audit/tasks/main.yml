@@ -111,13 +111,13 @@
   changed_when: false
 
 - name: Get all user accounts with their UIDs
-  ansible.builtin.shell: "awk -F: '/^[a-zA-Z0-9_-]+:[0-9]+$/ {print $1 \":\" $3}' /etc/passwd"
+  ansible.builtin.shell: "awk -F: '{print $1 \":\" $3}' /etc/passwd"
   register: all_users_uid_raw
   changed_when: false
 
 - name: Build user to UID map
   ansible.builtin.set_fact:
-    user_uid_map: |
+    user_uid_map: >- # Changed from '|' to '>-' for explicit block scalar (though | should work too)
       {% set user_uids = {} %}
       {% for line in all_users_uid_raw.stdout_lines %}
         {% if line | trim %}
@@ -127,8 +127,8 @@
           {% endif %}
         {% endif %}
       {% endfor %}
-      {{ user_uids | to_json | string }} # Added | to_json and | string
-      
+      {{ user_uids }} # <--- REMOVED | to_json and | string
+
 - name: Collect sudo users by parsing sudoers files
   ansible.builtin.shell: |
     # Grep for lines that define user/group permissions, excluding comments and empty lines
