@@ -1,0 +1,675 @@
+---
+# acs_cve_sync_refined/tasks/download_tasks.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the destination directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Download the latest StackRox CVE update bundle using wget (as ansible user)
+  ansible.builtin.shell: >
+    wget -O {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip https://install.stackrox.io/scanner/scanner-vuln-updates.zip
+#  args:
+#    creates: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+  register: wget_download_result
+  changed_when: wget_download_result.rc == 0
+  failed_when: wget_download_result.rc != 0
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Debug task to check if the file is downloaded
+  debug:
+    msg: "File path for fetch {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+
+
+- name: Fetch CVE zip from download host to Ansible control node
+  ansible.builtin.fetch:
+    #    src: /home/ansible/acs-cve-data/scanner-vuln-updates-2025-07-03.zip
+    src: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: /mnt/host_share/
+    flat: yes
+  register: fetch_result
+  become: false # fetch always runs as the user executing the playbook on the control node
+
+- name: Debug fetched file
+  debug:
+    var: fetch_result
+
+- name: Check if /mnt/host_share{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip exists on Ansible Controller
+  stat:
+    path: /mnt/host_share/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+  register: controller_file_stat
+  delegate_to: localhost
+
+- name: Debug controller_file_stat
+  debug:
+    var: controller_file_stat
+-------------------------------------------------------------
+
+---
+# acs_cve_sync_refined/tasks/upload_tasks.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the upload destination directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Check if the file is present
+  debug:
+    msg: The file /home/ansible/{{ cve_bundle_base_name }}-{{ today_date }}.zip is present.
+
+- name: Copy files from tmp folder to {{ acs_cve_upload_dir }}
+  copy:
+    src: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: "{{ acs_cve_upload_dir }}/"
+    remote_src: yes
+    mode: '0755'
+    force: yes
+  become: true
+
+- name: Show the files
+  debug:
+    msg:
+      - "File1 {{ rox_central_address }}"
+      - "File2 {{ acs_rox_api_token_file }}"
+      - "File3 {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+
+#- name: Upload CVE file to ACS Cluster using roxctl (as core user) manually
+#  shell: roxctl scanner upload-db -e central-stackrox.apps.ek3nphub.rbi1.rbi.org.in:443 --token-file /home/ansible/acs-cev-token --scanner-db-file /home/ansible/scanner-vuln-updates-2025-07-03.zip
+
+- name: Upload CVE file to ACS Cluster using roxctl (as core user)
+  ansible.builtin.shell: >
+    roxctl scanner upload-db
+    -e {{ rox_central_address }}
+    --token-file {{ acs_rox_api_token_file }}
+    --scanner-db-file {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip --insecure-skip-tls-verify
+  register: roxctl_upload_result
+#  changed_when: "'Successfully stored scanner vulnerability definitions' in roxctl_upload_result.stdout"
+#  failed_when: roxctl_upload_result.rc != 0 or
+#              "'Successfully stored scanner vulnerability definitions' not in roxctl_upload_result.stdout"
+
+- name: Debug the result
+  debug:
+    var: roxctl_upload_result
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+  run_once: true
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+  run_once: true
+
+
+
+
+
+[ansible@T1J1 roles]$ cat ../PATCHING_acs_cve_sync-DOWNLOAD.yml
+- name: Phase 1 Download CVE Bundle on Download Host
+  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+  gather_facts: true # Optimize: No facts needed for this phase
+  tasks:
+    - name: Include download related tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/download_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+- name: PLAY2 - Copy Downloaded files to destination host
+  hosts: upload_servers
+  tasks:
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once per play
+
+    - name: Copy CVE zip from tmp  to upload host path (as core user)
+      ansible.builtin.copy:
+        src: "/mnt/host_share/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+        dest: "/tmp/"
+        mode: '0644'
+        force: yes
+
+
+
+[ansible@T1J1 roles]$ cat ../PATCHING_acs_cve_sync-UPLOAD.yml
+#- name: Phase 1 Download CVE Bundle on Download Host
+#  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+#  gather_facts: false # Optimize: No facts needed for this phase
+#  tasks:
+#    - name: Include download related tasks from role
+#      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/download_tasks.yml
+
+
+- name: Phase 2 Upload CVE Bundle to Upload Host
+  hosts: upload_servers # Targets the group containing your upload host (e.g., 172.23.162.4)
+  gather_facts: true
+  become: true # Enable privilege escalation for the 'core' user
+  become_user: core # Execute tasks as the 'core' user on the upload host
+  tasks:
+    - name: Include upload related tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/upload_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+
+
+
+
+======================================================================================================================================================================================================
+[ansible@T1J1 roles]$ cat PATCHING_acs_cve_sync/tasks/upload_tasks.yml
+---
+# acs_cve_sync_refined/tasks/upload_tasks.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the upload destination directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Check if the file is present
+  debug:
+    msg: The file /home/ansible/{{ cve_bundle_base_name }}-{{ today_date }}.zip is present.
+
+- name: Copy files from tmp folder to {{ acs_cve_upload_dir }}
+  copy:
+    src: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: "{{ acs_cve_upload_dir }}/"
+    remote_src: yes
+    mode: '0755'
+    force: yes
+  become: true
+
+- name: Show the files
+  debug:
+    msg:
+      - "File1 {{ rox_central_address }}"
+      - "File2 {{ acs_rox_api_token_file }}"
+      - "File3 {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+
+#- name: Upload CVE file to ACS Cluster using roxctl (as core user) manually
+#  shell: roxctl scanner upload-db -e central-stackrox.apps.ek3nphub.rbi1.rbi.org.in:443 --token-file /home/ansible/acs-cev-token --scanner-db-file /home/ansible/scanner-vuln-updates-2025-07-03.zip
+
+- name: Upload CVE file to ACS Cluster using roxctl (as core user)
+  ansible.builtin.shell: >
+    roxctl scanner upload-db
+    -e {{ rox_central_address }}
+    --token-file {{ acs_rox_api_token_file }}
+    --scanner-db-file {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip --insecure-skip-tls-verify
+  register: roxctl_upload_result
+#  changed_when: "'Successfully stored scanner vulnerability definitions' in roxctl_upload_result.stdout"
+#  failed_when: roxctl_upload_result.rc != 0 or
+#              "'Successfully stored scanner vulnerability definitions' not in roxctl_upload_result.stdout"
+
+- name: Debug the result
+  debug:
+    var: roxctl_upload_result
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+  run_once: true
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+  run_once: true
+[ansible@T1J1 roles]$ cat ../PATCHING_acs_cve_sync-DOWNLOAD.yml
+- name: Phase 1 Download CVE Bundle on Download Host
+  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+  gather_facts: true # Optimize: No facts needed for this phase
+  tasks:
+    - name: Include download related tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/download_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+- name: PLAY2 - Copy Downloaded files to destination host
+  hosts: upload_servers
+  tasks:
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once per play
+
+    - name: Copy CVE zip from tmp  to upload host path (as core user)
+      ansible.builtin.copy:
+        src: "/mnt/host_share/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+        dest: "/tmp/"
+        mode: '0644'
+        force: yes
+
+
+
+        #- name: Phase 2 Upload CVE Bundle to Upload Host
+        #  hosts: upload_servers # Targets the group containing your upload host (e.g., 172.23.162.4)
+        #  become: true # Enable privilege escalation for the 'core' user
+        #  become_user: core # Execute tasks as the 'core' user on the upload host
+        #  tasks:
+        #    - name: Include upload related tasks from role
+        #      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/upload_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+[ansible@T1J1 roles]$ cat ../PATCHING_acs_cve_sync-UPLOAD.yml
+#- name: Phase 1 Download CVE Bundle on Download Host
+#  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+#  gather_facts: false # Optimize: No facts needed for this phase
+#  tasks:
+#    - name: Include download related tasks from role
+#      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/download_tasks.yml
+
+
+- name: Phase 2 Upload CVE Bundle to Upload Host
+  hosts: upload_servers # Targets the group containing your upload host (e.g., 172.23.162.4)
+  gather_facts: true
+  become: true # Enable privilege escalation for the 'core' user
+  become_user: core # Execute tasks as the 'core' user on the upload host
+  tasks:
+    - name: Include upload related tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/upload_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+[ansible@T1J1 roles]$
+[ansible@T1J1 roles]$ cat PATCHING_quay_cve_sync/tasks/
+download_phase.yml  upload_phase.yml
+[ansible@T1J1 roles]$ cat PATCHING_quay_cve_sync/tasks/download_phase.yml
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+# quay_cve_sync_refined/tasks/download_phase.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensures this fact is set only once for the play
+
+- name: Ensure the Clair CVE download directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Ensure the Clair mapping files subdirectory exists (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}/clair-mapping-files"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Delete existing Red Hat repository-to-cpe.json if it exists
+  ansible.builtin.file:
+    path: "{{ clair_repo2cpe_mapping_file }}"
+    state: absent
+  become: yes
+  become_user: ansible
+
+- name: Download Red Hat repository-to-cpe.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_repo2cpe_mapping_file }} {{ redhat_repo2cpe_url }}
+  args:
+    creates: "{{ clair_repo2cpe_mapping_file }}"
+  register: wget_repo2cpe_result
+  changed_when: wget_repo2cpe_result.rc == 0
+  failed_when: wget_repo2cpe_result.rc != 0 and "already exists" not in wget_repo2cpe_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Delete existing Red Hat container-name-repos-map.json if it exists
+  ansible.builtin.file:
+    path: "{{ clair_name2repos_mapping_file }}"
+    state: absent
+  become: yes
+  become_user: ansible
+
+- name: Download Red Hat container-name-repos-map.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_name2repos_mapping_file }} {{ redhat_container_map_url }}
+  args:
+    creates: "{{ clair_name2repos_mapping_file }}"
+  register: wget_container_map_result
+  changed_when: wget_container_map_result.rc == 0
+  failed_when: wget_container_map_result.rc != 0 and "already exists" not in wget_container_map_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+      #- name: Create clair-config.yaml on the download host using template
+      #  ansible.builtin.template:
+    #    src: clair-config.yaml.j2
+    #    dest: "{{ clair_config_file_path }}"
+#    mode: '0644'
+#    owner: ansible
+#    group: ansible
+
+- name: Delete existing updates.gz if it exists
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+    state: absent
+  become: yes
+  become_user: ansible
+
+- name: Generate updates.gz using clairctl export-updaters (as ansible user)
+  # Ensure clairctl is installed and in the 'ansible' user's PATH on the download host.
+  ansible.builtin.command: >
+    clairctl --config {{ clair_config_file_path }} export-updaters {{ quay_cve_download_dir }}/{{ updates_gz_filename }}
+  args:
+    chdir: "{{ quay_cve_download_dir }}" # Run command from this directory
+    creates: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+  register: clairctl_export_result
+  changed_when: clairctl_export_result.rc == 0
+  failed_when: clairctl_export_result.rc != 0 and "already exists" not in clairctl_export_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Fetch Quay CVE files to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ item.src_path }}"
+    dest: "{{ controller_temp_dir }}/"
+    flat: true
+  loop:
+    - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+    - { src_path: "{{ clair_name2repos_mapping_file }}" }
+    - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.src_path | basename }}" # Nicer output for loop
+  become: false # fetch always runs as the user executing the playbook on the control node
+
+
+
+
+[ansible@T1J1 roles]$ cat PATCHING_quay_cve_sync/tasks/upload_phase.yml
+---
+# quay_cve_sync_refined/tasks/upload_phase.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true
+
+- name: Ensure the Quay CVE upload directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Copy Quay CVE files from Ansible control node to upload host
+  ansible.builtin.copy:
+    src: "/tmp/{{ item.filename }}"
+    dest: "{{ quay_cve_upload_dir }}/{{ item.filename }}"
+    mode: '0644'
+    force: yes
+    remote_src: yes
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+
+- name: Create ubi-minimal pod definition file on upload host
+  ansible.builtin.template:
+    src: ubi-minimal-pod.yaml.j2
+    dest: "{{ quay_cve_upload_dir }}/ubi-minimal-pod-{{ ansible_hostname | lower | replace('-', '') }}.yaml"
+    mode: '0644'
+    owner: core
+    group: core
+
+- name: Apply ubi-minimal pod on upload host
+  ansible.builtin.command: "oc apply -f {{ quay_cve_upload_dir }}/ubi-minimal-pod-{{ ansible_hostname | lower | replace('-', '') }}.yaml -n {{ quay_namespace }}"
+  register: oc_apply_pod_result
+  changed_when: "'created' in oc_apply_pod_result.stdout or 'configured' in oc_apply_pod_result.stdout"
+  failed_when: oc_apply_pod_result.rc != 0
+
+- name: Wait for ubi-minimal pod to be running
+  ansible.builtin.shell: >
+    oc get pod ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }} -n {{ quay_namespace }} -o jsonpath='{.status.phase}'
+  register: pod_status
+  until: pod_status.stdout == "Running"
+  retries: 30 # Retry for 5 minutes (30 * 10 seconds)
+  delay: 10 # Check every 10 seconds
+  changed_when: false # This task doesn't change anything
+
+- name: Copy JSON and GZ files into ubi-minimal pod's /data path
+  ansible.builtin.command: >
+    oc cp {{ quay_cve_upload_dir }}/{{ item.filename }}
+    ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }}:/data/{{ item.filename }}
+    -n {{ quay_namespace }}
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+  register: oc_cp_result
+  changed_when: oc_cp_result.rc == 0
+  failed_when: oc_cp_result.rc != 0
+
+- name: Start Clair DB port-forward in background
+  # This command needs to run on the upload host and persist for the import step.
+  # The 'async' and 'poll: 0' make it run in the background.
+  # We capture the PID to kill it later.
+  ansible.builtin.shell: >
+    oc port-forward svc/{{ clair_postgres_service }} 5432:5432 -n {{ quay_namespace }} > /dev/null 2>&1 & echo $!
+  args:
+    chdir: "{{ quay_cve_upload_dir }}" # Run from a known directory
+  register: port_forward_pid
+  changed_when: false # This task doesn't change system state in a persistent way
+  # Add a short pause to allow port-forward to establish
+- name: Pause to allow port-forward to establish
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Import CVE updates to Clair DB using clairctl (local connection via port-forward)
+  # This clairctl command will connect to localhost:5432 due to the port-forward.
+  ansible.builtin.command: >
+    clairctl --config {{ clair_config_file_path | replace(quay_cve_download_dir, '/data') }} import-updaters /data/{{ updates_gz_filename }}
+  args:
+    chdir: /data # Run from within the mounted PVC path for clairctl to find files
+  register: clairctl_import_result
+  changed_when: clairctl_import_result.rc == 0
+  failed_when: clairctl_import_result.rc != 0
+  
+
+
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "/tmp/{{ item.filename }}"
+    state: absent
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+    run_once: true
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "{{ quay_cve_upload_dir }}/{{ item.filename }}"
+    state: absent
+  loop:
+    - { filename: "{{ repo2cpe_filename }}" }
+    - { filename: "{{ container_map_filename }}" }
+    - { filename: "{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.filename }}"
+    run_once: true
+
+
+
+
+
+- name: Kill Clair DB port-forward process
+  ansible.builtin.command: "kill {{ port_forward_pid.stdout }}"
+  when: port_forward_pid.stdout is defined and port_forward_pid.stdout | length > 0
+  changed_when: false # This task doesn't change system state in a persistent way
+  failed_when: false # Don't fail if kill command fails (e.g., process already gone)
+
+- name: Delete ubi-minimal pod
+  ansible.builtin.command: "oc delete pod ubi-minimal-{{ ansible_hostname | lower | replace('-', '') }}-{{ ansible_date_time.epoch }} -n {{ quay_namespace }}"
+  register: oc_delete_pod_result
+  changed_when: "'deleted' in oc_delete_pod_result.stdout"
+  failed_when: oc_delete_pod_result.rc != 0 and "not found" not in oc_delete_pod_result.stderr
+
+
+
+ansible@T1J1 roles]$ cat ../PATCHING_quay_cve_sync-DOWNLOAD.yml
+---
+# run_quay_cve_sync.yml
+
+- name: Phase 1 Download Quay CVE Bundle on Download Host and Transfer to Controller
+  hosts: download_servers # Targets the group containing your download host
+  gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
+  become: false # IMPORTANT: No sudo for the 'ansible' user on the download host
+  tasks:
+    - name: Include download phase tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_quay_cve_sync/tasks/download_phase.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+
+#    - name: Copy CVE zip from tmp  to upload host path (as core user)
+#      ansible.builtin.copy:
+#        src: "{{ item.src_path }}"
+#        dest: "{{ controller_temp_dir }}/"
+#        flat: true
+#      loop:
+#        - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+#        - { src_path: "{{ clair_name2repos_mapping_file }}" }
+#        - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+#      loop_control:
+#        label: "{{ item.src_path | basename }}"
+#        src: "/mnt/host_share/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+#        dest: "/tmp/"
+#        mode: '0644'
+#        force: yes
+- name: PLAY2 - Copy Downloaded files to destination host
+  hosts: upload_servers
+  tasks:
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once per play
+
+
+    - name: Copy Quay CVE files from Ansible control node to upload host
+      ansible.builtin.copy:
+        src: "{{ controller_temp_dir }}/{{ item.filename }}"
+        dest: "/tmp/{{ item.filename }}"
+#       dest: "{{ quay_cve_upload_dir }}/{{ item.filename }}"
+        mode: '0644'
+        force: yes
+      loop:
+        - { filename: "{{ repo2cpe_filename }}" }
+        - { filename: "{{ container_map_filename }}" }
+        - { filename: "{{ updates_gz_filename }}" }
+      loop_control:
+        label: "{{ item.filename }}"
+
+
+
+
+[ansible@T1J1 roles]$ cat ../PATCHING_quay_cve_sync-UPLOAD.yml
+---
+# run_quay_cve_sync.yml
+
+#- name: Phase 1 Download Quay CVE Bundle on Download Host and Transfer to Controller
+#  hosts: download_servers # Targets the group containing your download host
+#  gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
+#  become: false # IMPORTANT: No sudo for the 'ansible' user on the download host
+#  tasks:
+#    - name: Include download phase tasks from role
+#      ansible.builtin.include_tasks: download_phase.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+- name: Phase 2 Upload Quay CVE Bundle to Upload Hosts and Update Clair DB
+  hosts: upload_servers # Targets the group containing your upload hosts
+  gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
+  become: true # Enable privilege escalation for the 'core' user
+  become_user: core # Execute tasks as the 'core' user on the upload hosts
+  tasks:
+    - name: Include upload phase tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_quay_cve_sync/tasks/upload_phase.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+
+
+
+
+
+
+# If variables store full paths like /home/ansible/file.json
+- name: Copy Quay CVE files from Ansible control node to upload host
+  ansible.builtin.copy:
+    src: "{{ controller_temp_dir }}/{{ item.src_path | basename }}" # Use basename filter
+    dest: "/tmp/{{ item.src_path | basename }}"
+    mode: '0644'
+    force: yes
+  loop:
+    - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+    - { src_path: "{{ clair_name2repos_mapping_file }}" }
+    - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.src_path | basename }}"
+
+- name: Move Quay CVE files to final upload directory on remote host
+  ansible.builtin.copy:
+    src: "/tmp/{{ item.src_path | basename }}" # Use basename filter
+    dest: "{{ quay_cve_upload_dir }}/{{ item.src_path | basename }}"
+    mode: '0644'
+    force: yes
+    remote_src: yes
+  loop:
+    - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+    - { src_path: "{{ clair_name2repos_mapping_file }}" }
+    - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.src_path | basename }}"
