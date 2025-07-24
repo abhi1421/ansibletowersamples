@@ -1,2 +1,17 @@
 ---
 # vars file for privileged_user_audit
+sensitive_directories:
+  - /etc
+  - /etc/ssh
+  - /root
+  - /var/log
+  - /var/log/audit
+  - /opt
+  - /usr/local/bin
+  - /usr/sbin
+  - /bin
+  - /sbin
+  - /boot
+  - /usr/local/etc
+  - /srv
+  - /home # Note: Will stat /home, not individual user homes directly for permissions. User homes checked separately for authorized_keys.
