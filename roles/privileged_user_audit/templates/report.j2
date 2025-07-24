@@ -9,9 +9,10 @@ Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}
 
 I. Summary of Privileged Users
 ---------------------------------
+{% set uid_map = user_uid_map | from_json %} {# Parse JSON string to dictionary here #}
 The following {{ privileged_users_list | length }} users have been identified with UID 0 or explicit sudo access:
 {% for user in privileged_users_list %}
-- {{ user }} (UID: {{ user_uid_map[user] | default('N/A') }})
+- {{ user }} (UID: {{ uid_map[user] | default('N/A') }})
 {% endfor %}
 
 ---
@@ -20,7 +21,7 @@ II. Detailed Access Information per User
 ------------------------------------------
 
 {% for user in privileged_users_list %}
-### User: {{ user }} (UID: {{ user_uid_map[user] | default('N/A') }})
+### User: {{ user }} (UID: {{ uid_map[user] | default('N/A') }}) {# Use the parsed uid_map #}
   Home Directory: {{ user_homes[user] | default('N/A') }}
 
   Authorized SSH Key ({{ user_homes[user] | default('') }}/.ssh/authorized_keys):
@@ -28,13 +29,13 @@ II. Detailed Access Information per User
   {% if ssh_info.exists is defined %}
     {% if ssh_info.exists %}
       Path: {{ ssh_info.path }}
-      Permissions: {{ '%04o' | format(ssh_info.mode) }} {# FIX: Changed sprintf to format #}
+      Permissions: {{ '%04o' | format(ssh_info.mode) }}
       Owner: {{ ssh_info.pw_name }} (UID: {{ ssh_info.uid }})
       Group: {{ ssh_info.gr_name }} (GID: {{ ssh_info.gid }})
       Size: {{ ssh_info.size }} bytes
       Modification Time: {{ ssh_info.mtime | default('N/A') | to_datetime('%Y%m%d%H%M%S', '%Y-%m-%d %H:%M:%S') }}
-      {% if '%04o' | format(ssh_info.mode) != '0600' and '%04o' | format(ssh_info.mode) != '0644' %} {# FIX: Changed sprintf to format #}
-      WARNING: SSH authorized_keys permissions are not optimal (expected 0600 or 0644). Current: {{ '%04o' | format(ssh_info.mode) }} {# FIX: Changed sprintf to format #}
+      {% if '%04o' | format(ssh_info.mode) != '0600' and '%04o' | format(ssh_info.mode) != '0644' %}
+      WARNING: SSH authorized_keys permissions are not optimal (expected 0600 or 0644). Current: {{ '%04o' | format(ssh_info.mode) }}
       {% endif %}
       {% if ssh_info.pw_name != user or ssh_info.gr_name != user %}
       WARNING: SSH authorized_keys ownership is not optimal (expected {{ user }}:{{ user }}). Current: {{ ssh_info.pw_name }}:{{ ssh_info.gr_name }}
