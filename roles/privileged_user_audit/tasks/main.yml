@@ -120,9 +120,11 @@
     user_uid_map: |
       {% set user_uids = {} %}
       {% for line in all_users_uid_raw.stdout_lines %}
-        {% set parts = line.split(':') %}
-        {% if parts | length == 2 %}
-          {% set _ = user_uids.update({parts[0]: parts[1]}) %}
+        {% if line | trim %} {# Ensure line is not empty or just whitespace #}
+          {% set parts = line.split(':') %}
+          {% if parts | length == 2 %}
+            {% set _ = user_uids.update({parts[0] | trim: parts[1] | trim}) %} {# Trim parts too #}
+          {% endif %}
         {% endif %}
       {% endfor %}
       {{ user_uids | to_nice_json }} # This outputs a JSON string
@@ -166,7 +168,7 @@
 
 - name: Check .ssh/authorized_keys existence and permissions
   ansible.builtin.stat:
-    path: "{{ user_homes[item] }}/.ssh/authorized_keys"
+    path: "{{ user_homes[item] | default('') }}/.ssh/authorized_keys" # Added default('') to handle cases where home_dir might be N/A
   loop: "{{ privileged_users }}"
   register: ssh_auth_keys_stats_raw
   ignore_errors: yes
@@ -226,8 +228,7 @@
   vars:
     report_date: "{{ ansible_date_time.date }} {{ ansible_date_time.time }}"
     privileged_users_list: "{{ privileged_users }}"
-    # ONLY user_uid_map needs from_json because it was explicitly converted to JSON string
-    user_uid_map: "{{ user_uid_map }}"
+    user_uid_map: "{{ user_uid_map }}" # This is a JSON string from to_nice_json
     user_homes: "{{ user_homes }}"
     ssh_key_info: "{{ ssh_key_info }}"
     sudo_l_output: "{{ sudo_l_output }}"
