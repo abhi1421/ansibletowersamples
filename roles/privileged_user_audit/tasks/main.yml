@@ -139,17 +139,27 @@
     database: passwd
   register: all_users_info
 
-- name: Extract usernames and home directories
+- name: Initialize usernames and home directories lists/dicts
   ansible.builtin.set_fact:
-    system_users: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | map(attribute='key') | list }}"
-    user_home_dirs: >
-      {% set home_dirs = {} %}
-      {% for user, data in all_users_info.ansible_facts.getent_passwd.items() %}
-        {% if data[5] is defined and data[5] | starts_with('/') %}
-          {% set _ = home_dirs.update({user: data[5]}) %}
-        {% endif %}
-      {% endfor %}
-      {{ home_dirs }}
+    system_users: []
+    user_home_dirs: {}
+
+- name: Populate system_users and user_home_dirs with robust checks
+  ansible.builtin.set_fact:
+    system_users: "{{ system_users + [ user_info.key ] }}"
+    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}"
+  loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
+  loop_control:
+    loop_var: user_info # Renamed for clarity to avoid confusion with the 'value' part
+  when:
+    # Ensure 'value' exists and is a list/iterable
+    - user_info.value is defined
+    - user_info.value is iterable
+    # Ensure the list has enough elements for index 5 (6th element)
+    - user_info.value | length > 5
+    # Ensure the home directory path itself is defined and starts with '/'
+    - user_info.value[5] is defined
+    - user_info.value[5] | starts_with('/') # Exclude /bin/false, /sbin/nologin, etc.
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
