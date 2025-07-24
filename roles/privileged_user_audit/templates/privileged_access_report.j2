@@ -1,0 +1,85 @@
+Privileged Access Audit Report
+Generated On: {{ privileged_report_data.timestamp }}
+Audited Host: {{ ansible_hostname }}
+
+================================================================================
+SECTION 1: Sudo Privileges
+================================================================================
+
+{% if privileged_report_data.sudo_privileges %}
+{% for user_sudo in privileged_report_data.sudo_privileges %}
+User: {{ user_sudo.user }}
+Return Code (0 = success, other = error/no sudo): {{ user_sudo.rc }}
+Sudo Output:
+{% if user_sudo.output %}
+{{ user_sudo.output }}
+{% else %}
+  No sudo privileges found or command failed for this user.
+{% endif %}
+---
+{% endfor %}
+{% else %}
+No sudo privilege information collected.
+{% endif %}
+
+================================================================================
+SECTION 2: Authorized Keys Content
+================================================================================
+
+{% if privileged_report_data.authorized_keys %}
+{% for auth_key_entry in privileged_report_data.authorized_keys %}
+User: {{ auth_key_entry.user }}
+Path: {{ auth_key_entry.path }}
+Permissions (Octal): {{ auth_key_entry.permissions }}
+Owner: {{ auth_key_entry.owner }}
+Group: {{ auth_key_entry.group }}
+Content:
+{% if auth_key_entry.content %}
+{{ auth_key_entry.content }}
+{% else %}
+  (File exists but content not readable or empty)
+{% endif %}
+---
+{% endfor %}
+{% else %}
+No authorized_keys information collected.
+{% endif %}
+
+================================================================================
+SECTION 3: Sensitive Directory Permissions
+================================================================================
+
+{% if privileged_report_data.sensitive_directory_permissions %}
+{% for dir_perm in privileged_report_data.sensitive_directory_permissions %}
+Path: {{ dir_perm.path }}
+Owner: {{ dir_perm.owner }}
+Group: {{ dir_perm.group }}
+Permissions (Octal): {{ dir_perm.mode }}
+Is Symbolic Link: {{ dir_perm.islnk }}
+---
+{% endfor %}
+{% else %}
+No sensitive directory permission information collected.
+{% endif %}
+
+================================================================================
+SECTION 4: Raw Sudoers Files Content
+================================================================================
+
+This section contains the raw content of /etc/sudoers and files in /etc/sudoers.d/.
+Review this manually to identify explicit sudo rules.
+
+{% if privileged_report_data.sudoers_files_content %}
+{% for file_path, file_content in privileged_report_data.sudoers_files_content.items() %}
+File: {{ file_path }}
+Content:
+{{ file_content }}
+---
+{% endfor %}
+{% else %}
+No sudoers files content collected.
+{% endif %}
+
+================================================================================
+END OF REPORT
+================================================================================
