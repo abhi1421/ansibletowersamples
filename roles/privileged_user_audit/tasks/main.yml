@@ -134,7 +134,6 @@
 #  ansible.builtin.debug:
 #    msg: "Privileged user audit report generated at /tmp/privileged_user_access_report.txt"
 
-
 - name: Gather all system users
   ansible.builtin.getent:
     database: passwd
@@ -143,8 +142,14 @@
 - name: Extract usernames and home directories
   ansible.builtin.set_fact:
     system_users: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | map(attribute='key') | list }}"
-    user_home_dirs: "{{ all_users_info.ansible_facts.getent_passwd | dict2items | selectattr('value[5]', 'match', '^/.*') | map('community.general.pipe', [('key'), ('value[5]')]) | community.general.combine_as_dict }}"
-  # Filter out users without standard home directories (e.g., nologin accounts)
+    user_home_dirs: >
+      {% set home_dirs = {} %}
+      {% for user, data in all_users_info.ansible_facts.getent_passwd.items() %}
+        {% if data[5] is defined and data[5] | starts_with('/') %}
+          {% set _ = home_dirs.update({user: data[5]}) %}
+        {% endif %}
+      {% endfor %}
+      {{ home_dirs }}
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
