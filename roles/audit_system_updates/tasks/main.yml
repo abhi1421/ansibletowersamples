@@ -111,9 +111,12 @@
     content: |
       Package Name | Installed Version | Installed On         | Update Available
       -------------|-------------------|----------------------|-----------------
-      {% for pkg_name, details in installed_pkgs_data.items() | sort %}
+      {# Parse the JSON string back into a dictionary for iteration #}
+      {% set installed_data = installed_pkgs_data | from_json %}
+      {% set updates_data = available_updates_data | from_json %}
+      {% for pkg_name, details in installed_data.items() | sort %}
         {% set installed_version = details.version %}
         {% set installed_on = details.installed_on %}
-        {% set update_available = available_updates_data[pkg_name] | default('none') %}
+        {% set update_available = updates_data[pkg_name] | default('none') %}
         {{ '%-13s | %-17s | %-20s | %s' | format(pkg_name | truncate(13, True, ''), installed_version | truncate(17, True, ''), installed_on | truncate(20, True, ''), update_available) }}
       {% endfor %}
