@@ -13,6 +13,7 @@
 
 - name: Add authorized_keys for {{ current_user }} to report
   ansible.builtin.set_fact:
-    privileged_report_data:
-      authorized_keys: "{{ privileged_report_data.authorized_keys + [ { 'user': current_user, 'path': user_home_dirs[current_user] + '/.ssh/authorized_keys', 'content': (auth_keys_content.content | default('') | b64decode) if auth_keys_content is defined and auth_keys_content.content is defined else 'N/A', 'permissions': auth_keys_stat.stat.mode | default('N/A'), 'owner': auth_keys_stat.stat.pw_name | default('N/A'), 'group': auth_keys_stat.stat.gr_name | default('N/A') } ] }}"
+    privileged_report_data: "{{ privileged_report_data | combine({
+      'authorized_keys': privileged_report_data.authorized_keys + [ { 'user': current_user, 'path': user_home_dirs[current_user] + '/.ssh/authorized_keys', 'content': (auth_keys_content.content | default('') | b64decode) if auth_keys_content is defined and auth_keys_content.content is defined else 'N/A', 'permissions': auth_keys_stat.stat.mode | default('N/A'), 'owner': auth_keys_stat.stat.pw_name | default('N/A'), 'group': auth_keys_stat.stat.gr_name | default('N/A') } ]
+    }) }}"
   when: auth_keys_stat.stat.exists
