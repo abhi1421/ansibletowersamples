@@ -1,0 +1,36 @@
+Privileged User Access Audit Report
+==================================
+
+Date: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+
+Users with UID 0 (root or equivalent) and sudo access:
+------------------------------------------------------
+
+{% for user in privileged_users %}
+User: {{ user }}
+Home Directory: {{ user_homes[user] }}
+
+Authorized SSH Key:
+{% if ssh_key_info[user].exists %}
+  Yes
+{% else %}
+  No authorized_keys file found
+{% endif %}
+
+Sudo Privileges:
+{% if sudo_l_output[user] %}
+  Commands allowed:
+  {% set cmds = sudo_l_output[user].split('\n') %}
+  {% for cmd in cmds[:5] %}  - {{ cmd }}
+  {% endfor %}
+  {% if cmds|length > 5 %}  ... (and {{ cmds|length - 5 }} more) {% endif %}
+{% else %}
+  No sudo privileges
+{% endif %}
+
+Files Owned: {{ user_files[user] | length if user_files[user] else 0 }}
+
+------------------------------------------------------
+{% endfor %}
+
+End of Report.
