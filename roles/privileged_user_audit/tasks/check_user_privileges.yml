@@ -1,5 +1,13 @@
 # privileged_access_audit/tasks/check_user_privileges.yml
 ---
+- name: DEBUG - User Home Dir and SSH Path for {{ current_user }}
+  ansible.builtin.debug:
+    msg:
+      - "Current User: {{ current_user }}"
+      - "User Home Dir: {{ user_home_dirs[current_user] }}"
+      - ".ssh Path to Stat: {{ user_home_dirs[current_user] }}/.ssh"
+  when: current_user == 'root' # Limit debug to root for now, or remove this line to see for all users
+
 - name: Stat .ssh directory for {{ current_user }}
   ansible.builtin.stat:
     path: "{{ user_home_dirs[current_user] }}/.ssh"
@@ -11,37 +19,11 @@
     - user_home_dirs[current_user] | length > 0
     - user_home_dirs[current_user].startswith('/')
 
-- name: Stat authorized_keys file for {{ current_user }}
-  ansible.builtin.stat:
-    path: "{{ user_home_dirs[current_user] }}/.ssh/authorized_keys"
-  register: auth_keys_stat
-  # Only attempt to stat if the .ssh directory exists and is a directory
-  when:
-    - ssh_dir_stat.stat.exists is defined and ssh_dir_stat.stat.exists
-    - ssh_dir_stat.stat.isdir is defined and ssh_dir_stat.stat.isdir
-    # Also add the checks that user_home_dirs[current_user] itself is valid.
-    # This prevents the task from running at all if the ssh_dir_stat failed or was skipped.
-    - user_home_dirs[current_user] is defined
-    - user_home_dirs[current_user] is string
-    - user_home_dirs[current_user] | length > 0
-    - user_home_dirs[current_user].startswith('/')
+- name: DEBUG - .ssh directory stat result for {{ current_user }}
+  ansible.builtin.debug:
+    var: ssh_dir_stat
+  when: current_user == 'root' # Limit debug to root for now, or remove this line to see for all users
 
-
-- name: Read authorized_keys content if it exists for {{ current_user }}
-  ansible.builtin.slurp:
-    src: "{{ user_home_dirs[current_user] }}/.ssh/authorized_keys"
-  register: auth_keys_content
-  when:
-    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists
-    - auth_keys_stat.stat.isreg is defined and auth_keys_stat.stat.isreg # Ensure it's a regular file
-    # Make sure we only slurp if the stat task actually ran and found a file
-    - auth_keys_stat is success
-
-- name: Add authorized_keys for {{ current_user }} to report
-  ansible.builtin.set_fact:
-    privileged_report_data: "{{ privileged_report_data | combine({
-      'authorized_keys': privileged_report_data.authorized_keys + [ { 'user': current_user, 'path': user_home_dirs[current_user] + '/.ssh/authorized_keys', 'content': (auth_keys_content.content | default('') | b64decode) if auth_keys_content is defined and auth_keys_content.content is defined else 'N/A', 'permissions': auth_keys_stat.stat.mode | default('N/A'), 'owner': auth_keys_stat.stat.pw_name | default('N/A'), 'group': auth_keys_stat.stat.gr_name | default('N/A') } ]
-    }) }}"
-  when:
-    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists # Only add if the file was found
-    - auth_keys_stat is success # Ensure stat task didn't fail
+# ... rest of your check_user_privileges.yml tasks ...
+# (Stat authorized_keys file, Read authorized_keys content, Add authorized_keys to report)
+# Ensure these remain as per the last full copy you received.
