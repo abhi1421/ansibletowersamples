@@ -69,7 +69,6 @@
 #        {{ '%-13s | %-17s | %-20s | %s' | format(pkg_name | truncate(13, True, ''), installed_version | truncate(17, True, ''), installed_on | truncate(20, True, ''), update_available) }}
 #      {% endfor %}
 
-
 - name: Create timestamp for the task
   ansible.builtin.set_fact:
     timestamp: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
@@ -124,7 +123,7 @@
       {{ updates | to_nice_json }}
 
 - name: Generate final audit report
-  ansible.builtin.copy:
+  ansible.builtin.copy: # <--- Ensure no '>', '||', or other characters here
     dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
     mode: '0644'
     content: |
@@ -140,4 +139,3 @@
         {% set update_available_status = 'Yes' if update_version != 'N/A' else 'No' %}
         {{ '%-20s | %-18s | %-20s | %-16s | %s' | format(pkg_name | truncate(20, True, ''), installed_version | truncate(18, True, ''), installed_on | truncate(20, True, ''), update_available_status, update_version | truncate(18, True, '')) }}
       {% endfor %}
-
