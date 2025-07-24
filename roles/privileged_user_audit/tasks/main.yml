@@ -104,8 +104,6 @@
 #    msg: "Privileged user audit report generated at /tmp/privileged_user_access_report.txt"
 
 
-
----
 # tasks file for privileged_user_audit
 
 - name: Collect users with UID 0 (root equivalent)
