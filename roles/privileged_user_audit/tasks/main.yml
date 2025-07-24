@@ -120,15 +120,15 @@
     user_uid_map: |
       {% set user_uids = {} %}
       {% for line in all_users_uid_raw.stdout_lines %}
-        {% if line | trim %} {# Ensure line is not empty or just whitespace #}
+        {% if line | trim %}
           {% set parts = line.split(':') %}
           {% if parts | length == 2 %}
-            {% set _ = user_uids.update({parts[0] | trim: parts[1] | trim}) %} {# Trim parts too #}
+            {% set _ = user_uids.update({parts[0] | trim: parts[1] | trim}) %}
           {% endif %}
         {% endif %}
       {% endfor %}
-      {{ user_uids | to_nice_json }} # This outputs a JSON string
-
+      {{ user_uids | to_json | string }} # Added | to_json and | string
+      
 - name: Collect sudo users by parsing sudoers files
   ansible.builtin.shell: |
     # Grep for lines that define user/group permissions, excluding comments and empty lines
