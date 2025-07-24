@@ -70,7 +70,6 @@
 #      {% endfor %}
 
 
----
 - name: Create timestamp for the task
   ansible.builtin.set_fact:
     timestamp: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
