@@ -191,14 +191,16 @@
 
 - name: Add sudoers files content to report
   ansible.builtin.set_fact:
-    privileged_report_data:
-      sudoers_files_content: "{{ privileged_report_data.sudoers_files_content + [ { 'path': item.item.path, 'content': item.content | b64decode } ] }}"
+    privileged_report_data: "{{ privileged_report_data | combine({
+      'sudoers_files_content': privileged_report_data.sudoers_files_content + [ { 'path': item.item.path, 'content': item.content | b64decode } ]
+    }) }}"
   loop: "{{ sudoers_files_content_raw.results }}"
   loop_control:
     label: "{{ item.item.path }}"
   when:
-    - item.content is defined # Ensure content exists from slurp
-    - item.item.path is defined # Ensure path exists
+    - item.content is defined
+    - item.item.path is defined
+
 
 - name: Check sudo privileges for each user
   ansible.builtin.command: "sudo -l -U {{ item }}"
@@ -211,14 +213,14 @@
 
 - name: Process sudo output
   ansible.builtin.set_fact:
-    privileged_report_data:
-      sudo_privileges: "{{ privileged_report_data.sudo_privileges + [ { 'user': item.item, 'output': item.stdout | default('N/A'), 'rc': item.rc } ] }}"
+    privileged_report_data: "{{ privileged_report_data | combine({
+      'sudo_privileges': privileged_report_data.sudo_privileges + [ { 'user': item.item, 'output': item.stdout | default('N/A'), 'rc': item.rc } ]
+    }) }}"
   loop: "{{ user_sudo_output.results }}"
   loop_control:
     label: "{{ item.item }}"
-  when: item.skipped is not defined # Ensure we only process results that actually ran
+  when: item.skipped is not defined
 
-# You need this file: privileged_access_audit/tasks/check_user_privileges.yml
 # Content provided in a previous response.
 - name: Check authorized_keys for each user and collect data
   ansible.builtin.include_tasks: check_user_privileges.yml
@@ -239,8 +241,9 @@
 
 - name: Process sensitive directory permissions
   ansible.builtin.set_fact:
-    privileged_report_data:
-      sensitive_directory_permissions: "{{ privileged_report_data.sensitive_directory_permissions + [ { 'path': item.item, 'owner': item.stat.pw_name | default('N/A'), 'group': item.stat.gr_name | default('N/A'), 'mode': item.stat.mode | default('N/A'), 'islnk': item.stat.islnk | default(false) } ] }}"
+    privileged_report_data: "{{ privileged_report_data | combine({
+      'sensitive_directory_permissions': privileged_report_data.sensitive_directory_permissions + [ { 'path': item.item, 'owner': item.stat.pw_name | default('N/A'), 'group': item.stat.gr_name | default('N/A'), 'mode': item.stat.mode | default('N/A'), 'islnk': item.stat.islnk | default(false) } ]
+    }) }}"
   loop: "{{ dir_stat_results.results }}"
   loop_control:
     label: "{{ item.item }}"
