@@ -134,6 +134,7 @@
 #  ansible.builtin.debug:
 #    msg: "Privileged user audit report generated at /tmp/privileged_user_access_report.txt"
 
+
 - name: Gather all system users
   ansible.builtin.getent:
     database: passwd
@@ -150,7 +151,7 @@
     user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}"
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
-    loop_var: user_info # Renamed for clarity to avoid confusion with the 'value' part
+    loop_var: user_info
   when:
     # Ensure 'value' exists and is a list/iterable
     - user_info.value is defined
@@ -159,7 +160,8 @@
     - user_info.value | length > 5
     # Ensure the home directory path itself is defined and starts with '/'
     - user_info.value[5] is defined
-    - user_info.value[5] | starts_with('/') # Exclude /bin/false, /sbin/nologin, etc.
+    - user_info.value[5] is string # Ensure it's a string before calling string method
+    - user_info.value[5].startswith('/') # CORRECTED LINE HERE (from starts_with to startswith)
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
