@@ -20,13 +20,17 @@
     # Ensure 'value' exists and is a list/iterable
     - user_info.value is defined
     - user_info.value is iterable
-    # Ensure the list has enough elements for index 5 (HOME_DIRECTORY)
+    # Ensure the list has enough elements for index 5 (HOME_DIRECTORY) AND index 6 (SHELL)
     - user_info.value | length > 5
     # Ensure the home directory path itself is defined and is a string
     - user_info.value[5] is defined
     - user_info.value[5] is string
-    # Ensure the home directory path starts with '/' (filter out nologin, false, etc.)
+    # Ensure the home directory path starts with '/' (filter out common non-home-dir paths)
     - user_info.value[5].startswith('/')
+    # NEW FILTER: Ensure the shell is a valid login shell, not nologin or /bin/false
+    - user_info.value[6] is defined
+    - user_info.value[6] is string
+    - not (user_info.value[6] | regex_search('^/sbin/nologin$|^/bin/false$')) # Exclude nologin/false shells
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
@@ -35,7 +39,7 @@
       sudo_privileges: []
       authorized_keys: []
       sensitive_directory_permissions: []
-      sudoers_files_content: [] # Initialized as a list for easier appending
+      sudoers_files_content: []
 
 - name: Find sudoers files
   ansible.builtin.find:
@@ -63,17 +67,17 @@
   loop_control:
     label: "{{ item.item.path }}"
   when:
-    - item.content is defined # Ensure content exists from slurp
-    - item.item.path is defined # Ensure path exists
+    - item.content is defined
+    - item.item.path is defined
 
 - name: Check sudo privileges for each user
   ansible.builtin.command: "sudo -l -U {{ item }}"
-  become: yes # Assumes the Ansible connection user has sudo access to run 'sudo -l' for other users
+  become: yes
   register: user_sudo_output
   loop: "{{ system_users }}"
   loop_control:
     label: "{{ item }}"
-  ignore_errors: true # Some users might not have sudo, which is expected
+  ignore_errors: true
 
 - name: Process sudo output
   ansible.builtin.set_fact:
@@ -83,19 +87,19 @@
   loop: "{{ user_sudo_output.results }}"
   loop_control:
     label: "{{ item.item }}"
-  when: item.skipped is not defined # Ensure we only process results that actually ran
+  when: item.skipped is not defined
 
 - name: Check authorized_keys for each user and collect data
   ansible.builtin.include_tasks: check_user_privileges.yml
   loop: "{{ system_users }}"
   loop_control:
-    loop_var: current_user # Make the current user item accessible as 'current_user' in the included task
+    loop_var: current_user
     label: "Processing authorized_keys for {{ current_user }}"
   vars:
-    # Explicitly pass the specific user's home_dir as a new variable to the included task
-    # This might help resolve any scope or re-evaluation issues.
+    # Pass the correctly filtered home directory to the included task
     user_specific_home_dir: "{{ user_home_dirs[current_user] }}"
-  when: user_home_dirs[current_user] is defined and user_home_dirs[current_user] is not none
+  # Removed: the 'when' condition from here, as filtering is now done in 'Populate' task.
+  # This makes the loop include only relevant users for authorized_keys checks.
 
 - name: Get permissions for sensitive directories
   ansible.builtin.stat:
@@ -104,7 +108,7 @@
   loop: "{{ sensitive_directories }}"
   loop_control:
     label: "{{ item }}"
-  ignore_errors: true # Some directories might not exist or be inaccessible
+  ignore_errors: true
 
 - name: Process sensitive directory permissions
   ansible.builtin.set_fact:
@@ -116,13 +120,12 @@
     label: "{{ item.item }}"
   when: item.stat is defined and not item.failed
 
-- name: Generate privileged access audit report
+- name: Generate privileged access audit report on target node
   ansible.builtin.template:
     src: privileged_access_report.j2
     dest: "/tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt"
     mode: '0600'
 
-- name: Display path to generated report
+- name: Display path to generated report on target node
   ansible.builtin.debug:
-    msg: "Privileged access audit report generated at /tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt on the Ansible control node."
-  run_once: true
+    msg: "Privileged access audit report generated at /tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt on the target node."
