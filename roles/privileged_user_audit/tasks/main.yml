@@ -12,7 +12,7 @@
 - name: Populate system_users and user_home_dirs with robust checks
   ansible.builtin.set_fact:
     system_users: "{{ system_users + [ user_info.key ] }}"
-    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # HOME_DIRECTORY (Correct Index)
+    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}"
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
     loop_var: user_info
