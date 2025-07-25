@@ -1,74 +1,4 @@
 ---
-#- name: Create timestamp for the task
-#  ansible.builtin.set_fact:
-#    timestamp: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
-#
-#- name: Ensure output directory exists
-#  ansible.builtin.file:
-#    path: /var/tmp/system_update_audit
-#    state: directory
-#    mode: '0755'
-#
-#- name: Get installed packages details
-#  ansible.builtin.command: >
-#    rpm -qa --qf '%{name}\t%{version}-%{release}\t%{installtime:date}\n'
-#  register: installed_packages_raw
-#  changed_when: false
-#
-#- name: Process installed packages into a structured format
-#  ansible.builtin.set_fact:
-#    installed_pkgs_data: |
-#      {% set pkgs = {} %}
-#      {% for line in installed_packages_raw.stdout_lines %}
-#        {% set parts = line.split('\t') %}
-#        {% if parts | length == 3 %}
-#          {% set pkg_name = parts[0] %}
-#          {% set pkg_version = parts[1] %}
-#          {% set install_time = parts[2] %}
-#          {% set _ = pkgs.update({pkg_name: {'version': pkg_version, 'installed_on': install_time}}) %}
-#        {% endif %}
-#      {% endfor %}
-#      {{ pkgs | to_nice_json }}
-#
-#- name: Get list of available updates
-#  ansible.builtin.command: yum list updates -q
-#  register: available_updates_raw
-#  changed_when: false
-#
-#- name: Process available updates into a structured format
-#  ansible.builtin.set_fact:
-#    available_updates_data: |
-#      {% set updates = {} %}
-#      {% for line in available_updates_raw.stdout_lines %}
-#        {% if line is match('^\\S+\\.\\S+\\s+\\S+') %} # Matches lines like 'package.arch version'
-#          {% set parts = line.split() %}
-#          {% if parts | length >= 2 %}
-#            {% set pkg_name_arch = parts[0] %}
-#            {% set pkg_name = pkg_name_arch.split('.')[0] %} # Get package name without arch
-#            {% set update_version = parts[1] %}
-#            {% set _ = updates.update({pkg_name: update_version}) %}
-#          {% endif %}
-#        {% endif %}
-#      {% endfor %}
-#      {{ updates | to_nice_json }}
-#
-#- name: Generate final audit report
-#  ansible.builtin.copy:
-#    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
-#    mode: '0644'
-#    content: |
-#      Package Name | Installed Version | Installed On         | Update Available
-#      -------------|-------------------|----------------------|-----------------
-#      {# Parse the JSON string back into a dictionary for iteration #}
-#      {% set installed_data = installed_pkgs_data | from_json %}
-#      {% set updates_data = available_updates_data | from_json %}
-#      {% for pkg_name, details in installed_data.items() | sort %}
-#        {% set installed_version = details.version %}
-#        {% set installed_on = details.installed_on %}
-#        {% set update_available = updates_data[pkg_name] | default('none') %}
-#        {{ '%-13s | %-17s | %-20s | %s' | format(pkg_name | truncate(13, True, ''), installed_version | truncate(17, True, ''), installed_on | truncate(20, True, ''), update_available) }}
-#      {% endfor %}
-
 - name: Create timestamp for the task
   ansible.builtin.set_fact:
     timestamp: "{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
@@ -123,7 +53,7 @@
       {{ updates | to_nice_json }}
 
 - name: Generate final audit report
-  ansible.builtin.copy: # <--- Ensure no '>', '||', or other characters here
+  ansible.builtin.copy:
     dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
     mode: '0644'
     content: |
