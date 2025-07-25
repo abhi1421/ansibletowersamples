@@ -121,8 +121,6 @@
     src: privileged_access_report.j2
     dest: "/tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt"
     mode: '0600'
-  delegate_to: localhost # Generate report on the Ansible control node
-  run_once: true
 
 - name: Display path to generated report
   ansible.builtin.debug:
