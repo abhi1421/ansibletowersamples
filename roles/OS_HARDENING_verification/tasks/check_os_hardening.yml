@@ -180,36 +180,6 @@
     - os_hardening
     - unutilized_services
 
-- name: Check if /etc/sysconfig/init exists for daemon umask check
-  ansible.builtin.stat:
-    path: /etc/sysconfig/init
-  register: sysconfig_init_stat
-  tags:
-    - os_hardening
-    - daemon_umask
-
-- name: Check daemon umask in /etc/sysconfig/init (deprecated, but still common check)
-  ansible.builtin.lineinfile:
-    path: /etc/sysconfig/init
-    regexp: '^umask\s+027'
-    line: 'umask 027'
-    state: present
-  register: umask_check
-  check_mode: true
-  when: sysconfig_init_stat.stat.exists
-  # Only run this task if the file exists.
-  tags:
-    - os_hardening
-    - daemon_umask
-
-- name: Set fact for daemon umask compliance (if file exists)
-  ansible.builtin.set_fact:
-    daemon_umask_compliant: "{{ umask_check.changed == false }}"
-  when: sysconfig_init_stat.stat.exists
-  tags:
-    - os_hardening
-    - daemon_umask
-
 - name: Check current effective umask
   ansible.builtin.command: umask
   register: current_umask_output
@@ -235,20 +205,6 @@
       expected: 'Effective umask is 0022.'
       actual: '{{ current_umask_output.stdout | default("N/A") }}'
       message: '{{ "Effective umask is correctly set to 0022." if effective_umask_compliant else "Effective umask is not 0022. Actual: " + current_umask_output.stdout | default("N/A") }}'
-  tags:
-    - os_hardening
-    - daemon_umask
-
-- name: Define daemon umask compliance item (file does not exist)
-  ansible.builtin.set_fact:
-    daemon_umask_compliance_item:
-      category: 'OS Hardening'
-      item: 'Set daemon umask (legacy file)'
-      status: 'MANUAL_REQUIRED'
-      expected: 'Daemon umask is set to a restrictive value (e.g., 027) via /etc/sysconfig/init or equivalent.'
-      actual: 'N/A (file /etc/sysconfig/init not found)'
-      message: 'The file /etc/sysconfig/init does not exist on this system. Daemon umask configuration might be handled by systemd or other mechanisms. Please verify manually.'
-  when: not sysconfig_init_stat.stat.exists
   tags:
     - os_hardening
     - daemon_umask
