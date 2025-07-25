@@ -136,6 +136,8 @@
   ansible.builtin.debug:
     msg: "Privileged access audit report generated at /tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt on the Ansible control node."
   run_once: truesers and user_home_dirs with robust checks
+
+- name: Set fact task  
   ansible.builtin.set_fact:
     system_users: "{{ system_users + [ user_info.key ] }}"
     user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # <--- CORRECTED INDEX to [5] for HOME_DIRECTORY
