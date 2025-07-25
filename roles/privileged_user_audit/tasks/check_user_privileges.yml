@@ -1,59 +1,51 @@
 # privileged_access_audit/tasks/check_user_privileges.yml
 ---
-# Removed: The "Ensure .ssh directory exists" task, as per your request for a non-modifying audit.
-
 # TEMPORARY DEBUG TASK - TO DIAGNOSE PERSISTENT /BIN/BASH/.SSH ERROR
-# This task is crucial for debugging and should be removed after the variable issue is resolved.
 - name: DEBUG - Confirming exact .ssh directory path being attempted for {{ current_user }}
   ansible.builtin.debug:
-    msg: "Attempted .ssh path for {{ current_user }}: '{{ user_home_dirs[current_user] }}/.ssh'"
+    msg: "Attempted .ssh path for {{ current_user }}: '{{ user_specific_home_dir }}/.ssh'" # <--- Use user_specific_home_dir
   when:
-    # Use the exact same 'when' conditions as the original 'file' task
-    - user_home_dirs[current_user] is defined
-    - user_home_dirs[current_user] is string
-    - user_home_dirs[current_user] | length > 0
-    - user_home_dirs[current_user].startswith('/')
+    - user_specific_home_dir is defined
+    - user_specific_home_dir is string
+    - user_specific_home_dir | length > 0
+    - user_specific_home_dir.startswith('/')
 
 - name: Stat .ssh directory for {{ current_user }}
   ansible.builtin.stat:
-    path: "{{ user_home_dirs[current_user] }}/.ssh"
+    path: "{{ user_specific_home_dir }}/.ssh" # <--- Use user_specific_home_dir
   register: ssh_dir_stat
-  ignore_errors: true # Allow this task to fail if .ssh doesn't exist or is not a directory
+  ignore_errors: true
   when:
-    # Ensure the base home directory is defined, a string, and looks like a path
-    - user_home_dirs[current_user] is defined
-    - user_home_dirs[current_user] is string
-    - user_home_dirs[current_user] | length > 0
-    - user_home_dirs[current_user].startswith('/')
-    # Also ensure the parent directory actually exists and is a directory (inline stat for efficiency)
-    - ansible.builtin.stat(user_home_dirs[current_user]).stat.exists | default(false)
-    - ansible.builtin.stat(user_home_dirs[current_user]).stat.isdir | default(false)
+    # Only try to stat if the derived home directory is a valid-looking string
+    - user_specific_home_dir is defined
+    - user_specific_home_dir is string
+    - user_specific_home_dir | length > 0
+    - user_specific_home_dir.startswith('/')
 
 - name: Stat authorized_keys file for {{ current_user }}
   ansible.builtin.stat:
-    path: "{{ user_home_dirs[current_user] }}/.ssh/authorized_keys"
+    path: "{{ user_specific_home_dir }}/.ssh/authorized_keys" # <--- Use user_specific_home_dir
   register: auth_keys_stat
-  ignore_errors: true # Allow this task to fail if authorized_keys doesn't exist or is not a file
+  ignore_errors: true
   when:
-    # Only attempt to stat authorized_keys if .ssh directory stat was successful AND it's a directory
-    - ssh_dir_stat is success # The stat command for .ssh itself succeeded (no 'Not a directory' etc.)
-    - ssh_dir_stat.stat.exists is defined and ssh_dir_stat.stat.exists # .ssh directory path exists
-    - ssh_dir_stat.stat.isdir is defined and ssh_dir_stat.stat.isdir # .ssh is indeed a directory
+    - ssh_dir_stat is success
+    - ssh_dir_stat.stat.exists is defined and ssh_dir_stat.stat.exists
+    - ssh_dir_stat.stat.isdir is defined and ssh_dir_stat.stat.isdir
 
 - name: Read authorized_keys content if it exists for {{ current_user }}
   ansible.builtin.slurp:
-    src: "{{ user_home_dirs[current_user] }}/.ssh/authorized_keys"
+    src: "{{ user_specific_home_dir }}/.ssh/authorized_keys" # <--- Use user_specific_home_dir
   register: auth_keys_content
   when:
-    - auth_keys_stat is success # The stat command for authorized_keys succeeded
-    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists # authorized_keys file exists
-    - auth_keys_stat.stat.isreg is defined and auth_keys_stat.stat.isreg # And it's a regular file
+    - auth_keys_stat is success
+    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists
+    - auth_keys_stat.stat.isreg is defined and auth_keys_stat.stat.isreg
 
 - name: Add authorized_keys for {{ current_user }} to report
   ansible.builtin.set_fact:
     privileged_report_data: "{{ privileged_report_data | combine({
-      'authorized_keys': privileged_report_data.authorized_keys + [ { 'user': current_user, 'path': user_home_dirs[current_user] + '/.ssh/authorized_keys', 'content': (auth_keys_content.content | default('N/A') | b64decode) if auth_keys_content is defined and auth_keys_content.content is defined else 'N/A', 'permissions': auth_keys_stat.stat.mode | default('N/A'), 'owner': auth_keys_stat.stat.pw_name | default('N/A'), 'group': auth_keys_stat.stat.gr_name | default('N/A') } ]
+      'authorized_keys': privileged_report_data.authorized_keys + [ { 'user': current_user, 'path': user_specific_home_dir + '/.ssh/authorized_keys', 'content': (auth_keys_content.content | default('N/A') | b64decode) if auth_keys_content is defined and auth_keys_content.content is defined else 'N/A', 'permissions': auth_keys_stat.stat.mode | default('N/A'), 'owner': auth_keys_stat.stat.pw_name | default('N/A'), 'group': auth_keys_stat.stat.gr_name | default('N/A') } ]
     }) }}"
   when:
-    - auth_keys_stat is success # Only add if stat of authorized_keys was successful
-    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists # And the file was found
+    - auth_keys_stat is success
+    - auth_keys_stat.stat.exists is defined and auth_keys_stat.stat.exists

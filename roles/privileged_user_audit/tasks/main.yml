@@ -91,6 +91,10 @@
   loop_control:
     loop_var: current_user # Make the current user item accessible as 'current_user' in the included task
     label: "Processing authorized_keys for {{ current_user }}"
+  vars:
+    # Explicitly pass the specific user's home_dir as a new variable to the included task
+    # This might help resolve any scope or re-evaluation issues.
+    user_specific_home_dir: "{{ user_home_dirs[current_user] }}"
   when: user_home_dirs[current_user] is defined and user_home_dirs[current_user] is not none
 
 - name: Get permissions for sensitive directories
