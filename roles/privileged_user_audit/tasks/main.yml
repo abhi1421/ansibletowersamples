@@ -1,139 +1,4 @@
 ---
-## tasks file for privileged_user_audit
-#
-#- name: Collect users with UID 0 (root equivalent)
-#  ansible.builtin.shell: "awk -F: '$3 == 0 {print $1}' /etc/passwd"
-#  register: root_users_raw
-#  changed_when: false
-#
-#- name: Get all user accounts with their UIDs
-#  ansible.builtin.shell: "awk -F: '{print $1 \":\" $3}' /etc/passwd"
-#  register: all_users_uid_raw
-#  changed_when: false
-#
-#- name: Build user to UID map
-#  ansible.builtin.set_fact:
-#    user_uid_map: >- # Changed from '|' to '>-' for explicit block scalar (though | should work too)
-#      {% set user_uids = {} %}
-#      {% for line in all_users_uid_raw.stdout_lines %}
-#        {% if line | trim %}
-#          {% set parts = line.split(':') %}
-#          {% if parts | length == 2 %}
-#            {% set _ = user_uids.update({parts[0] | trim: parts[1] | trim}) %}
-#          {% endif %}
-#        {% endif %}
-#      {% endfor %}
-#      {{ user_uids }} # <--- REMOVED | to_json and | string
-#
-#- name: Collect sudo users by parsing sudoers files
-#  ansible.builtin.shell: |
-#    # Grep for lines that define user/group permissions, excluding comments and empty lines
-#    # Look for patterns like 'user ALL=' or '%group ALL='
-#    grep -E '^\s*(%?[[:alnum:]_][[:alnum:]_.:-]*)\s+ALL=' /etc/sudoers /etc/sudoers.d/* 2>/dev/null | \
-#    # Extract the user/group name (the first field)
-#    awk '{print $1}' | \
-#    # Remove duplicates and sort
-#    sort -u
-#  register: sudoers_users_raw
-#  changed_when: false
-#  ignore_errors: yes
-#
-#- name: Set sudo users list (unique and refined)
-#  ansible.builtin.set_fact:
-#    # Filter out anything that isn't a likely username or group name (starts with % for group)
-#    sudoers_defined_users: >-
-#      {{ (sudoers_users_raw.stdout_lines | default([])) | select('match', '^%?[a-zA-Z0-9_-]+$') | list | unique }}
-#
-#- name: Combine root and sudo users, unique and sort for consistent reporting
-#  ansible.builtin.set_fact:
-#    # Ensure 'root' is always included if it's not detected by sudoers parsing (e.g. if it uses NOPASSWD for everything)
-#    privileged_users: "{{ (root_users_raw.stdout_lines + sudoers_defined_users) | unique | sort }}"
-#
-#- name: Get home directories for privileged users
-#  ansible.builtin.shell: "getent passwd {{ item }} | cut -d: -f6"
-#  loop: "{{ privileged_users }}"
-#  register: home_dirs_raw
-#  changed_when: false
-#
-#- name: Build map of user to home directory
-#  ansible.builtin.set_fact:
-#    user_homes: >-
-#      {{
-#        dict(privileged_users | zip(home_dirs_raw.results | map(attribute='stdout') | list))
-#      }}
-#
-#- name: Check .ssh/authorized_keys existence and permissions
-#  ansible.builtin.stat:
-#    path: "{{ user_homes[item] | default('') }}/.ssh/authorized_keys" # Added default('') to handle cases where home_dir might be N/A
-#  loop: "{{ privileged_users }}"
-#  register: ssh_auth_keys_stats_raw
-#  ignore_errors: yes
-#
-#- name: Build ssh key info map for users
-#  ansible.builtin.set_fact:
-#    ssh_key_info: >-
-#      {{
-#        dict(
-#          privileged_users | zip(
-#            ssh_auth_keys_stats_raw.results | map(attribute='stat') | list
-#          )
-#        )
-#      }}
-#
-#- name: Collect sudo -l output for each privileged user
-#  ansible.builtin.shell: "sudo -U {{ item }} -l"
-#  loop: "{{ privileged_users }}"
-#  register: sudo_l_output_raw
-#  ignore_errors: yes
-#
-#- name: Build sudo command map per user
-#  ansible.builtin.set_fact:
-#    sudo_l_output: >-
-#      {{
-#        dict(
-#          privileged_users | zip(
-#            sudo_l_output_raw.results | map(attribute='stdout') | list
-#          )
-#        )
-#      }}
-#
-#- name: Gather owned files (first 50 for each user, to avoid huge output)
-#  ansible.builtin.shell: |
-#    find / -user {{ item }} -ls 2>/dev/null | head -n 50 || true
-#  loop: "{{ privileged_users }}"
-#  register: user_files_raw
-#  changed_when: false
-#  ignore_errors: yes
-#
-#- name: Build map of user to their file listings
-#  ansible.builtin.set_fact:
-#    user_files: >-
-#      {{
-#        dict(
-#          privileged_users | zip(
-#            user_files_raw.results | map(attribute='stdout_lines') | list
-#          )
-#        )
-#      }}
-#
-#- name: Assemble audit report content
-#  ansible.builtin.template:
-#    src: report.j2
-#    dest: /tmp/privileged_user_access_report.txt
-#    mode: '0644'
-#  vars:
-#    report_date: "{{ ansible_date_time.date }} {{ ansible_date_time.time }}"
-#    privileged_users_list: "{{ privileged_users }}"
-#    user_uid_map: "{{ user_uid_map }}" # This is a JSON string from to_nice_json
-#    user_homes: "{{ user_homes }}"
-#    ssh_key_info: "{{ ssh_key_info }}"
-#    sudo_l_output: "{{ sudo_l_output }}"
-#    user_files: "{{ user_files }}"
-#
-#- name: Display report path
-#  ansible.builtin.debug:
-#    msg: "Privileged user audit report generated at /tmp/privileged_user_access_report.txt"
-
 - name: Gather all system users
   ansible.builtin.getent:
     database: passwd
@@ -147,7 +12,7 @@
 - name: Populate system_users and user_home_dirs with robust checks
   ansible.builtin.set_fact:
     system_users: "{{ system_users + [ user_info.key ] }}"
-    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}"
+    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # <--- CORRECTED INDEX to [5] for HOME_DIRECTORY
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
     loop_var: user_info
@@ -155,13 +20,13 @@
     # Ensure 'value' exists and is a list/iterable
     - user_info.value is defined
     - user_info.value is iterable
-    # Ensure the list has enough elements for index 5 (6th element which is home dir)
-    - user_info.value | length > 5
+    # Ensure the list has enough elements for index 5 (HOME_DIRECTORY)
+    - user_info.value | length > 5 # Checking for length enough for index 5
     # Ensure the home directory path itself is defined and is a string
     - user_info.value[5] is defined
     - user_info.value[5] is string
     # Ensure the home directory path starts with '/' (filter out nologin, false, etc.)
-    - user_info.value[5].startswith('/')
+    - user_info.value[5].startswith('/') # Applying startswith to the correct index
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
@@ -198,9 +63,8 @@
   loop_control:
     label: "{{ item.item.path }}"
   when:
-    - item.content is defined
-    - item.item.path is defined
-
+    - item.content is defined # Ensure content exists from slurp
+    - item.item.path is defined # Ensure path exists
 
 - name: Check sudo privileges for each user
   ansible.builtin.command: "sudo -l -U {{ item }}"
@@ -219,9 +83,10 @@
   loop: "{{ user_sudo_output.results }}"
   loop_control:
     label: "{{ item.item }}"
-  when: item.skipped is not defined
+  when: item.skipped is not defined # Ensure we only process results that actually ran
 
-# Content provided in a previous response.
+# This file (check_user_privileges.yml) remains as updated in the very last response
+# (the one that added "Ensure .ssh directory exists" and robust 'when' conditions).
 - name: Check authorized_keys for each user and collect data
   ansible.builtin.include_tasks: check_user_privileges.yml
   loop: "{{ system_users }}"
@@ -237,7 +102,7 @@
   loop: "{{ sensitive_directories }}"
   loop_control:
     label: "{{ item }}"
-  ignore_errors: true # Some directories might not exist or be accessible
+  ignore_errors: true # Some directories might not exist or be inaccessible
 
 - name: Process sensitive directory permissions
   ansible.builtin.set_fact:
