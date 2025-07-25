@@ -3,18 +3,18 @@ Generated On: {{ privileged_report_data.timestamp }}
 Audited Host: {{ ansible_hostname }}
 
 ================================================================================
-SECTION 1: Sudo Privileges
+SECTION 1: Sudo Privileges Overview
 ================================================================================
 
 {% if privileged_report_data.sudo_privileges %}
 {% for user_sudo in privileged_report_data.sudo_privileges %}
 User: {{ user_sudo.user }}
-Return Code (0 = success, other = error/no sudo): {{ user_sudo.rc }}
-Sudo Output:
+Sudo Status: {% if user_sudo.rc == 0 %}Has Sudo Privileges{% else %}No Sudo Privileges or Command Failed{% endif %}
+Details (Output of 'sudo -l -U {{ user_sudo.user }}'):
 {% if user_sudo.output %}
 {{ user_sudo.output }}
 {% else %}
-  No sudo privileges found or command failed for this user.
+  (No specific sudo output captured for this user or user has no sudo access)
 {% endif %}
 ---
 {% endfor %}
@@ -33,11 +33,11 @@ Path: {{ auth_key_entry.path }}
 Permissions (Octal): {{ auth_key_entry.permissions }}
 Owner: {{ auth_key_entry.owner }}
 Group: {{ auth_key_entry.group }}
-Content:
+Content (Public Keys):
 {% if auth_key_entry.content %}
 {{ auth_key_entry.content }}
 {% else %}
-  (File exists but content not readable or empty)
+  (File exists but content was not readable or is empty)
 {% endif %}
 ---
 {% endfor %}
@@ -46,8 +46,11 @@ No authorized_keys information collected.
 {% endif %}
 
 ================================================================================
-SECTION 3: Sensitive Directory Permissions
+SECTION 3: Permissions on Sensitive Directories
 ================================================================================
+
+This section lists the owner, group, and permissions for pre-defined sensitive directories.
+Review this against sudo users and group memberships to identify potential access concerns.
 
 {% if privileged_report_data.sensitive_directory_permissions %}
 {% for dir_perm in privileged_report_data.sensitive_directory_permissions %}
@@ -66,11 +69,11 @@ No sensitive directory permission information collected.
 SECTION 4: Raw Sudoers Files Content
 ================================================================================
 
-This section contains the raw content of /etc/sudoers and files in /etc/sudoers.d/.
-Review this manually to identify explicit sudo rules.
+This section provides the raw content of /etc/sudoers and files in /etc/sudoers.d/.
+Review these files for explicit sudo rules, aliases, and inclusions.
 
 {% if privileged_report_data.sudoers_files_content %}
-{% for file_entry in privileged_report_data.sudoers_files_content %} {# Loop over list of dicts #}
+{% for file_entry in privileged_report_data.sudoers_files_content %}
 File: {{ file_entry.path }}
 Content:
 {{ file_entry.content }}
