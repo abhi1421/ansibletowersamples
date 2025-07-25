@@ -17,20 +17,22 @@
   loop_control:
     loop_var: user_info
   when:
-    # Ensure 'value' exists and is a list/iterable
-    - user_info.value is defined
-    - user_info.value is iterable
-    # Ensure the list has enough elements for index 5 (HOME_DIRECTORY) AND index 6 (SHELL)
-    - user_info.value | length > 5
-    # Ensure the home directory path itself is defined and is a string
-    - user_info.value[5] is defined
-    - user_info.value[5] is string
-    # Ensure the home directory path starts with '/' (filter out common non-home-dir paths)
-    - user_info.value[5].startswith('/')
-    # NEW FILTER: Ensure the shell is a valid login shell, not nologin or /bin/false
-    - user_info.value[6] is defined
-    - user_info.value[6] is string
-    - not (user_info.value[6] | regex_search('^/sbin/nologin$|^/bin/false$')) # Exclude nologin/false shells
+    # 1. Basic data structure validation (ensure enough fields and proper types)
+    - user_info.value is defined and user_info.value is iterable
+    - user_info.value | length > 5 # Ensure index 5 (home) and 6 (shell) exist
+    - user_info.value[5] is defined and user_info.value[5] is string
+    - user_info.value[6] is defined and user_info.value[6] is string
+
+    # 2. Filter criteria for *including* users (either root or a "normal" user)
+    - (user_info.key == 'root') or ( # Always include 'root'
+        # For non-root users, check for typical characteristics of a login user
+        user_info.value[1] | int >= 1000 and # Standard users usually have UIDs >= 1000
+        user_info.value[5].startswith('/') and # Home directory starts with /
+        # Exclude common non-login shells (add any other variations you see on your system)
+        not (user_info.value[6] in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin']) and
+        # Exclude common home directories that are not true user homes
+        not (user_info.value[5] in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue'])
+      )
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
