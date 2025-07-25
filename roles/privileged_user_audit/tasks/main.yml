@@ -9,7 +9,6 @@
     system_users: []
     user_home_dirs: {}
 
-- name: Populate system_u---
 - name: Gather all system users
   ansible.builtin.getent:
     database: passwd
