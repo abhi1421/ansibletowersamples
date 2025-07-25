@@ -1,5 +1,5 @@
 ---
-# vars file for privileged_user_audit
+# vars/main.yml
 sensitive_directories:
   - /etc
   - /etc/ssh
@@ -14,4 +14,4 @@ sensitive_directories:
   - /boot
   - /usr/local/etc
   - /srv
-  - /home # Note: Will stat /home, not individual user homes directly for permissions. User homes checked separately for authorized_keys.
+  - /home

@@ -12,27 +12,11 @@
 - name: Populate system_users and user_home_dirs with robust checks
   ansible.builtin.set_fact:
     system_users: "{{ system_users + [ user_info.key ] }}"
-    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}"
+    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # HOME_DIRECTORY (Correct Index)
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
     loop_var: user_info
-  when: >
-    user_info.value is defined and
-    user_info.value is iterable and
-    user_info.value | length > 5 and
-    user_info.value[5] is defined and user_info.value[5] is string and
-    user_info.value[6] is defined and user_info.value[6] is string and
-
-    (
-      user_info.key == 'root'
-    )
-    or
-    (
-      user_info.value[2] | int >= 1000 and
-      user_info.value[5].startswith('/') and
-      not (user_info.value[6] in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin', '/bin', '/sbin']) and
-      not (user_info.value[5] in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])
-    )
+  when: "user_info.value is defined and user_info.value is iterable and user_info.value | length > 5 and user_info.value[5] is defined and user_info.value[5] is string and user_info.value[6] is defined and user_info.value[6] is string and (user_info.key == 'root' or (user_info.value[2] | int >= 1000 and user_info.value[5].startswith('/') and not (user_info.value[6] in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin', '/bin', '/sbin']) and not (user_info.value[5] in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])))"
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
@@ -98,10 +82,8 @@
     loop_var: current_user
     label: "Processing authorized_keys for {{ current_user }}"
   vars:
-    # Pass the correctly filtered home directory to the included task
     user_specific_home_dir: "{{ user_home_dirs[current_user] }}"
-  # Removed: the 'when' condition from here, as filtering is now done in 'Populate' task.
-  # This makes the loop include only relevant users for authorized_keys checks.
+  when: user_home_dirs[current_user] is defined and user_home_dirs[current_user] is not none
 
 - name: Get permissions for sensitive directories
   ansible.builtin.stat:
