@@ -16,19 +16,17 @@
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
     loop_var: user_info
-  when: > # <--- ADD THIS '>' HERE
+  when: > # <--- The folded style '>' is correct here
     user_info.value is defined and
     user_info.value is iterable and
-    user_info.value | length > 5 and # Ensure index 5 (home) and 6 (shell) exist
+    user_info.value | length > 5 and
     user_info.value[5] is defined and user_info.value[5] is string and
     user_info.value[6] is defined and user_info.value[6] is string and
 
-    (user_info.key == 'root' or # Always include 'root'
-     (user_info.value[1] | int >= 1000 and # Standard users usually have UIDs >= 1000
-      user_info.value[5].startswith('/') and # Home directory starts with /
-      # Exclude common non-login shells (add any other variations you see on your system)
+    (user_info.key == 'root' or
+     (user_info.value[1] | int >= 1000 and
+      user_info.value[5].startswith('/') and
       not (user_info.value[6] in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin']) and
-      # Exclude common home directories that are not true user homes
       not (user_info.value[5] in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue']))
     )
 
