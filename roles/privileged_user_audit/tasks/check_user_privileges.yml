@@ -1,20 +1,33 @@
+# privileged_access_audit/tasks/check_user_privileges.yml
 ---
 # Removed: Ensure .ssh directory exists task (non-modifying audit)
 
-# Removed: The DEBUG task for checking path as we're going to fix the underlying issue.
-# If you want to keep a debug for the resolved path, put it *after* the stat succeeds.
-
-- name: Stat .ssh directory for {{ current_user }}
-  ansible.builtin.stat:
-    path: "{{ user_specific_home_dir }}/.ssh" # Use user_specific_home_dir passed from main.yml
-  register: ssh_dir_stat
-  ignore_errors: true # Allow to fail if .ssh doesn't exist or is not a directory
+# TEMPORARY DEBUG TASK - This task is for debugging variable issues.
+# It should be removed once the playbook runs successfully for authorized_keys.
+- name: DEBUG - Confirming exact .ssh directory path being attempted for {{ current_user }}
+  ansible.builtin.debug:
+    msg: "Attempted .ssh path for {{ current_user }}: '{{ user_specific_home_dir }}/.ssh'"
   when:
-    # Only try to stat if the derived home directory is a valid-looking string
     - user_specific_home_dir is defined
     - user_specific_home_dir is string
     - user_specific_home_dir | length > 0
-    - user_specific_home_dir.startswith('/') # Ensure it's a proper path, not e.g. 'nologin'
+    - user_specific_home_dir.startswith('/')
+    # Also filter out known problematic home directories here to avoid unnecessary debug lines
+    - not (user_specific_home_dir in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])
+
+- name: Stat .ssh directory for {{ current_user }}
+  ansible.builtin.stat:
+    path: "{{ user_specific_home_dir }}/.ssh"
+  register: ssh_dir_stat
+  ignore_errors: true # Allow this task to fail if .ssh doesn't exist or is not a directory
+  when:
+    # Primary check: The home directory must start with / and not be a problematic system binary/device path
+    - user_specific_home_dir is defined and user_specific_home_dir is string and user_specific_home_dir.startswith('/')
+    - not (user_specific_home_dir in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])
+    # Secondary check: The actual home directory must exist and be a directory (using inline stat for this check)
+    - ansible.builtin.stat(user_specific_home_dir).stat.exists | default(false)
+    - ansible.builtin.stat(user_specific_home_dir).stat.isdir | default(false)
+
 
 - name: Stat authorized_keys file for {{ current_user }}
   ansible.builtin.stat:
@@ -22,8 +35,7 @@
   register: auth_keys_stat
   ignore_errors: true
   when:
-    # Only attempt to stat authorized_keys if .ssh directory stat was successful AND it's a directory
-    - ssh_dir_stat is success # The stat command for .ssh itself succeeded (no 'Not a directory' etc.)
+    - ssh_dir_stat is success # Ensure previous stat for .ssh was successful
     - ssh_dir_stat.stat is defined and ssh_dir_stat.stat.exists # .ssh directory path exists
     - ssh_dir_stat.stat.isdir is defined and ssh_dir_stat.stat.isdir # .ssh is indeed a directory
 
