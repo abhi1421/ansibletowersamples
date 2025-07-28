@@ -9,20 +9,18 @@
 
 - name: Extract root user
   set_fact:
-    root_user: >-
-      {{ parsed_users | selectattr('0', 'equalto', 'root') | map('0') | list }}
+    root_user: "{{ parsed_users | selectattr('0', 'equalto', 'root') | map(attribute=0) | list }}"
 
 - name: Extract users with UID >= 1000
   set_fact:
     regular_users: >-
-      {{
-        parsed_users
-        | selectattr('2', 'defined')
-        | selectattr('2', 'match', '^[0-9]+$')
-        | selectattr('2', 'int')
-        | selectattr('2', 'int', '>=', 1000)
-        | map('0') | list
-      }}
+      {{ parsed_users
+         | selectattr('2', 'defined')
+         | selectattr('2', 'match', '^[0-9]+$')
+         | selectattr('2', 'int')
+         | selectattr('2', 'int', '>=', 1000)
+         | map(attribute=0)
+         | list }}
 
 - name: Combine valid users
   set_fact:
