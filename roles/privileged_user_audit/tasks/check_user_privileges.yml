@@ -2,8 +2,7 @@
 ---
 # Removed: Ensure .ssh directory exists task (non-modifying audit)
 
-# TEMPORARY DEBUG TASK - This task is for debugging variable issues.
-# It should be removed once the playbook runs successfully for authorized_keys.
+# IMPORTANT: Remove this DEBUG task after successful verification. It's for troubleshooting.
 - name: DEBUG - Confirming exact .ssh directory path being attempted for {{ current_user }}
   ansible.builtin.debug:
     msg: "Attempted .ssh path for {{ current_user }}: '{{ user_specific_home_dir }}/.ssh'"
@@ -33,7 +32,7 @@
   ansible.builtin.stat:
     path: "{{ user_specific_home_dir }}/.ssh/authorized_keys"
   register: auth_keys_stat
-  ignore_errors: true
+  ignore_errors: true # Allow this task to fail if authorized_keys doesn't exist or is not a file
   when:
     - ssh_dir_stat is success # Ensure previous stat for .ssh was successful
     - ssh_dir_stat.stat is defined and ssh_dir_stat.stat.exists # .ssh directory path exists
