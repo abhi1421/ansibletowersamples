@@ -1,0 +1,52 @@
+---
+- name: Check list of sudo users
+  hosts: all
+  become: yes
+  vars:
+    sudo_report_file: "/tmp/sudo_users_report_{{ inventory_hostname }}.txt"
+
+  tasks:
+
+    - name: Get sudoers entries from /etc/sudoers
+      command: grep -E '^[^#].*ALL' /etc/sudoers
+      register: sudoers_main
+      ignore_errors: true
+
+    - name: Get sudoers entries from /etc/sudoers.d
+      command: grep -E '^[^#].*ALL' /etc/sudoers.d/*
+      register: sudoers_d
+      ignore_errors: true
+
+    - name: Get members of 'wheel' group
+      command: getent group wheel
+      register: wheel_group
+      ignore_errors: true
+
+    - name: Get members of 'sudo' group
+      command: getent group sudo
+      register: sudo_group
+      ignore_errors: true
+
+    - name: Combine all sudo user info
+      set_fact:
+        sudo_report: |
+          ==== /etc/sudoers Entries ====
+          {{ sudoers_main.stdout if sudoers_main.stdout else 'No entries or inaccessible' }}
+
+          ==== /etc/sudoers.d Entries ====
+          {{ sudoers_d.stdout if sudoers_d.stdout else 'No entries or inaccessible' }}
+
+          ==== Members of wheel group ====
+          {{ wheel_group.stdout if wheel_group.stdout else 'Group not found or empty' }}
+
+          ==== Members of sudo group ====
+          {{ sudo_group.stdout if sudo_group.stdout else 'Group not found or empty' }}
+
+    - name: Show sudo access summary
+      debug:
+        msg: "{{ sudo_report }}"
+
+    - name: Save sudo access summary to file on target
+      copy:
+        content: "{{ sudo_report }}"
+        dest: "{{ sudo_report_file }}"
