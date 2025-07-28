@@ -1,113 +1,57 @@
 ---
-#- name: Check list of sudo users including sudoers.d files
-#  hosts: all
-#  become: yes
-#  vars:
-#    sudo_report_file: "/tmp/sudo_users_report_{{ inventory_hostname }}.txt"
-#
-#  tasks:
-#
-#    - name: Get sudoers entries from /etc/sudoers
-#      command: grep -E '^[^#].*ALL' /etc/sudoers
-#      register: sudoers_main
-#      ignore_errors: true
-#
-#    - name: List all files in /etc/sudoers.d/
-#      find:
-#        paths: /etc/sudoers.d
-#        file_type: file
-#      register: sudoers_d_files
-#      ignore_errors: true
-#
-#    - name: Read contents of each file in /etc/sudoers.d/
-#      command: grep -Ev '^\s*#' {{ item.path }}
-#      loop: "{{ sudoers_d_files.files }}"
-#      loop_control:
-#        label: "{{ item.path }}"
-#      register: sudoers_d_content
-#      ignore_errors: true
-#      when: sudoers_d_files is defined and sudoers_d_files.files | length > 0
-#
-#    - name: Get members of 'wheel' group
-#      command: getent group wheel
-#      register: wheel_group
-#      ignore_errors: true
-#
-#    - name: Get members of 'sudo' group
-#      command: getent group sudo
-#      register: sudo_group
-#      ignore_errors: true
-#
-#    - name: Build sudoers.d report
-#      set_fact:
-#        sudoers_d_report: |
-#          {% if sudoers_d_content.results is defined %}
-#          {% for result in sudoers_d_content.results %}
-#          ---- {{ result.item.path }} ----
-#          {{ result.stdout | default('No non-comment lines') }}
-#          {% endfor %}
-#          {% else %}
-#          No files found or accessible in /etc/sudoers.d/
-#          {% endif %}
-#
-#    - name: Combine all sudo user info
-#      set_fact:
-#        sudo_report: |
-#          ==== /etc/sudoers Entries ====
-#          {{ sudoers_main.stdout if sudoers_main.stdout else 'No entries or inaccessible' }}
-#
-#          ==== /etc/sudoers.d File Entries ====
-#          {{ sudoers_d_report }}
-#
-#          ==== Members of wheel group ====
-#          {{ wheel_group.stdout if wheel_group.stdout else 'Group not found or empty' }}
-#
-#          ==== Members of sudo group ====
-#          {{ sudo_group.stdout if sudo_group.stdout else 'Group not found or empty' }}
-#
-#    - name: Show sudo access summary
-#      debug:
-#        msg: "{{ sudo_report }}"
-#
-#    - name: Save sudo access summary to file on target
-#      copy:
-#        content: "{{ sudo_report }}"
-#        dest: "{{ sudo_report_file }}"
-
-
-- name: Privileged access audit report
+- name: Privileged Access Audit
   hosts: all
-  become: yes
+  become: true
+  gather_facts: false
+
   vars:
-    privileged_report_file: "/tmp/privileged_access_audit_{{ inventory_hostname }}.txt"
+    sudoers_file: /etc/sudoers
+    sudoers_d_dir: /etc/sudoers.d
+    sudo_report_file: "/tmp/privileged_access_audit_{{ inventory_hostname }}.txt"
 
   tasks:
 
-    - name: Get sudoers entries from /etc/sudoers
-      command: grep -E '^[^#].*ALL' /etc/sudoers
+    - name: Read /etc/sudoers file
+      shell: cat {{ sudoers_file }}
       register: sudoers_main
-      ignore_errors: true
 
-    - name: List all files in /etc/sudoers.d/
+    - name: List all files under /etc/sudoers.d
       find:
-        paths: /etc/sudoers.d
+        paths: "{{ sudoers_d_dir }}"
         file_type: file
       register: sudoers_d_files
-      ignore_errors: true
 
-    - name: Read contents of each file in /etc/sudoers.d/
-      command: grep -Ev '^\s*#' {{ item.path }}
+    - name: Read contents of each file in /etc/sudoers.d
+      shell: cat {{ item.path }}
       loop: "{{ sudoers_d_files.files }}"
-      loop_control:
-        label: "{{ item.path }}"
       register: sudoers_d_content
-      ignore_errors: true
-      when: sudoers_d_files is defined and sudoers_d_files.files | length > 0
+      when: sudoers_d_files.matched > 0
 
-    - name: Get members of 'wheel' group
-      command: getent group wheel
+    - name: Combine all sudo rule lines into a single list
+      set_fact:
+        all_sudo_lines: >-
+          {{
+            sudoers_main.stdout_lines | default([]) +
+            (
+              sudoers_d_content.results | default([])
+              | map(attribute='stdout_lines') | list
+              | flatten
+            )
+          }}
+
+    - name: Extract sudo users from sudoers lines
+      set_fact:
+        sudo_users_list: >-
+          {{
+            all_sudo_lines
+            | map('regex_search', '^[^#%\\s]+')
+            | select('defined') | list | unique
+          }}
+
+    - name: Check members of wheel group
+      shell: getent group wheel || echo 'group_not_found'
       register: wheel_group
-      ignore_errors: true
+      changed_when: false
 
     - name: Check if 'sudo' group exists
       shell: getent group sudo || echo 'group_not_found'
@@ -123,76 +67,54 @@
             }
           }}
 
-    - name: Build sudoers.d report
-      set_fact:
-        sudoers_d_report: |
-          {% if sudoers_d_content.results is defined %}
-          {% for result in sudoers_d_content.results %}
-          ---- {{ result.item.path }} ----
-          {{ result.stdout | default('No non-comment lines') }}
-          {% endfor %}
-          {% else %}
-          No files found or accessible in /etc/sudoers.d/
-          {% endif %}
-
-    - name: Collect list of sudo users from sudoers and sudoers.d
-      set_fact:
-        sudo_users_list: >-
-          {{
-            (
-              sudoers_main.stdout_lines | default([]) +
-              (
-                sudoers_d_content.results | default([]) | map(attribute='stdout_lines') | list | sum(start=[])
-              )
-            )
-            | map('regex_search', '^[^#%\\s]+')  # First token of valid user lines
-            | select('defined') | list | unique
-          }}
-
-    - name: Debug parsed sudo users (optional)
-      debug:
-        var: sudo_users_list
-
-    - name: Check accessible directories for each sudo user (non-sudo)
+    - name: Check accessible directories for each sudo user
+      become: false
       shell: |
-        sudo -u {{ item }} bash -c 'find /etc /opt /usr /home /var -maxdepth 2 -type d -readable -exec ls -ld {} \; 2>/dev/null | awk "{print \$9}" | sort -u'
+        find / -type d -readable -user {{ item }} 2>/dev/null
       loop: "{{ sudo_users_list }}"
       loop_control:
         label: "{{ item }}"
-      register: sudo_user_dir_access
-      ignore_errors: true
+      register: user_accessible_dirs
+      when: sudo_users_list | length > 0
 
     - name: Build sudo user accessible directory report
       set_fact:
-        sudo_access_dirs_report: |
-          ==== Accessible Directories Per Sudo User (non-sudo) ====
-          {% for result in sudo_user_dir_access.results %}
-          ---- {{ result.item }} ----
-          {{ result.stdout if result.stdout else 'No accessible directories found or user does not exist' }}
-          {% endfor %}
+        sudo_user_dir_report: >-
+          {%- set report = '' -%}
+          {%- for result in user_accessible_dirs.results -%}
+          {%- set user = result.item -%}
+          {%- set dirs = result.stdout_lines | default([]) -%}
+          {%- set report = report + '---- ' + user + ' ----\n' + (dirs | join('\n')) + '\n\n' -%}
+          {%- endfor -%}
+          {{ report }}
 
-    - name: Combine full privileged access report
+    - name: Combine full sudo report
       set_fact:
-        privileged_access_report: |
+        sudo_report: |
           ==== /etc/sudoers Entries ====
-          {{ sudoers_main.stdout if sudoers_main.stdout else 'No entries or inaccessible' }}
+          {{ sudoers_main.stdout }}
 
           ==== /etc/sudoers.d File Entries ====
-          {{ sudoers_d_report }}
+          {%- for item in sudoers_d_files.files %}
+          ---- {{ item.path }} ----
+          {{ sudoers_d_content.results[loop.index0].stdout }}
+
+          {%- endfor %}
 
           ==== Members of wheel group ====
-          {{ wheel_group.stdout if wheel_group.stdout else 'Group not found or empty' }}
+          {{ wheel_group.stdout }}
 
           ==== Members of sudo group ====
           {{ sudo_group.stdout }}
 
-          {{ sudo_access_dirs_report }}
+          ==== Accessible Directories Per Sudo User (non-sudo) ====
+          {{ sudo_user_dir_report | default('No sudo users with accessible directories found.') }}
 
-    - name: Show privileged access audit summary
+    - name: Show sudo access summary
       debug:
-        msg: "{{ privileged_access_report }}"
+        msg: "{{ sudo_report }}"
 
-    - name: Save privileged access audit to file on target
+    - name: Save sudo access summary to file on target
       copy:
-        content: "{{ privileged_access_report }}"
-        dest: "{{ privileged_report_file }}"
+        content: "{{ sudo_report }}"
+        dest: "{{ sudo_report_file }}"
