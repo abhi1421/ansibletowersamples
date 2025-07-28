@@ -44,9 +44,9 @@
         sudo_users_list: >-
           {{
             all_sudo_lines
-            | reject("match", "^(#|Defaults|%|\\s*$)")            # remove comments, Defaults, groups
-            | map("regex_search", "^([a-zA-Z0-9._-]+)\\s")        # extract only the username part
-            | select("defined") | list | unique
+            | select("match", "^[a-zA-Z0-9._-]+\\s+ALL")  # matches: username followed by 'ALL'
+            | map("regex_replace", "^([a-zA-Z0-9._-]+)\\s+ALL.*", "\\1")
+            | list | unique
           }}
 
     - name: Check members of wheel group
