@@ -1,6 +1,4 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# vars file for PRIVILEGED_access_audit
 sensitive_directories:
   - /etc
   - /etc/ssh

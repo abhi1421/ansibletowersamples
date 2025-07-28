@@ -1,18 +1,51 @@
 ---
 - name: Include check_user_privileges
-  ansible.builtin.include_tasks: check_user_privileges.yml
+  include_tasks: check_user_privileges.yml
 
-- name: Gather permissions for sensitive directories
+- name: Gather sudoers content
+  ansible.builtin.slurp:
+    src: /etc/sudoers
+  register: sudoers_main
+  ignore_errors: true
+
+- name: Gather files in /etc/sudoers.d
+  ansible.builtin.find:
+    paths: /etc/sudoers.d
+    file_type: file
+  register: sudoers_files
+  ignore_errors: true
+
+- name: Read content of each sudoers.d file
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ sudoers_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: sudoers_d_contents
+  when: sudoers_files is defined and sudoers_files.files | length > 0
+
+- name: Collect authorized_keys for each user
+  ansible.builtin.slurp:
+    src: "/home/{{ item }}/.ssh/authorized_keys"
+  loop: "{{ valid_users | difference(['root']) }}"
+  loop_control:
+    label: "{{ item }}"
+  register: authorized_keys
+  ignore_errors: true
+
+- name: Check permissions of sensitive directories
   ansible.builtin.stat:
     path: "{{ item }}"
-    follow: no
+    follow: true
   loop: "{{ sensitive_directories }}"
-  register: sensitive_directories_status
+  register: dir_permissions
 
-- name: Set privileged_report_data
+- name: Set report timestamp
   ansible.builtin.set_fact:
-    privileged_report_data:
-      sudo_privileges: "{{ sudo_privileges }}"
-      authorized_keys_content: "{{ authorized_keys_content }}"
-      sensitive_dirs: "{{ sensitive_directories_status.results }}"
-      sudoers_files: "{{ sudoers_files_content }}"
+    report_timestamp: "{{ ansible_date_time.iso8601 }}"
+
+- name: Generate audit report
+  ansible.builtin.template:
+    src: privileged_access_audit_report.j2
+    dest: "/tmp/privileged_access_audit_report_{{ ansible_hostname }}.txt"
+    mode: '0644'

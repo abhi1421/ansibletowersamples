@@ -1,105 +1,29 @@
 ---
 - name: Get all users from /etc/passwd
-  ansible.builtin.command: getent passwd
+  command: getent passwd
   register: passwd_output
 
-- name: Parse users from getent output
-  ansible.builtin.set_fact:
+- name: Parse users
+  set_fact:
     parsed_users: "{{ passwd_output.stdout_lines | map('split', ':') | list }}"
 
 - name: Extract root user
-  ansible.builtin.set_fact:
+  set_fact:
     root_user: >-
       {{ parsed_users | selectattr('0', 'equalto', 'root') | map('0') | list }}
 
 - name: Extract users with UID >= 1000
-  ansible.builtin.set_fact:
+  set_fact:
     regular_users: >-
       {{
         parsed_users
         | selectattr('2', 'defined')
         | selectattr('2', 'match', '^[0-9]+$')
-        | selectattr('6', 'match', '^/bin/bash$|^/bin/sh$')   # Optional: filter users with login shells
-        | selectattr('5', 'match', '^/home/.*|^/root$')        # Optional: with valid home
-        | selectattr('2', 'defined')
-        | map('extract', [0, 2])
-        | selectattr('1', 'defined')
-        | selectattr('1', 'match', '^[0-9]+$')
-        | selectattr('1', 'search', '^[1-9][0-9]{2,}$')  # UID >= 1000 (rough match)
-        | map('first')
-        | list
+        | selectattr('2', 'int')
+        | selectattr('2', 'int', '>=', 1000)
+        | map('0') | list
       }}
 
-- name: Combine root and regular users
-  ansible.builtin.set_fact:
+- name: Combine valid users
+  set_fact:
     valid_users: "{{ root_user + regular_users }}"
-
-- name: Collect sudo privileges per user
-  ansible.builtin.shell: "sudo -l -U {{ item }}"
-  register: sudo_privs
-  loop: "{{ valid_users }}"
-  become: true
-  ignore_errors: true
-
-- name: Format sudo privileges
-  ansible.builtin.set_fact:
-    sudo_privileges: >-
-      {{
-        sudo_privs.results
-        | map(attribute='stdout')
-        | zip(valid_users)
-        | map('reverse')
-        | list
-      }}
-
-- name: Collect authorized_keys
-  vars:
-    authorized_keys_list: []
-  block:
-    - name: Check home dir for each user
-      ansible.builtin.stat:
-        path: "/home/{{ item }}/.ssh/authorized_keys"
-      loop: "{{ valid_users }}"
-      register: auth_keys_stat
-      ignore_errors: true
-
-    - name: Read authorized_keys content
-      ansible.builtin.slurp:
-        src: "/home/{{ item.item }}/.ssh/authorized_keys"
-      loop: "{{ auth_keys_stat.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list }}"
-      register: auth_keys_content
-      ignore_errors: true
-
-    - name: Set authorized_keys_content fact
-      ansible.builtin.set_fact:
-        authorized_keys_content: >-
-          {{
-            auth_keys_content.results
-            | map(attribute='content')
-            | map('b64decode')
-            | list
-          }}
-
-- name: Get all sudoers files
-  ansible.builtin.find:
-    paths:
-      - /etc/sudoers
-      - /etc/sudoers.d/
-    file_type: file
-  register: sudoers_files
-
-- name: Read sudoers files content
-  ansible.builtin.slurp:
-    src: "{{ item.path }}"
-  loop: "{{ sudoers_files.files }}"
-  register: sudoers_raw
-
-- name: Decode sudoers content
-  ansible.builtin.set_fact:
-    sudoers_files_content: >-
-      {{
-        sudoers_raw.results
-        | zip(sudoers_files.files)
-        | map('combine', [{'content': item.0.content | b64decode}, item.1])
-        | list
-      }}
