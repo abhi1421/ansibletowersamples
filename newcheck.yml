@@ -1,5 +1,5 @@
 ---
-- name: Check list of sudo users
+- name: Check list of sudo users including sudoers.d files
   hosts: all
   become: yes
   vars:
@@ -12,10 +12,21 @@
       register: sudoers_main
       ignore_errors: true
 
-    - name: Get sudoers entries from /etc/sudoers.d
-      command: grep -E '^[^#].*ALL' /etc/sudoers.d/*
-      register: sudoers_d
+    - name: List all files in /etc/sudoers.d/
+      find:
+        paths: /etc/sudoers.d
+        file_type: file
+      register: sudoers_d_files
       ignore_errors: true
+
+    - name: Read contents of each file in /etc/sudoers.d/
+      command: grep -Ev '^\s*#' {{ item.path }}
+      loop: "{{ sudoers_d_files.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      register: sudoers_d_content
+      ignore_errors: true
+      when: sudoers_d_files is defined and sudoers_d_files.files | length > 0
 
     - name: Get members of 'wheel' group
       command: getent group wheel
@@ -27,14 +38,26 @@
       register: sudo_group
       ignore_errors: true
 
+    - name: Build sudoers.d report
+      set_fact:
+        sudoers_d_report: |
+          {% if sudoers_d_content.results is defined %}
+          {% for result in sudoers_d_content.results %}
+          ---- {{ result.item.path }} ----
+          {{ result.stdout | default('No non-comment lines') }}
+          {% endfor %}
+          {% else %}
+          No files found or accessible in /etc/sudoers.d/
+          {% endif %}
+
     - name: Combine all sudo user info
       set_fact:
         sudo_report: |
           ==== /etc/sudoers Entries ====
           {{ sudoers_main.stdout if sudoers_main.stdout else 'No entries or inaccessible' }}
 
-          ==== /etc/sudoers.d Entries ====
-          {{ sudoers_d.stdout if sudoers_d.stdout else 'No entries or inaccessible' }}
+          ==== /etc/sudoers.d File Entries ====
+          {{ sudoers_d_report }}
 
           ==== Members of wheel group ====
           {{ wheel_group.stdout if wheel_group.stdout else 'Group not found or empty' }}
