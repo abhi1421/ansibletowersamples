@@ -1,0 +1,86 @@
+---
+- name: Get all users with UID >= 1000 or root
+  ansible.builtin.command: getent passwd
+  register: passwd_output
+
+- name: Parse system users with valid home and shell
+  ansible.builtin.set_fact:
+    valid_users: >-
+      {{
+        passwd_output.stdout_lines
+        | map('split', ':')
+        | selectattr('2', 'int', '>=', 1000)
+        | union([passwd_output.stdout_lines | map('split', ':') | selectattr('0', 'equalto', 'root') | list | first])
+        | map('first')
+        | list
+      }}
+
+- name: Collect sudo privileges per user
+  ansible.builtin.shell: "sudo -l -U {{ item }}"
+  register: sudo_privs
+  loop: "{{ valid_users }}"
+  become: true
+  ignore_errors: true
+
+- name: Format sudo privileges
+  ansible.builtin.set_fact:
+    sudo_privileges: >-
+      {{
+        sudo_privs.results
+        | map(attribute='stdout')
+        | zip(valid_users)
+        | map('reverse')
+        | list
+      }}
+
+- name: Collect authorized_keys
+  vars:
+    authorized_keys_list: []
+  block:
+    - name: Check home dir for each user
+      ansible.builtin.stat:
+        path: "/home/{{ item }}/.ssh/authorized_keys"
+      loop: "{{ valid_users }}"
+      register: auth_keys_stat
+      ignore_errors: true
+
+    - name: Read authorized_keys content
+      ansible.builtin.slurp:
+        src: "/home/{{ item.item }}/.ssh/authorized_keys"
+      loop: "{{ auth_keys_stat.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list }}"
+      register: auth_keys_content
+      ignore_errors: true
+
+    - name: Set authorized_keys_content fact
+      ansible.builtin.set_fact:
+        authorized_keys_content: >-
+          {{
+            auth_keys_content.results
+            | map(attribute='content')
+            | map('b64decode')
+            | list
+          }}
+
+- name: Get all sudoers files
+  ansible.builtin.find:
+    paths:
+      - /etc/sudoers
+      - /etc/sudoers.d/
+    file_type: file
+  register: sudoers_files
+
+- name: Read sudoers files content
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ sudoers_files.files }}"
+  register: sudoers_raw
+
+- name: Decode sudoers content
+  ansible.builtin.set_fact:
+    sudoers_files_content: >-
+      {{
+        sudoers_raw.results
+        | zip(sudoers_files.files)
+        | map('combine', [{'content': item.0.content | b64decode}, item.1])
+        | list
+      }}
