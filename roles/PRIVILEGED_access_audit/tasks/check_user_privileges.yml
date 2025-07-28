@@ -1,19 +1,28 @@
 ---
-- name: Get all users with UID >= 1000 or root
+- name: Get all users from /etc/passwd
   ansible.builtin.command: getent passwd
   register: passwd_output
 
-- name: Parse system users with valid home and shell
+- name: Parse users from getent output
+  ansible.builtin.set_fact:
+    parsed_users: "{{ passwd_output.stdout_lines | map('split', ':') | list }}"
+
+- name: Filter users with UID >= 1000 or root
   ansible.builtin.set_fact:
     valid_users: >-
       {{
-        passwd_output.stdout_lines
-        | map('split', ':')
-        | selectattr('2', 'int', '>=', 1000)
-        | union([passwd_output.stdout_lines | map('split', ':') | selectattr('0', 'equalto', 'root') | list | first])
-        | map('first')
+        parsed_users
+        | selectattr('2', 'int', '>=', 1000')
+        | map('0')
         | list
+        + (
+          parsed_users
+          | selectattr('0', 'equalto', 'root')
+          | map('0')
+          | list
+        )
       }}
+
 
 - name: Collect sudo privileges per user
   ansible.builtin.shell: "sudo -l -U {{ item }}"
