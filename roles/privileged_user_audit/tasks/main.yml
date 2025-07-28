@@ -32,7 +32,7 @@
     paths:
       - /etc/sudoers
       - /etc/sudoers.d
-    file_type: file
+    file_type: file # Ensure only files are found, not directories like /etc/sudoers.d/ itself if listed as path
     recurse: yes
   register: sudoers_files_found
 
