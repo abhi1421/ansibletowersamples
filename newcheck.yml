@@ -39,13 +39,14 @@
             )
           }}
 
-    - name: Extract sudo users from sudoers lines
+    - name: Extract valid sudo users (excluding Defaults, %, and comments)
       set_fact:
         sudo_users_list: >-
           {{
             all_sudo_lines
-            | map('regex_search', '^[^#%\\s]+')
-            | select('defined') | list | unique
+            | reject("match", "^(#|Defaults|%|\\s*$)")            # remove comments, Defaults, groups
+            | map("regex_search", "^([a-zA-Z0-9._-]+)\\s")        # extract only the username part
+            | select("defined") | list | unique
           }}
 
     - name: Check members of wheel group
@@ -75,7 +76,7 @@
       loop_control:
         label: "{{ item }}"
       register: user_accessible_dirs
-      when: sudo_users_list | length > 0
+      ignore_errors: true
 
     - name: Build sudo user accessible directory report
       set_fact:
