@@ -12,12 +12,13 @@
     valid_users: >-
       {{
         parsed_users
-        | selectattr('2', 'int', '>=', 1000')
-        | map('0')
-        | list
+        | selectattr('0', 'equalto', 'root')
+        | map('0') | list
         + (
           parsed_users
-          | selectattr('0', 'equalto', 'root')
+          | selectattr('2', 'defined')
+          | selectattr('2', 'match', '^[0-9]+$')
+          | select('select', lambda x: x[2]|int >= 1000)
           | map('0')
           | list
         )
