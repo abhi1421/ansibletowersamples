@@ -1,49 +1,54 @@
 ---
-# tasks/08_configure_setenv.yml
-- name: Define Instana setenv file path and lines
-  ansible.builtin.set_fact:
-    instana_setenv_path: "/opt/instana/agent/bin/setenv"
-    instana_setenv_lines:
-      - "INSTANA_APPEND_FQDN_TO_AGENT_ID=true"
-      - "export INSTANA_APPEND_FQDN_TO_AGENT_ID"
-  tags: [configure_setenv]
-  # Define the target file path and the lines to be added.
+- name: Configure Instana setenv file (Standalone Playbook)
+  hosts: all # Replace with your actual host/group
+  become: true             # Add if privileged access is needed for /opt/instana/agent/bin/setenv
 
-- name: Check if Instana setenv file exists
-  ansible.builtin.stat:
-    path: "{{ instana_setenv_path }}"
-  register: setenv_file_stat
-  tags: [configure_setenv]
-  # Check the status of the setenv file to determine if it needs to be created.
-
-- name: Create Instana setenv file if it does not exist
-  ansible.builtin.file:
-    path: "{{ instana_setenv_path }}"
-    state: file
-    mode: '0644' # Standard file permissions
-    owner: root # Assuming root ownership for system files
-    group: root # Assuming root group for system files
-  when: not setenv_file_stat.stat.exists
-  tags: [configure_setenv]
-  # Create the setenv file if the stat check revealed it's missing.
-
-- name: Echo message after ensuring setenv file existence
-  ansible.builtin.debug:
-    msg: "Instana setenv file '{{ instana_setenv_path }}' ensured."
-  tags: [configure_setenv]
-
-- name: Add/Ensure specific lines in Instana setenv file
-  ansible.builtin.lineinfile:
-    path: "{{ instana_setenv_path }}"
-    line: "{{ item }}"
-    state: present # Ensures the line is present; if it exists, it won't be added again.
-    insertafter: EOF # Add lines at the end of the file.
-  loop: "{{ instana_setenv_lines }}"
-  tags: [configure_setenv]
-  # Loop through the defined lines and ensure each one is present in the setenv file.
-  # 'state: present' handles idempotency, adding lines only if they don't already exist.
-
-- name: Echo message after configuring setenv file
-  ansible.builtin.debug:
-    msg: "Lines added/ensured in '{{ instana_setenv_path }}'."
-  tags: [configure_setenv]
+  tasks:
+    - name: Define Instana setenv file path and lines
+      ansible.builtin.set_fact:
+        instana_setenv_path: "/opt/instana/agent/bin/setenv"
+        instana_setenv_lines:
+          - "INSTANA_APPEND_FQDN_TO_AGENT_ID=true"
+          - "export INSTANA_APPEND_FQDN_TO_AGENT_ID"
+      tags: [configure_setenv]
+      # Define the target file path and the lines to be added.
+    
+    - name: Check if Instana setenv file exists
+      ansible.builtin.stat:
+        path: "{{ instana_setenv_path }}"
+      register: setenv_file_stat
+      tags: [configure_setenv]
+      # Check the status of the setenv file to determine if it needs to be created.
+    
+    - name: Create Instana setenv file if it does not exist
+      ansible.builtin.file:
+        path: "{{ instana_setenv_path }}"
+        state: file
+        mode: '0644' # Standard file permissions
+        owner: root # Assuming root ownership for system files
+        group: root # Assuming root group for system files
+      when: not setenv_file_stat.stat.exists
+      tags: [configure_setenv]
+      # Create the setenv file if the stat check revealed it's missing.
+    
+    - name: Echo message after ensuring setenv file existence
+      ansible.builtin.debug:
+        msg: "Instana setenv file '{{ instana_setenv_path }}' ensured."
+      tags: [configure_setenv]
+    
+    - name: Add/Ensure specific lines in Instana setenv file
+      ansible.builtin.lineinfile:
+        path: "{{ instana_setenv_path }}"
+        line: "{{ item }}"
+        state: present # Ensures the line is present; if it exists, it won't be added again.
+        insertafter: EOF # Add lines at the end of the file.
+      loop: "{{ instana_setenv_lines }}"
+      tags: [configure_setenv]
+      # Loop through the defined lines and ensure each one is present in the setenv file.
+      # 'state: present' handles idempotency, adding lines only if they don't already exist.
+    
+    - name: Echo message after configuring setenv file
+      ansible.builtin.debug:
+        msg: "Lines added/ensured in '{{ instana_setenv_path }}'."
+      tags: [configure_setenv]
+    
