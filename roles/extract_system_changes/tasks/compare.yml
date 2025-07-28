@@ -24,7 +24,7 @@
     - name: Save diff output
       copy:
 #        content: "{{ file_diff.results[loop.index0].stdout | default('No change detected') }}"
-        content: "{{ file_diff.results | default('No change detected') }}"
+        content: "{{ file_diff.results[loop.index0] | default('No change detected') }}"
         dest: "{{ system_change_output_dir }}/{{ timestamp }}/diff_{{ item }}"
       loop: "{{ files_to_compare }}"
       loop_control:
