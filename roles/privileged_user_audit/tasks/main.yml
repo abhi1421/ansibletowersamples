@@ -4,19 +4,52 @@
     database: passwd
   register: all_users_info
 
-- name: Initialize usernames and home directories lists/dicts
+- name: Initialize raw user data lists/dicts
   ansible.builtin.set_fact:
-    system_users: []
-    user_home_dirs: {}
+    raw_system_users: []
+    raw_user_home_dirs: {}
 
-- name: Populate system_users and user_home_dirs with robust checks
+# Step 1: Populate raw user data with *only basic structural checks*
+- name: Populate raw system_users and user_home_dirs
   ansible.builtin.set_fact:
-    system_users: "{{ system_users + [ user_info.key ] }}"
-    user_home_dirs: "{{ user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # HOME_DIRECTORY (Correct Index)
+    raw_system_users: "{{ raw_system_users + [ user_info.key ] }}"
+    raw_user_home_dirs: "{{ raw_user_home_dirs | combine({user_info.key: user_info.value[5]}) }}" # HOME_DIRECTORY
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   loop_control:
     loop_var: user_info
-  when: "user_info.value is defined and user_info.value is iterable and user_info.value | length > 5 and user_info.value[5] is defined and user_info.value[5] is string and user_info.value[6] is defined and user_info.value[6] is string and (user_info.key == 'root' or (user_info.value[2] | int >= 1000 and user_info.value[5].startswith('/') and not (user_info.value[6] in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin', '/bin', '/sbin']) and not (user_info.value[5] in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])))"
+  when: > # Basic data structure validation (should pass for almost all passwd entries)
+    user_info.value is defined and
+    user_info.value is iterable and
+    user_info.value | length > 5 and # Ensure index 5 (home) and 6 (shell) exist
+    user_info.value[5] is defined and user_info.value[5] is string and
+    user_info.value[6] is defined and user_info.value[6] is string
+
+# Step 2: Filter raw user data to get only "login" users (root, ansible, etc.)
+- name: Filter raw user data into system_users and user_home_dirs (for audit scope)
+  ansible.builtin.set_fact:
+    system_users: |
+      {% set filtered_users = [] %}
+      {% for user_key in raw_system_users %}
+        {% set user_info_value = all_users_info.ansible_facts.getent_passwd[user_key] %}
+        {% if user_info_value is defined and user_info_value is iterable and user_info_value | length > 5 %}
+          {% set home_dir = user_info_value[5] %}
+          {% set shell = user_info_value[6] %}
+          {% set uid = user_info_value[2] | int %}
+
+          {% if (user_key == 'root') or # Explicitly include 'root'
+                 (uid >= 1000 and # Include users with UID 1000 or higher
+                  home_dir is string and home_dir.startswith('/') and # Valid home dir path
+                  not (shell in ['/sbin/nologin', '/bin/false', '/usr/sbin/nologin', '/sbinologin', '/usr/bin/nologin', '/bin', '/sbin']) and # Exclude nologin/binary shells
+                  not (home_dir in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound']) # Exclude non-user home paths
+                 )
+          %}
+            {% set _ = filtered_users.append(user_key) %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+      {{ filtered_users }}
+    # user_home_dirs itself doesn't need to be re-filtered here, as we reference raw_user_home_dirs later.
+    # The variable user_home_dirs is now effectively derived from raw_user_home_dirs based on system_users.
 
 - name: Initialize privileged access report data structure
   ansible.builtin.set_fact:
@@ -32,7 +65,7 @@
     paths:
       - /etc/sudoers
       - /etc/sudoers.d
-    file_type: file # Ensure only files are found, not directories like /etc/sudoers.d/ itself if listed as path
+    file_type: file
     recurse: yes
   register: sudoers_files_found
 
@@ -60,7 +93,7 @@
   ansible.builtin.command: "sudo -l -U {{ item }}"
   become: yes
   register: user_sudo_output
-  loop: "{{ system_users }}"
+  loop: "{{ system_users }}" # Loop over the now filtered list
   loop_control:
     label: "{{ item }}"
   ignore_errors: true
@@ -77,13 +110,14 @@
 
 - name: Check authorized_keys for each user and collect data
   ansible.builtin.include_tasks: check_user_privileges.yml
-  loop: "{{ system_users }}"
+  loop: "{{ system_users }}" # Loop over the now filtered list
   loop_control:
     loop_var: current_user
     label: "Processing authorized_keys for {{ current_user }}"
   vars:
-    user_specific_home_dir: "{{ user_home_dirs[current_user] }}"
-  when: user_home_dirs[current_user] is defined and user_home_dirs[current_user] is not none
+    # Pass the filtered home directory to the included task
+    user_specific_home_dir: "{{ raw_user_home_dirs[current_user] }}"
+  when: raw_user_home_dirs[current_user] is defined and raw_user_home_dirs[current_user] is not none
 
 - name: Get permissions for sensitive directories
   ansible.builtin.stat:

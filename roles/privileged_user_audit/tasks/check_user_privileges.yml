@@ -1,6 +1,6 @@
 # privileged_access_audit/tasks/check_user_privileges.yml
 ---
-# TEMPORARY DEBUG TASK - Remove after successful verification.
+# IMPORTANT: Remove this DEBUG task after successful verification. It's for troubleshooting.
 - name: DEBUG - Confirming exact .ssh directory path being attempted for {{ current_user }}
   ansible.builtin.debug:
     msg: "Attempted .ssh path for {{ current_user }}: '{{ user_specific_home_dir }}/.ssh'"
@@ -16,15 +16,19 @@
   register: ssh_dir_stat
   ignore_errors: true # Allow this task to fail if .ssh doesn't exist or is not a directory
   when:
-    # Simplify check here. The main filtering is done in main.yml.
+    # Primary check: The home directory must start with / and not be a problematic system binary/device path
     - user_specific_home_dir is defined and user_specific_home_dir is string and user_specific_home_dir.startswith('/')
+    - not (user_specific_home_dir in ['/bin', '/sbin', '/proc', '/dev/null', '/run', '/var/empty/sshd', '/var/lib/colord', '/var/cache/clevis', '/var/run/avahi-daemon', '/var/lib/chrony', '/var/lib/setroubleshoot', '/var/lib/dnsmasq', '/var/lib/gdm', '/run/gnome-initial-setup/', '/run/pesign', '/var/lib/rpcbind', '/var/libfs', '/var/lib/dnsmasq', '/var/lib/geoclue', '/var/spool/lpd', '/var/spool/mail', '/var/adm', '/var/ftp', '/usr/games', '/etc/unbound'])
+    # Secondary check: The actual home directory must exist and be a directory (using inline stat for this check)
+    - ansible.builtin.stat(user_specific_home_dir).stat.exists | default(false)
+    - ansible.builtin.stat(user_specific_home_dir).stat.isdir | default(false)
 
 
 - name: Stat authorized_keys file for {{ current_user }}
   ansible.builtin.stat:
     path: "{{ user_specific_home_dir }}/.ssh/authorized_keys"
   register: auth_keys_stat
-  ignore_errors: true
+  ignore_errors: true # Allow this task to fail if authorized_keys doesn't exist or is not a file
   when:
     - ssh_dir_stat is success # Ensure previous stat for .ssh was successful
     - ssh_dir_stat.stat is defined and ssh_dir_stat.stat.exists # .ssh directory path exists
