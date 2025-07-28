@@ -75,11 +75,11 @@
 #        dest: "{{ sudo_report_file }}"
 
 
-- name: Comprehensive sudo user audit
+- name: Privileged access audit report
   hosts: all
   become: yes
   vars:
-    sudo_report_file: "/tmp/sudo_users_report_{{ inventory_hostname }}.txt"
+    privileged_report_file: "/tmp/privileged_access_audit_{{ inventory_hostname }}.txt"
 
   tasks:
 
@@ -109,10 +109,19 @@
       register: wheel_group
       ignore_errors: true
 
-    - name: Get members of 'sudo' group
-      command: getent group sudo
-      register: sudo_group
-      ignore_errors: true
+    - name: Check if 'sudo' group exists
+      shell: getent group sudo || echo 'group_not_found'
+      register: sudo_group_check
+      changed_when: false
+
+    - name: Set sudo group output or fallback
+      set_fact:
+        sudo_group: >-
+          {{
+            {
+              "stdout": (sudo_group_check.stdout if 'group_not_found' not in sudo_group_check.stdout else 'Group not found or empty')
+            }
+          }}
 
     - name: Build sudoers.d report
       set_fact:
@@ -136,12 +145,15 @@
                 sudoers_d_content.results | default([]) | map(attribute='stdout_lines') | list | sum(start=[])
               )
             )
-            | map('regex_findall', '^([^#\\s%][^\\s]+)\\s+ALL') 
-            | sum(start=[]) 
-            | unique
+            | map('regex_search', '^[^#%\\s]+')  # First token of valid user lines
+            | select('defined') | list | unique
           }}
 
-    - name: Check accessible directories for each sudo user
+    - name: Debug parsed sudo users (optional)
+      debug:
+        var: sudo_users_list
+
+    - name: Check accessible directories for each sudo user (non-sudo)
       shell: |
         sudo -u {{ item }} bash -c 'find /etc /opt /usr /home /var -maxdepth 2 -type d -readable -exec ls -ld {} \; 2>/dev/null | awk "{print \$9}" | sort -u'
       loop: "{{ sudo_users_list }}"
@@ -149,7 +161,6 @@
         label: "{{ item }}"
       register: sudo_user_dir_access
       ignore_errors: true
-
 
     - name: Build sudo user accessible directory report
       set_fact:
@@ -160,9 +171,9 @@
           {{ result.stdout if result.stdout else 'No accessible directories found or user does not exist' }}
           {% endfor %}
 
-    - name: Combine full sudo report
+    - name: Combine full privileged access report
       set_fact:
-        sudo_report: |
+        privileged_access_report: |
           ==== /etc/sudoers Entries ====
           {{ sudoers_main.stdout if sudoers_main.stdout else 'No entries or inaccessible' }}
 
@@ -173,15 +184,15 @@
           {{ wheel_group.stdout if wheel_group.stdout else 'Group not found or empty' }}
 
           ==== Members of sudo group ====
-          {{ sudo_group.stdout if sudo_group.stdout else 'Group not found or empty' }}
+          {{ sudo_group.stdout }}
 
           {{ sudo_access_dirs_report }}
 
-    - name: Show sudo access summary
+    - name: Show privileged access audit summary
       debug:
-        msg: "{{ sudo_report }}"
+        msg: "{{ privileged_access_report }}"
 
-    - name: Save sudo access summary to file on target
+    - name: Save privileged access audit to file on target
       copy:
-        content: "{{ sudo_report }}"
-        dest: "{{ sudo_report_file }}"
+        content: "{{ privileged_access_report }}"
+        dest: "{{ privileged_report_file }}"
