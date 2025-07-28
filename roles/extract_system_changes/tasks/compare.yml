@@ -8,7 +8,7 @@
   block:
     - name: Run diff for {{ item }}
       command: >
-        diff -u {{ system_change_output_dir }}/{{ previous_date }}/{{ item }}
+        diff {{ system_change_output_dir }}/{{ previous_date }}/{{ item }}
                 {{ system_change_output_dir }}/{{ timestamp }}/{{ item }}
       register: file_diff
       failed_when: false
