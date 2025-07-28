@@ -15,12 +15,12 @@
   set_fact:
     regular_users: >-
       {{ parsed_users
-         | selectattr('2', 'defined')
-         | selectattr('2', 'match', '^[0-9]+$')
-         | selectattr('2', 'int')
-         | selectattr('2', 'int', '>=', 1000)
+         | select('defined')
+         | select('match', '^[0-9]+$', attribute=2)
+         | select('select', lambda x: (x[2] | int) >= 1000)
          | map(attribute=0)
          | list }}
+
 
 - name: Combine valid users
   set_fact:
