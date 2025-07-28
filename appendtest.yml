@@ -1,6 +1,5 @@
 ---
 # tasks/08_configure_setenv.yml
-
 - name: Define Instana setenv file path and lines
   ansible.builtin.set_fact:
     instana_setenv_path: "/opt/instana/agent/bin/setenv"
