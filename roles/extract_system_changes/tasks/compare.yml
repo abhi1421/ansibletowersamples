@@ -19,7 +19,7 @@
 
     - name: output print
       debug:
-        var: file_diff.stdout
+        var: file_diff
 
 #    - name: Save diff output
 #      copy:
