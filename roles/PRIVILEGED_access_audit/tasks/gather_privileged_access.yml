@@ -1,0 +1,18 @@
+---
+- name: Include check_user_privileges
+  ansible.builtin.include_tasks: check_user_privileges.yml
+
+- name: Gather permissions for sensitive directories
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: no
+  loop: "{{ sensitive_directories }}"
+  register: sensitive_directories_status
+
+- name: Set privileged_report_data
+  ansible.builtin.set_fact:
+    privileged_report_data:
+      sudo_privileges: "{{ sudo_privileges }}"
+      authorized_keys_content: "{{ authorized_keys_content }}"
+      sensitive_dirs: "{{ sensitive_directories_status.results }}"
+      sudoers_files: "{{ sudoers_files_content }}"

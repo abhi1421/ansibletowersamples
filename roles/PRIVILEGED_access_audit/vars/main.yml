@@ -1,0 +1,18 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for PRIVILEGED_access_audit
+sensitive_directories:
+  - /etc
+  - /etc/ssh
+  - /root
+  - /var/log
+  - /var/log/audit
+  - /opt
+  - /usr/local/bin
+  - /usr/sbin
+  - /bin
+  - /sbin
+  - /boot
+  - /usr/local/etc
+  - /srv
+  - /home
