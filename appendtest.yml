@@ -12,14 +12,14 @@
           - "export INSTANA_APPEND_FQDN_TO_AGENT_ID"
       tags: [configure_setenv]
       # Define the target file path and the lines to be added.
-    
+
     - name: Check if Instana setenv file exists
       ansible.builtin.stat:
         path: "{{ instana_setenv_path }}"
       register: setenv_file_stat
       tags: [configure_setenv]
       # Check the status of the setenv file to determine if it needs to be created.
-    
+
     - name: Create Instana setenv file if it does not exist
       ansible.builtin.file:
         path: "{{ instana_setenv_path }}"
@@ -27,15 +27,16 @@
         mode: '0644' # Standard file permissions
         owner: root # Assuming root ownership for system files
         group: root # Assuming root group for system files
+        recurse: true # CRITICAL FIX: Create parent directories if they do not exist
       when: not setenv_file_stat.stat.exists
       tags: [configure_setenv]
-      # Create the setenv file if the stat check revealed it's missing.
-    
+      # Create the setenv file if the stat check revealed it's missing, and create parent directories if needed.
+
     - name: Echo message after ensuring setenv file existence
       ansible.builtin.debug:
         msg: "Instana setenv file '{{ instana_setenv_path }}' ensured."
       tags: [configure_setenv]
-    
+
     - name: Add/Ensure specific lines in Instana setenv file
       ansible.builtin.lineinfile:
         path: "{{ instana_setenv_path }}"
@@ -46,9 +47,8 @@
       tags: [configure_setenv]
       # Loop through the defined lines and ensure each one is present in the setenv file.
       # 'state: present' handles idempotency, adding lines only if they don't already exist.
-    
+
     - name: Echo message after configuring setenv file
       ansible.builtin.debug:
         msg: "Lines added/ensured in '{{ instana_setenv_path }}'."
       tags: [configure_setenv]
-    
