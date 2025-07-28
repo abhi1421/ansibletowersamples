@@ -17,14 +17,18 @@
       loop_control:
         loop_var: item
 
-    - name: Save diff output
-      copy:
+    - name: output print
+      debug:
+        var: file_diff.stdout
+
+#    - name: Save diff output
+#      copy:
 #        content: "{{ file_diff.results[loop.index0].stdout | default('No change detected') }}"
-        content: "{{ file_diff.results.stdout | default('No change detected') }}"
-        dest: "{{ system_change_output_dir }}/{{ timestamp }}/diff_{{ item }}"
-      loop: "{{ files_to_compare }}"
-      loop_control:
-        loop_var: item
+#        content: "{{ file_diff.results.stdout | default('No change detected') }}"
+#        dest: "{{ system_change_output_dir }}/{{ timestamp }}/diff_{{ item }}"
+#      loop: "{{ files_to_compare }}"
+#      loop_control:
+#        loop_var: item
 
 - name: Create empty diff files if no previous snapshot
   when: not prev_dir.stat.exists
