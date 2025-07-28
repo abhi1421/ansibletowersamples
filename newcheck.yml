@@ -141,15 +141,15 @@
             | unique
           }}
 
-    - name: Check readable directories (non-sudo) for each sudo user
-      become: false
+    - name: Check accessible directories for each sudo user
       shell: |
-        sudo -u {{ item }} bash -c 'find /etc /opt /usr /home /var -type d -readable -exec ls -ld {} \; 2>/dev/null | awk "{print \$9}" | sort -u'
+        sudo -u {{ item }} bash -c 'find /etc /opt /usr /home /var -maxdepth 2 -type d -readable -exec ls -ld {} \; 2>/dev/null | awk "{print \$9}" | sort -u'
       loop: "{{ sudo_users_list }}"
       loop_control:
         label: "{{ item }}"
       register: sudo_user_dir_access
       ignore_errors: true
+
 
     - name: Build sudo user accessible directory report
       set_fact:
