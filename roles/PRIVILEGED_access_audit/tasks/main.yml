@@ -1,10 +1,3 @@
 ---
 - name: Gather privileged access data
-  ansible.builtin.include_tasks: gather_privileged_access.yml
-
-- name: Generate Privileged Access Audit Report
-  ansible.builtin.template:
-    src: privileged_access_audit_report.j2
-    dest: "/tmp/privileged_access_audit_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.txt"
-  vars:
-    report_data: "{{ privileged_report_data }}"
+  include_tasks: gather_privileged_access.yml

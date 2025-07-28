@@ -1,59 +1,52 @@
 Privileged Access Audit Report
-Generated On: {{ ansible_date_time.iso8601 }}
+Generated On: {{ report_timestamp }}
 Audited Host: {{ ansible_hostname }}
 
 ================================================================================
 SECTION 1: Sudo Privileges Overview
 ================================================================================
-
-{% for user, privs in report_data.sudo_privileges %}
-User: {{ user }}
-{{ privs | indent(2) }}
----
+{% if sudoers_main is defined and sudoers_main.content is defined %}
+File: /etc/sudoers
+{{ sudoers_main.content | b64decode }}
 {% else %}
 No sudo privilege information collected.
+{% endif %}
+
+{% if sudoers_d_contents.results is defined %}
+{% for item in sudoers_d_contents.results %}
+---
+File: {{ item.item.path }}
+{{ item.content | b64decode }}
 {% endfor %}
+{% endif %}
 
 ================================================================================
 SECTION 2: Authorized Keys Content
 ================================================================================
-
-{% for keys in report_data.authorized_keys_content %}
-{{ keys | indent(2) }}
+{% if authorized_keys.results is defined %}
+{% for item in authorized_keys.results %}
+User: {{ item.item }}
+{% if item.content is defined %}
+{{ item.content | b64decode }}
+{% else %}
+No authorized_keys found.
+{% endif %}
 ---
+{% endfor %}
 {% else %}
 No authorized_keys information collected.
-{% endfor %}
+{% endif %}
 
 ================================================================================
 SECTION 3: Permissions on Sensitive Directories
 ================================================================================
-
 This section lists the owner, group, and permissions for pre-defined sensitive directories.
 Review this against sudo users and group memberships to identify potential access concerns.
-
-{% for item in report_data.sensitive_dirs %}
+{% for item in dir_permissions.results %}
 Path: {{ item.stat.path }}
 Owner: {{ item.stat.pw_name }}
 Group: {{ item.stat.gr_name }}
-Permissions (Octal): {{ "%0o"|format(item.stat.mode|int)[-4:] }}
+Permissions (Octal): {{ "%04o"|format(item.stat.mode|int(base=10)) }}
 Is Symbolic Link: {{ item.stat.islnk }}
 ---
-{% else %}
-No sensitive directory data collected.
-{% endfor %}
-
-================================================================================
-SECTION 4: Raw Sudoers Files Content
-================================================================================
-
-This section provides the raw content of /etc/sudoers and files in /etc/sudoers.d/.
-Review these files for explicit sudo rules, aliases, and inclusions.
-
-{% for file in report_data.sudoers_files %}
-File: {{ file.path }}
-{{ file.content | indent(2) }}
----
-{% else %}
-No sudoers file content collected.
 {% endfor %}
