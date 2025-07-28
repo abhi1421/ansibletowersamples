@@ -6,7 +6,7 @@
   tasks:
     - name: Define Instana setenv file path and lines
       ansible.builtin.set_fact:
-        instana_setenv_path: "/opt/instana/agent/bin/setenv"
+        instana_setenv_path: "/etc/setenv"
         instana_setenv_lines:
           - "INSTANA_APPEND_FQDN_TO_AGENT_ID=true"
           - "export INSTANA_APPEND_FQDN_TO_AGENT_ID"
