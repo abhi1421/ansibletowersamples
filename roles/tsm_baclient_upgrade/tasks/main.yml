@@ -1,0 +1,12 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for tsm_baclient_upgrade
+
+- name: Include Prechecks
+  import_tasks: precheck.yml
+
+- name: Include Upgrade Tasks
+  import_tasks: upgrade.yml
+
+- name: Include Postchecks
+  import_tasks: postcheck.yml
