@@ -1,0 +1,9 @@
+---
+
+- name: Verify upgraded TSM BA Client version
+  shell: rpm -qa | grep -i tivsm || true
+  register: upgraded_version
+
+- name: Show upgraded TSM BA Client packages
+  debug:
+    var: upgraded_version.stdout_lines

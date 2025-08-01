@@ -1,0 +1,19 @@
+---
+
+- name: Extract the tar.gz
+  ansible.builtin.unarchive:
+    src: "{{ tsm_temp_dir }}/{{ tsm_tar_file }}"
+    dest: "{{ tsm_temp_dir }}"
+    remote_src: yes
+    creates: "{{ tsm_extract_dir }}"
+
+- name: Install or upgrade TSM BA Client RPMs
+  shell: >
+    rpm -Uvh {{ tsm_rpm_files | join(' ') }}
+  args:
+    chdir: "{{ tsm_extract_dir }}"
+  register: rpm_upgrade_output
+
+- name: Show RPM upgrade output
+  debug:
+    var: rpm_upgrade_output.stdout_lines

@@ -1,0 +1,32 @@
+---
+
+- name: Check current TSM BA Client version
+  shell: rpm -qa | grep -i tivsm || true
+  register: current_version
+
+- name: Show installed TSM BA Client packages
+  debug:
+    var: current_version.stdout_lines
+
+- name: Check if tar file already exists in /tmp
+  stat:
+    path: "{{ tsm_temp_dir }}/{{ tsm_tar_file }}"
+  register: tar_file_stat
+
+- name: Copy tar.gz to /tmp if not present
+  copy:
+    src: "{{ tsm_tar_file }}"
+    dest: "{{ tsm_temp_dir }}/{{ tsm_tar_file }}"
+    mode: '0644'
+  when: not tar_file_stat.stat.exists
+
+- name: Check if extraction directory already exists
+  stat:
+    path: "{{ tsm_extract_dir }}"
+  register: extract_dir_stat
+
+- name: Remove old extracted directory if exists
+  file:
+    path: "{{ tsm_extract_dir | regex_replace('/tsmcli/linux390$', '') }}"
+    state: absent
+  when: extract_dir_stat.stat.exists

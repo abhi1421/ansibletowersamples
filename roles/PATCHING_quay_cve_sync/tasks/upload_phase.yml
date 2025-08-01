@@ -34,6 +34,14 @@
     owner: core
     group: core
 
+- name: Login to the hub to perform further uploading
+  shell: oc login --server https://api.ek3nphub.rbi1.rbi.org.in:6443 -uocpadmin --insecure-skip-tls-verify=true
+#  register: hublogin_status
+
+- name: Check if the hub login is done
+  shell: oc whoami --show-console
+  register: hublogin_status
+
 - name: Apply ubi-minimal pod on upload host
   ansible.builtin.command: "oc apply -f {{ quay_cve_upload_dir }}/ubi-minimal-pod-{{ ansible_hostname | lower | replace('-', '') }}.yaml -n {{ quay_namespace }}"
   register: oc_apply_pod_result
@@ -79,6 +87,14 @@
   ansible.builtin.pause:
     seconds: 5
 
+- name: Check the connectivity with localhost on port 5432
+  shell: nc -zv localhost 5432
+  register: checkport_status
+
+- name: Show connectivity
+  debug:
+    var: checkport_status
+
 - name: Import CVE updates to Clair DB using clairctl (local connection via port-forward)
   # This clairctl command will connect to localhost:5432 due to the port-forward.
   ansible.builtin.command: >
@@ -89,22 +105,6 @@
   changed_when: "'Successfully imported' in clairctl_import_result.stdout"
   failed_when: clairctl_import_result.rc != 0 or
                "'Successfully imported' not in clairctl_import_result.stdout"
-  # IMPORTANT: The clair-config.yaml on the download host has paths like /data/clair-cve-data/clair-mapping-files.
-  # When running clairctl *inside* the pod (or on the host accessing the PVC), the paths
-  # need to reflect the mount point, which is /data.
-  # The `replace` filter is used here to adjust the config path for the `import-updaters` command.
-  # This assumes the config file is also copied to /data in the temp pod, or that clairctl can be run
-  # from the host and access the PVC directly. Given the `oc cp` to `/data`, it implies the files
-  # are accessible via `/data` in the context where `clairctl import-updaters` is run.
-  # If `clairctl` is run on the host, it needs to access the files via the PVC mount point,
-  # which usually means the `quay_cve_upload_dir` path.
-  # Let's clarify: `clairctl import-updaters` needs to be run on the upload host, and it needs
-  # to find `updates.gz` and `clair-config.yaml`. The `oc cp` copies to `/data` *in the pod*.
-  # If `clairctl` is run on the *host*, it needs to access the files at `quay_cve_upload_dir`.
-  # The user's script for import was `$ clairctl --config clair-config.yaml import-updaters updates.gz`
-  # implying it's run from the directory containing these files.
-  # Let's assume `clairctl` runs on the host and accesses `quay_cve_upload_dir`.
-  # The port-forward is on the host. So the config path should be the host path.
 
 - name: Kill Clair DB port-forward process
   ansible.builtin.command: "kill {{ port_forward_pid.stdout }}"

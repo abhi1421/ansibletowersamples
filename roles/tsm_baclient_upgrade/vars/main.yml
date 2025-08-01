@@ -1,0 +1,14 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for tsm_baclient_upgrade
+tsm_tar_file: "SP_CLIENT_8.1.27_LIN_SYSZ_ML.tar.gz"
+tsm_temp_dir: "/tmp"
+tsm_extract_dir: "/tmp/TSMCLI_LNX390/tsmcli/linux390"
+tsm_rpm_files:
+  - "gskssl64-8.0.60.4.linux.s390x.rpm"
+  - "gskcrypt64-8.0.60.4.linux.s390x.rpm"
+  - "TIVsm-API64.s390x.rpm"
+  - "TIVsm-APIcit.s390x.rpm"
+  - "TIVsm-BA.s390x.rpm"
+  - "TIVsm-BAcit.s390x.rpm"
+  - "TIVsm-WEBGUI.s390x.rpm"
