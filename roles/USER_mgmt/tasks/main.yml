@@ -110,145 +110,122 @@
 #  loop: "{{ user_groups }}"
 #  when: user_action == "groupremove"
 
+
 ---
 # This playbook handles all user management tasks based on the `users` variable.
-# It loops through a list of users, and for each user, it loops through a list of actions
-# to perform, using conditional statements to execute the correct task.
+# It uses the `subelements` lookup plugin to iterate through each user and their
+# corresponding actions in a single, clean loop.
 
 - name: "Perform user management tasks"
-  # The `loop` attribute must be on the task itself, and the `block` is a child of that task.
-  loop: "{{ users }}"
+  # This loop iterates through the `users` variable and then iterates through the
+  # `actions` list for each user, making the nested loop more explicit and reliable.
+  loop: "{{ query('subelements', users, 'actions') }}"
   loop_control:
+    # `user_item` holds the user dictionary
     loop_var: user_item
+    # `action_item` holds the action dictionary
+    subelements: action_item
   
-  # This block will be executed for each user in the loop.
-  block:
-    - name: "Processing user '{{ user_item.username }}'"
-      ansible.builtin.debug:
-        msg: "Starting actions for user: {{ user_item.username }}"
+# --- ADD user ---
+- name: "Action: add user '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    state: present
+    comment: "{{ action_item.comment | default('Managed by Ansible') }}"
+    shell: "{{ action_item.shell | default('/bin/bash') }}"
+    password: "{{ action_item.password | default(omit) }}"
+    groups: "{{ action_item.groups | default(omit) }}"
+    append: "{{ action_item.append | default('yes') }}"
+  when: action_item.type == 'add'
 
-    - name: "Processing actions for '{{ user_item.username }}'"
-      # Loop through the list of actions defined for the current user.
-      loop: "{{ user_item.actions }}"
-      loop_control:
-        loop_var: action_item
-      # This block contains a series of tasks, each with a `when` condition
-      # to match a specific action type.
-      block:
-        # --- ADD user ---
-        - name: "Action: add user '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            state: present
-            comment: "{{ action_item.comment | default('Managed by Ansible') }}"
-            shell: "{{ action_item.shell | default('/bin/bash') }}"
-            password: "{{ action_item.password | default(omit) }}"
-            groups: "{{ action_item.groups | default(omit) }}"
-            append: "{{ action_item.append | default('yes') }}"
-            # Note: `group` is used for the primary group, but it can be
-            # managed by `groups` with append: no.
-          when: action_item.type == 'add'
+# --- DELETE user ---
+- name: "Action: delete user '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    state: absent
+    remove: "{{ action_item.remove_home | default('yes') }}"
+    force: "{{ action_item.force_delete | default('yes') }}"
+  when: action_item.type == 'delete'
 
-        # --- DELETE user ---
-        - name: "Action: delete user '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            state: absent
-            remove: "{{ action_item.remove_home | default('yes') }}"
-            force: "{{ action_item.force_delete | default('yes') }}"
-          when: action_item.type == 'delete'
+# --- MODIFY user attributes ---
+- name: "Action: modify user '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    comment: "{{ action_item.comment | default(omit) }}"
+    shell: "{{ action_item.shell | default(omit) }}"
+    groups: "{{ action_item.groups | default(omit) }}"
+    append: "{{ action_item.append | default(omit) }}"
+    password: "{{ action_item.password | default(omit) }}"
+    password_lock: "{{ action_item.password_lock | default(omit) }}"
+  when: action_item.type == 'modify'
 
-        # --- MODIFY user attributes ---
-        - name: "Action: modify user '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            comment: "{{ action_item.comment | default(omit) }}"
-            shell: "{{ action_item.shell | default(omit) }}"
-            groups: "{{ action_item.groups | default(omit) }}"
-            append: "{{ action_item.append | default(omit) }}"
-            password: "{{ action_item.password | default(omit) }}"
-            password_lock: "{{ action_item.password_lock | default(omit) }}"
-          when: action_item.type == 'modify'
+# --- LOCK user account ---
+- name: "Action: lock user '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    password_lock: yes
+  when: action_item.type == 'lock'
 
-        # --- LOCK user account ---
-        - name: "Action: lock user '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            password_lock: yes
-          when: action_item.type == 'lock'
+# --- UNLOCK user account ---
+- name: "Action: unlock user '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    password_lock: no
+  when: action_item.type == 'unlock'
 
-        # --- UNLOCK user account ---
-        - name: "Action: unlock user '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            password_lock: no
-          when: action_item.type == 'unlock'
+# --- CHANGE user password ---
+- name: "Action: change password for '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    password: "{{ action_item.password }}"
+  when: action_item.type == 'change_password'
 
-        # --- CHANGE user password ---
-        - name: "Action: change password for '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            password: "{{ action_item.password }}"
-          when: action_item.type == 'change_password'
+# --- SET shell to nologin ---
+- name: "Action: set shell to /sbin/nologin for '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    shell: /sbin/nologin
+  when: action_item.type == 'set_shell_nologin'
 
-        # --- SET shell to nologin ---
-        - name: "Action: set shell to /sbin/nologin for '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            shell: /sbin/nologin
-          when: action_item.type == 'set_shell_nologin'
+# --- RESTORE login shell ---
+- name: "Action: restore login shell for '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    shell: "{{ action_item.shell | default('/bin/bash') }}"
+  when: action_item.type == 'restore_login_shell'
 
-        # --- RESTORE login shell ---
-        - name: "Action: restore login shell for '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            shell: "{{ action_item.shell | default('/bin/bash') }}"
-          when: action_item.type == 'restore_login_shell'
+# --- SHOW user status ---
+- name: "Action: show status for '{{ user_item.username }}'"
+  ansible.builtin.command: "passwd -S {{ user_item.username }}"
+  register: user_status
+  changed_when: false
+  when: action_item.type == 'show_status'
+- name: "Debug: show user status output"
+  ansible.builtin.debug:
+    msg: "{{ user_status.stdout_lines }}"
+  when: action_item.type == 'show_status'
 
-        # --- SHOW user status ---
-        - name: "Action: show status for '{{ user_item.username }}'"
-          ansible.builtin.command: "passwd -S {{ user_item.username }}"
-          register: user_status
-          changed_when: false
-          when: action_item.type == 'show_status'
-        - name: "Debug: show user status output"
-          ansible.builtin.debug:
-            msg: "{{ user_status.stdout_lines }}"
-          when: action_item.type == 'show_status'
+# --- SET primary and secondary groups ---
+- name: "Action: set primary and secondary groups for '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    group: "{{ action_item.primary_group | default(omit) }}"
+    groups: "{{ action_item.secondary_groups | default(omit) }}"
+    append: no
+  when: action_item.type == 'set_groups'
 
-        # --- SET primary and secondary groups ---
-        - name: "Action: set primary and secondary groups for '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            group: "{{ action_item.primary_group | default(omit) }}"
-            groups: "{{ action_item.secondary_groups | default(omit) }}"
-            # `append: no` ensures existing group memberships are overwritten
-            # and replaced by the new ones.
-            append: no
-          when: action_item.type == 'set_groups'
+# --- APPEND to existing groups ---
+- name: "Action: append to existing groups for '{{ user_item.username }}'"
+  ansible.builtin.user:
+    name: "{{ user_item.username }}"
+    groups: "{{ action_item.groups | default(omit) }}"
+    append: yes
+  when: action_item.type == 'append_groups'
 
-        # --- APPEND to existing groups ---
-        - name: "Action: append to existing groups for '{{ user_item.username }}'"
-          ansible.builtin.user:
-            name: "{{ user_item.username }}"
-            groups: "{{ action_item.groups | default(omit) }}"
-            append: yes
-          when: action_item.type == 'append_groups'
-
-        # --- REMOVE from specific groups ---
-        # Note: The `ansible.builtin.user` module cannot remove a user from a specific group.
-        # This task uses a shell command as a workaround.
-        - name: "Action: remove '{{ user_item.username }}' from specific groups"
-          ansible.builtin.shell: "gpasswd -d {{ user_item.username }} {{ item }}"
-          loop: "{{ action_item.groups }}"
-          args:
-            warn: false # Prevents warnings about using the shell module.
-          when: action_item.type == 'remove_groups'
-  
-  # The `rescue` block is used to handle errors gracefully for the entire block
-  # that runs for the user.
-  rescue:
-    - name: "Error processing tasks for user '{{ user_item.username }}'"
-      ansible.builtin.debug:
-        msg: "Failed to perform action for user '{{ user_item.username }}'. Check logs for details."
-      changed_when: false
+# --- REMOVE from specific groups ---
+- name: "Action: remove '{{ user_item.username }}' from specific groups"
+  ansible.builtin.shell: "gpasswd -d {{ user_item.username }} {{ item }}"
+  loop: "{{ action_item.groups }}"
+  args:
+    warn: false
+  when: action_item.type == 'remove_groups'
