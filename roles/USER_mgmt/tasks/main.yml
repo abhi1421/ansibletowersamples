@@ -110,7 +110,6 @@
 #  loop: "{{ user_groups }}"
 #  when: user_action == "groupremove"
 
-
 ---
 # This playbook handles all user management tasks based on the `users` variable.
 # It loops through a list of users, and for each user, it loops through a list of actions
