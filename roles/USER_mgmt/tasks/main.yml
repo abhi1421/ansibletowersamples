@@ -117,7 +117,12 @@
 # to perform, using conditional statements to execute the correct task.
 
 - name: "Perform user management tasks"
-  # This block ensures that if any task fails for a user, the loop continues to the next user.
+  # The `loop` attribute must be on the task itself, and the `block` is a child of that task.
+  loop: "{{ users }}"
+  loop_control:
+    loop_var: user_item
+  
+  # This block will be executed for each user in the loop.
   block:
     - name: "Processing user '{{ user_item.username }}'"
       ansible.builtin.debug:
@@ -132,7 +137,7 @@
       # to match a specific action type.
       block:
         # --- ADD user ---
-        - name: "Action- add user '{{ user_item.username }}'"
+        - name: "Action: add user '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             state: present
@@ -146,7 +151,7 @@
           when: action_item.type == 'add'
 
         # --- DELETE user ---
-        - name: "Action- delete user '{{ user_item.username }}'"
+        - name: "Action: delete user '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             state: absent
@@ -155,7 +160,7 @@
           when: action_item.type == 'delete'
 
         # --- MODIFY user attributes ---
-        - name: "Action- modify user '{{ user_item.username }}'"
+        - name: "Action: modify user '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             comment: "{{ action_item.comment | default(omit) }}"
@@ -167,42 +172,42 @@
           when: action_item.type == 'modify'
 
         # --- LOCK user account ---
-        - name: "Action- lock user '{{ user_item.username }}'"
+        - name: "Action: lock user '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             password_lock: yes
           when: action_item.type == 'lock'
 
         # --- UNLOCK user account ---
-        - name: "Action- unlock user '{{ user_item.username }}'"
+        - name: "Action: unlock user '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             password_lock: no
           when: action_item.type == 'unlock'
 
         # --- CHANGE user password ---
-        - name: "Action- change password for '{{ user_item.username }}'"
+        - name: "Action: change password for '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             password: "{{ action_item.password }}"
           when: action_item.type == 'change_password'
 
         # --- SET shell to nologin ---
-        - name: "Action- set shell to /sbin/nologin for '{{ user_item.username }}'"
+        - name: "Action: set shell to /sbin/nologin for '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             shell: /sbin/nologin
           when: action_item.type == 'set_shell_nologin'
 
         # --- RESTORE login shell ---
-        - name: "Action- restore login shell for '{{ user_item.username }}'"
+        - name: "Action: restore login shell for '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             shell: "{{ action_item.shell | default('/bin/bash') }}"
           when: action_item.type == 'restore_login_shell'
 
         # --- SHOW user status ---
-        - name: "Action- show status for '{{ user_item.username }}'"
+        - name: "Action: show status for '{{ user_item.username }}'"
           ansible.builtin.command: "passwd -S {{ user_item.username }}"
           register: user_status
           changed_when: false
@@ -213,7 +218,7 @@
           when: action_item.type == 'show_status'
 
         # --- SET primary and secondary groups ---
-        - name: "Action- set primary and secondary groups for '{{ user_item.username }}'"
+        - name: "Action: set primary and secondary groups for '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             group: "{{ action_item.primary_group | default(omit) }}"
@@ -224,7 +229,7 @@
           when: action_item.type == 'set_groups'
 
         # --- APPEND to existing groups ---
-        - name: "Action- append to existing groups for '{{ user_item.username }}'"
+        - name: "Action: append to existing groups for '{{ user_item.username }}'"
           ansible.builtin.user:
             name: "{{ user_item.username }}"
             groups: "{{ action_item.groups | default(omit) }}"
@@ -234,21 +239,17 @@
         # --- REMOVE from specific groups ---
         # Note: The `ansible.builtin.user` module cannot remove a user from a specific group.
         # This task uses a shell command as a workaround.
-        - name: "Action- remove '{{ user_item.username }}' from specific groups"
+        - name: "Action: remove '{{ user_item.username }}' from specific groups"
           ansible.builtin.shell: "gpasswd -d {{ user_item.username }} {{ item }}"
           loop: "{{ action_item.groups }}"
           args:
             warn: false # Prevents warnings about using the shell module.
           when: action_item.type == 'remove_groups'
-
-  # The `rescue` block is useful for handling errors gracefully.
-  # For example, if a user does not exist for a `delete` action, the play can continue.
+  
+  # The `rescue` block is used to handle errors gracefully for the entire block
+  # that runs for the user.
   rescue:
     - name: "Error processing tasks for user '{{ user_item.username }}'"
       ansible.builtin.debug:
         msg: "Failed to perform action for user '{{ user_item.username }}'. Check logs for details."
       changed_when: false
-  # This loop is for the top-level block, which iterates over all users.
-  loop: "{{ users }}"
-  loop_control:
-    loop_var: user_item
