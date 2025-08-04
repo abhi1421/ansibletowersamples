@@ -1,0 +1,4 @@
+- name: Remove package {{ package_name }}
+  package:
+    name: "{{ package_name }}"
+    state: absent

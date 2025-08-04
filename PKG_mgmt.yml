@@ -1,0 +1,6 @@
+---
+- name: Test Unified Package Management Role
+  hosts: all
+  become: true
+  roles:
+    - package_manage
