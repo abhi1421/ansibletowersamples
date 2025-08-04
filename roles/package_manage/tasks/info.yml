@@ -1,0 +1,8 @@
+- name: Show package info for {{ package_name }}
+  command: rpm -qi {{ package_name }}
+  register: rpm_info
+  ignore_errors: true
+
+- name: Display package info for {{ package_name }}
+  debug:
+    var: rpm_info.stdout_lines
