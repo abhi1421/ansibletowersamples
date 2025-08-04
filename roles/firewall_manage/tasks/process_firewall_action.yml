@@ -1,0 +1,5 @@
+---
+- name: Include action task
+  include_tasks: "{{ action_item.type }}.yml"
+  vars:
+    action_value: "{{ action_item.value | default('') }}"

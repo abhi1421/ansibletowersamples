@@ -1,0 +1,7 @@
+---
+- name: Add firewall service
+  ansible.builtin.firewalld:
+    service: "{{ action_value }}"
+    permanent: true
+    state: enabled
+    immediate: true

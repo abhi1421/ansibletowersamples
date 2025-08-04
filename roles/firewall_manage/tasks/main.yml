@@ -1,0 +1,6 @@
+---
+- name: Loop over firewall actions
+  include_tasks: process_firewall_action.yml
+  loop: "{{ firewall_actions }}"
+  loop_control:
+    loop_var: action_item
