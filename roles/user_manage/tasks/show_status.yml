@@ -1,0 +1,8 @@
+- name: "Show user status for {{ username }}"
+  ansible.builtin.command: id {{ username }}
+  register: user_status
+  ignore_errors: yes
+
+- name: "Print status"
+  debug:
+    msg: "{{ user_status.stdout_lines | default(['User does not exist']) }}"

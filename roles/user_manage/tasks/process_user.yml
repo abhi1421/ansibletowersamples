@@ -1,0 +1,11 @@
+- name: "Process actions for user {{ user_entry.name }}"
+  include_tasks: "{{ item }}.yml"
+  loop: "{{ user_entry.actions }}"
+  loop_control:
+    loop_var: action
+  vars:
+    username: "{{ user_entry.name }}"
+    password: "{{ user_entry.password | default(omit) }}"
+    groups: "{{ user_entry.groups | default([]) }}"
+    append_groups: "{{ user_entry.append_groups | default([]) }}"
+    remove_groups: "{{ user_entry.remove_groups | default([]) }}"

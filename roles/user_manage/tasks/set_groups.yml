@@ -1,0 +1,6 @@
+- name: "Set primary and secondary groups for {{ username }}"
+  ansible.builtin.user:
+    name: "{{ username }}"
+    groups: "{{ groups | join(',') }}"
+    append: no
+  when: groups | length > 0

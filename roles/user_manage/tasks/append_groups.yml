@@ -1,0 +1,6 @@
+- name: "Append user {{ username }} to groups"
+  ansible.builtin.user:
+    name: "{{ username }}"
+    groups: "{{ append_groups | join(',') }}"
+    append: yes
+  when: append_groups | length > 0

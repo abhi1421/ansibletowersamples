@@ -1,0 +1,5 @@
+- name: "Iterate over users"
+  include_tasks: process_user.yml
+  loop: "{{ users }}"
+  loop_control:
+    loop_var: user_entry
