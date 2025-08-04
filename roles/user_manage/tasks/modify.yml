@@ -1,0 +1,5 @@
+- name: "Modify user {{ username }} (noop unless extra fields are provided)"
+  ansible.builtin.user:
+    name: "{{ username }}"
+    shell: "{{ default_login_shell }}"
+    state: present

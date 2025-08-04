@@ -1,0 +1,4 @@
+- name: "Unlock user {{ username }}"
+  ansible.builtin.user:
+    name: "{{ username }}"
+    password_lock: no

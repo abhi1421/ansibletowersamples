@@ -1,0 +1,7 @@
+- name: "Remove user {{ username }} from groups"
+  ansible.builtin.shell: |
+    for grp in {{ remove_groups | join(' ') }}; do
+      gpasswd -d {{ username }} "$grp"
+    done
+  when: remove_groups | length > 0
+  become: yes

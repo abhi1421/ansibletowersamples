@@ -3,4 +3,5 @@
   hosts: all
   become: true
   roles:
-    - USER_mgmt
+#    - USER_mgmt
+    - user_manage

@@ -1,0 +1,4 @@
+- name: "Set shell to nologin for {{ username }}"
+  ansible.builtin.user:
+    name: "{{ username }}"
+    shell: "{{ nologin_shell }}"

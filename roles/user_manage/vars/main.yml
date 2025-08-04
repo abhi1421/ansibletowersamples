@@ -1,0 +1,3 @@
+# Default shell to use when restoring login
+default_login_shell: /bin/bash
+nologin_shell: /sbin/nologin
