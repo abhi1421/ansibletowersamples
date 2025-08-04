@@ -4,3 +4,8 @@
     groups: "{{ groups | join(',') }}"
     append: no
   when: groups | length > 0
+
+- name: Fail if groups is not a list
+  ansible.builtin.fail:
+    msg: "'groups' must be a list, but got: {{ groups }}"
+  when: groups is defined and groups is string
