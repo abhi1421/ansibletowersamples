@@ -1,0 +1,7 @@
+---
+- name: Unblock (close) a firewall port
+  ansible.builtin.firewalld:
+    port: "{{ action_value }}"
+    permanent: true
+    state: disabled
+    immediate: true

@@ -1,0 +1,8 @@
+---
+- name: Check firewalld status
+  ansible.builtin.command: firewall-cmd --state
+  register: firewall_status
+
+- name: Show firewall status
+  ansible.builtin.debug:
+    msg: "Firewall state: {{ firewall_status.stdout }}"
