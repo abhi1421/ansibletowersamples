@@ -1,10 +1,11 @@
+---
 - name: Set package variables
   set_fact:
-    package_name: "{{ package_entry.name }}"
-    package_actions: "{{ package_entry.actions | default([]) }}"
+    package_names: "{{ package_entry.names }}"
+    package_actions: "{{ package_entry.actions }}"
 
-- name: Process each action for package {{ package_name }}
-  include_tasks: "{{ item.type }}.yml"
+- name: Loop over actions for current package group
+  include_tasks: action_router.yml
   loop: "{{ package_actions }}"
   loop_control:
-    loop_var: item
+    loop_var: action_item

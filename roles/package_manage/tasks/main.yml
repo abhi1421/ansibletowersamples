@@ -1,3 +1,4 @@
+---
 - name: Loop over packages
   include_tasks: process_package.yml
   loop: "{{ packages }}"

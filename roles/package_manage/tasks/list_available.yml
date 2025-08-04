@@ -1,8 +1,9 @@
-- name: List available packages from repo matching {{ package_name }}
-  shell: yum --showduplicates list {{ package_name }}
-  register: available_list
-  ignore_errors: true
+---
+- name: List all available packages from repo
+  shell: "yum list available | awk 'NR>1 {print $1}' | sort"
+  register: available_packages
+  changed_when: false
 
-- name: Show available package versions for {{ package_name }}
+- name: Show available packages
   debug:
-    var: available_list.stdout_lines
+    msg: "{{ available_packages.stdout_lines }}"

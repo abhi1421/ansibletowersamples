@@ -1,0 +1,6 @@
+---
+- name: Include action task
+  include_tasks: "{{ action_item.type }}.yml"
+  vars:
+    package_names: "{{ package_names }}"
+  when: action_item.type in ['install', 'remove', 'update', 'info', 'list_installed', 'list_available']
