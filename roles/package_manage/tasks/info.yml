@@ -1,8 +1,15 @@
-- name: Show package info for {{ package_name }}
-  command: rpm -qi {{ package_name }}
-  register: rpm_info
-  ignore_errors: true
+---
+- name: Show info for package(s)
+  shell: "rpm -qi {{ item }}"
+  register: package_info
+  changed_when: false
+  loop: "{{ package_names }}"
+  loop_control:
+    label: "{{ item }}"
 
-- name: Display package info for {{ package_name }}
+- name: Print package info
   debug:
-    var: rpm_info.stdout_lines
+    msg: "{{ item.stdout_lines }}"
+  loop: "{{ package_info.results }}"
+  loop_control:
+    label: "{{ item.item }}"

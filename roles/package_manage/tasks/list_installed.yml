@@ -1,8 +1,9 @@
-- name: List installed packages (filtered for {{ package_name }})
-  shell: rpm -qa | grep -i {{ package_name }}
-  register: installed_list
-  ignore_errors: true
+---
+- name: List all installed packages
+  shell: "rpm -qa | sort"
+  register: installed_packages
+  changed_when: false
 
-- name: Show installed packages for {{ package_name }}
+- name: Show installed packages
   debug:
-    var: installed_list.stdout_lines
+    msg: "{{ installed_packages.stdout_lines }}"
