@@ -9,3 +9,7 @@
     groups: "{{ user_entry.groups | default([]) }}"
     append_groups: "{{ user_entry.append_groups | default([]) }}"
     remove_groups: "{{ user_entry.remove_groups | default([]) }}"
+
+- name: "DEBUG | Effective group vars for user {{ username }}"
+  debug:
+    msg: "Groups: {{ groups }} | Append: {{ append_groups }} | Remove: {{ remove_groups }}"
