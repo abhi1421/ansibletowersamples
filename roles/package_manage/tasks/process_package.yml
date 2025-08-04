@@ -6,6 +6,8 @@
 
 - name: Loop over actions for current package group
   include_tasks: action_router.yml
-  loop: "{{ package_actions }}"
+  loop: "{{ packages }}"
   loop_control:
-    loop_var: action_item
+    loop_var: item
+  vars:
+    current_package_group: "{{ item }}"

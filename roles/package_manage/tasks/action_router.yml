@@ -2,8 +2,8 @@
 - name: Loop over action types
   include_tasks: "{{ action_item.type }}.yml"
   vars:
-    package_names: "{{ item.names }}"
+    package_names: "{{ current_package_group.names }}"
     action_item: "{{ action_item }}"
-  loop: "{{ item.actions }}"
+  loop: "{{ current_package_group.actions }}"
   loop_control:
     loop_var: action_item
