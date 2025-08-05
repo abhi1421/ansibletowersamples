@@ -29,6 +29,13 @@
       loop_control:
         loop_var: item
 
+    - name: Show diff output for {{ item }}
+      debug:
+        msg: "{{ file_diff.results[loop.index0].stdout | default('No diff output') }}"
+      loop: "{{ files_to_compare }}"
+      loop_control:
+        loop_var: item
+
 #    - name: Save diff output
 #      copy:
 ##        content: "{{ file_diff.results[loop.index0].stdout | default('No change detected') }}"
