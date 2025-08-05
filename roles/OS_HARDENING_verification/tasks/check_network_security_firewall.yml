@@ -33,7 +33,13 @@
     - network_security_firewall
     - network_kernel_params
 
-- name: Add each network kernel parameter compliance item to report
+- name: Initialize compliance report results if not already defined
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results | default([]) }}"
+  tags:
+    - network_security_firewall
+
+- name: Report network kernel parameters compliance
   ansible.builtin.set_fact:
     compliance_report_results: >-
       {{ compliance_report_results + [{
@@ -50,6 +56,24 @@
   tags:
     - network_security_firewall
     - network_kernel_params
+
+###- name: Add each network kernel parameter compliance item to report
+###  ansible.builtin.set_fact:
+###    compliance_report_results: >-
+###      {{ compliance_report_results + [{
+###        'category': "Network Security and Firewall Configuration",
+###        'item': "Network Kernel Parameter: " ~ item.item.description ~ " (" ~ item.item.name ~ ")",
+###        'status': "COMPLIANT" if not item.changed else "NON_COMPLIANT",
+###        'expected': item.item.name ~ " is set to " ~ item.item.value ~ ".",
+###        'actual': item.item.name ~ " is set to " ~ item.item.value ~ (". Actual: " ~ (item.before | default('N/A')) if item.changed else ""),
+###        'message': "Parameter is correctly configured." if not item.changed else "Parameter is not configured to the expected value. Actual: " ~ (item.before | default('N/A'))
+###      }] }}
+###  loop: "{{ network_params_check.results }}"
+###  loop_control:
+###    label: "{{ item.item.name }}"
+###  tags:
+###    - network_security_firewall
+###    - network_kernel_params
 
 #- name: Define current network kernel parameter compliance item
 #  ansible.builtin.set_fact:
@@ -68,16 +92,16 @@
 #    - network_security_firewall
 #    - network_kernel_params
 
-- name: Report network kernel parameters compliance
-  ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [current_network_param_compliance_item] }}"
-  loop: "{{ network_params_check.results }}"
-  loop_control:
-    loop_var: item # Ensure loop_var is defined for consistency
-    label: "Reporting for {{ item.item.name }}"
-  tags:
-    - network_security_firewall
-    - network_kernel_params
+#- name: Report network kernel parameters compliance
+#  ansible.builtin.set_fact:
+#    compliance_report_results: "{{ compliance_report_results + [current_network_param_compliance_item] }}"
+#  loop: "{{ network_params_check.results }}"
+#  loop_control:
+#    loop_var: item # Ensure loop_var is defined for consistency
+#    label: "Reporting for {{ item.item.name }}"
+#  tags:
+#    - network_security_firewall
+#    - network_kernel_params
 
 - name: Check firewall status and basic rules (manual verification for specific rules)
   ansible.builtin.command: firewall-cmd --state
