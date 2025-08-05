@@ -1,0 +1,6 @@
+- name: Remove logical volume
+  lvol:
+    vg: "{{ fs_action.vg }}"
+    lv: "{{ fs_action.lv }}"
+    state: absent
+  become: true

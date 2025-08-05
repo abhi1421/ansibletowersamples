@@ -1,0 +1,14 @@
+- name: Create mount point directory
+  file:
+    path: "{{ fs_action.mount_point }}"
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Mount the filesystem
+  mount:
+    path: "{{ fs_action.mount_point }}"
+    src: "/dev/{{ fs_action.vg }}/{{ fs_action.lv }}"
+    fstype: "{{ fs_action.fstype }}"
+    state: mounted
+  become: true

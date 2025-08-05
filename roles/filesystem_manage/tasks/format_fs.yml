@@ -1,0 +1,5 @@
+- name: Format logical volume
+  filesystem:
+    fstype: "{{ fs_action.fstype }}"
+    dev: "/dev/{{ fs_action.vg }}/{{ fs_action.lv }}"
+  become: true
