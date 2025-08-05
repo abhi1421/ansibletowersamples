@@ -33,22 +33,40 @@
     - network_security_firewall
     - network_kernel_params
 
-- name: Define current network kernel parameter compliance item
+- name: Add each network kernel parameter compliance item to report
   ansible.builtin.set_fact:
-    current_network_param_compliance_item:
-      category: "Network Security and Firewall Configuration"
-      item: "Network Kernel Parameter: {{ item.item.description }} ({{ item.item.name }})"
-      status: "{{ 'COMPLIANT' if item.changed == false else 'NON_COMPLIANT' }}"
-      expected: "{{ item.item.name }} is set to {{ item.item.value }}."
-      actual: "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}"
-      message: "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
+    compliance_report_results: >-
+      {{ compliance_report_results + [{
+        'category': "Network Security and Firewall Configuration",
+        'item': "Network Kernel Parameter: " ~ item.item.description ~ " (" ~ item.item.name ~ ")",
+        'status': "COMPLIANT" if not item.changed else "NON_COMPLIANT",
+        'expected': item.item.name ~ " is set to " ~ item.item.value ~ ".",
+        'actual': item.item.name ~ " is set to " ~ item.item.value ~ (". Actual: " ~ (item.before | default('N/A')) if item.changed else ""),
+        'message': "Parameter is correctly configured." if not item.changed else "Parameter is not configured to the expected value. Actual: " ~ (item.before | default('N/A'))
+      }] }}
   loop: "{{ network_params_check.results }}"
   loop_control:
-    loop_var: item # Ensure loop_var is defined for consistency
-    label: "Defining item for {{ item.item.name }}"
+    label: "{{ item.item.name }}"
   tags:
     - network_security_firewall
     - network_kernel_params
+
+#- name: Define current network kernel parameter compliance item
+#  ansible.builtin.set_fact:
+#    current_network_param_compliance_item:
+#      category: "Network Security and Firewall Configuration"
+#      item: "Network Kernel Parameter: {{ item.item.description }} ({{ item.item.name }})"
+#      status: "{{ 'COMPLIANT' if item.changed == false else 'NON_COMPLIANT' }}"
+#      expected: "{{ item.item.name }} is set to {{ item.item.value }}."
+#      actual: "{{ item.item.name }} is set to {{ item.item.value }}{% if item.changed == true %}. Actual: {{ item.before | default('N/A') }}{% endif %}"
+#      message: "{{ 'Parameter is correctly configured.' if item.changed == false else 'Parameter is not configured to the expected value. Actual: ' ~ (item.before | default('N/A')) }}"
+#  loop: "{{ network_params_check.results }}"
+#  loop_control:
+#    loop_var: item # Ensure loop_var is defined for consistency
+#    label: "Defining item for {{ item.item.name }}"
+#  tags:
+#    - network_security_firewall
+#    - network_kernel_params
 
 - name: Report network kernel parameters compliance
   ansible.builtin.set_fact:

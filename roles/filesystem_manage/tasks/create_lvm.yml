@@ -1,0 +1,12 @@
+- name: Create volume group
+  lvg:
+    vg: "{{ fs_action.vg }}"
+    pvs: "{{ fs_action.pvs }}"
+  become: true
+
+- name: Create logical volume
+  lvol:
+    vg: "{{ fs_action.vg }}"
+    lv: "{{ fs_action.lv }}"
+    size: "{{ fs_action.size }}"
+  become: true

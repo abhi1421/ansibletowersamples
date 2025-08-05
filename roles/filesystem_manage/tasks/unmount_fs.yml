@@ -1,0 +1,5 @@
+- name: Unmount the filesystem
+  mount:
+    path: "{{ fs_action.mount_point }}"
+    state: unmounted
+  become: true

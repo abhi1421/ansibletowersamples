@@ -1,0 +1,7 @@
+- name: Extend logical volume
+  lvol:
+    vg: "{{ fs_action.vg }}"
+    lv: "{{ fs_action.lv }}"
+    size: "{{ fs_action.size }}"
+    resizefs: true
+  become: true
