@@ -4,9 +4,9 @@
   become: true
 
   vars:
-    target_user: ansible  # Target node user
+    target_user: ansible
     ansible_user_home: "/home/{{ target_user }}"
-    ansible_public_key_path: "/home/runner/.ssh/id_rsa.pub"  # Adjust this to match your control node
+    ansible_public_key_path: "{{ lookup('env', 'HOME') + '/.ssh/id_rsa.pub' }}"
 
   tasks:
     - name: Ensure .ssh directory exists with correct permissions
@@ -22,4 +22,3 @@
         user: "{{ target_user }}"
         state: present
         key: "{{ lookup('file', ansible_public_key_path) }}"
-        comment: "Ansible_key_from_{{ ansible_hostname }}"
