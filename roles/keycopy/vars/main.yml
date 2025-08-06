@@ -3,4 +3,4 @@
 # vars file for keycopy
 target_user: ansible
 ansible_user_home: "/home/{{ target_user }}"
-ansible_public_key_path: "{{ role_path }}/files/ansible_id_rsa.pub"
+ansible_public_key_path: "{{ role_path }}/files/id_rsa.pub"
