@@ -5,22 +5,24 @@
 
 - name: Append this host's report to a single master file on localhost
   delegate_to: localhost
+  become: yes
   block:
-    - name: Ensure reports directory exists on control node
+    - name: Ensure /var/reports directory exists on control node
       file:
-        path: reports
+        path: /var/reports
         state: directory
+        mode: '0755'
 
     - name: Append hostname header to master report
       lineinfile:
-        path: reports/password_expiry_master_report.txt
+        path: /var/reports/password_expiry_master_report.txt
         line: "===== {{ inventory_hostname }} ====="
         create: yes
         insertafter: EOF
 
     - name: Append generated report content
       lineinfile:
-        path: reports/password_expiry_master_report.txt
+        path: /var/reports/password_expiry_master_report.txt
         line: "{{ item }}"
         insertafter: EOF
       loop: "{{ lookup('template', 'password_expiry_report.j2').splitlines() }}"
