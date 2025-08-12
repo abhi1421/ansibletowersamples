@@ -60,22 +60,19 @@
           Host: {{ inventory_hostname }}
           --------------------------------
           {% for entry in sudo_entries %}
-          {{ entry }} -> {% set uname = entry | regex_replace('^%','') %}
+          {{ entry }} ->
+          {% set uname = entry | regex_replace('^%','') %}
           {% for r in id_results.results if r.item == uname %}
           {{ r.stdout }}
           {% endfor %}
           {% endfor %}
 
-    - name: Save report to control node
+    - name: Save per-host report to control node
       delegate_to: localhost
       copy:
-        dest: "/tmp/sudo_audit_report.txt"
-        content: |
-          {{ host_report }}
+        dest: "/tmp/sudo_audit_report_{{ inventory_hostname }}.txt"
+        content: "{{ host_report }}"
         mode: '0644'
-      run_once: false
-      vars:
-        ansible_become: false
 
 - name: Merge all host reports into one file
   hosts: localhost
@@ -84,7 +81,7 @@
     - name: Find all individual host reports
       find:
         paths: /tmp
-        patterns: sudo_audit_report.txt
+        patterns: "sudo_audit_report_*.txt"
       register: reports
 
     - name: Read all host reports
@@ -100,9 +97,8 @@
           {% for r in all_reports.results %}
           {{ r.content | b64decode }}
           {% endfor %}
-      mode: '0644'
+        mode: '0644'
 
     - name: Show where the final report is
       debug:
         msg: "Final sudo audit report saved at /tmp/final_sudo_audit_report.txt"
-
