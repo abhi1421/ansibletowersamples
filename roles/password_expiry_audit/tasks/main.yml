@@ -1,0 +1,26 @@
+---
+# Main role entry point
+- name: Gather password expiry information from remote host
+  include_tasks: gather_password_expiry.yml
+
+- name: Append this host's report to a single master file on localhost
+  delegate_to: localhost
+  block:
+    - name: Ensure reports directory exists on control node
+      file:
+        path: reports
+        state: directory
+
+    - name: Append hostname header to master report
+      lineinfile:
+        path: reports/password_expiry_master_report.txt
+        line: "===== {{ inventory_hostname }} ====="
+        create: yes
+        insertafter: EOF
+
+    - name: Append generated report content
+      lineinfile:
+        path: reports/password_expiry_master_report.txt
+        line: "{{ item }}"
+        insertafter: EOF
+      loop: "{{ lookup('template', 'password_expiry_report.j2').splitlines() }}"
