@@ -31,7 +31,7 @@
   delegate_to: localhost
   run_once: true
   file:
-    path: "./reports"
+    path: "/tmp/reports"
     state: directory
     mode: '0755'
 
@@ -40,5 +40,5 @@
   run_once: true
   fetch:
     src: /var/reports/password_expiry_master_report.txt
-    dest: ./reports/password_expiry_master_report.txt
+    dest: /tmp/reports/password_expiry_master_report.txt
     flat: yes
