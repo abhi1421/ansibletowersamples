@@ -193,6 +193,7 @@
     state: present
   register: auditd_package_check
   check_mode: true
+  ignore_errors: true
   tags:
     - system_integrity_intrusion
     - auditd
@@ -241,6 +242,7 @@
     state: present
   register: rsyslog_package_check
   check_mode: true
+  ignore_errors: true
   tags:
     - system_integrity_intrusion
     - rsyslog
