@@ -1,3 +1,9 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # vars file for password_expiry_audit
+# Local path inside the EE container
+report_dir: /var/reports
+report_file: password_expiry_master_report.txt
+
+# Local destination path on control node
+local_report_dir: ./reports

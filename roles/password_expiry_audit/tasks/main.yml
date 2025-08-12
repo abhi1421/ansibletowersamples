@@ -26,3 +26,19 @@
         line: "{{ item }}"
         insertafter: EOF
       loop: "{{ lookup('template', 'password_expiry_report.j2').splitlines() }}"
+
+- name: Ensure local reports directory exists on controller
+  delegate_to: localhost
+  run_once: true
+  file:
+    path: "./reports"
+    state: directory
+    mode: '0755'
+
+- name: Fetch the master report from EE container to controller
+  delegate_to: localhost
+  run_once: true
+  fetch:
+    src: /var/reports/password_expiry_master_report.txt
+    dest: ./reports/password_expiry_master_report.txt
+    flat: yes
