@@ -1,0 +1,62 @@
+# ---
+# This task file performs the following actions:
+# 1. Gathers a list of all non-system users.
+# 2. Loops through each user to check their password expiry details.
+# 3. Calculates the number of days until the password expires.
+# 4. Compiles the results into a structured list.
+# 5. Generates a report file from a Jinja2 template on the remote host.
+# 6. Fetches the generated report back to the Ansible control node.
+# ---
+
+- name: Get list of all non-system users
+  getent:
+    database: passwd
+  delegate_to: "{{ inventory_hostname }}"
+  register: passwd_db_users
+
+- name: Set a fact with a filtered list of users
+  set_fact:
+    filtered_users: "{{ passwd_db_users.ansible_facts.getent_passwd | dict2items | selectattr('value.3', 'match', '^/bin/.*sh$') | map(attribute='key') | list }}"
+
+- name: Initialize a list to store user password expiry data
+  set_fact:
+    user_expiry_data: []
+
+- name: Check password expiry for each user
+  shell: "chage -l {{ item }}"
+  args:
+    executable: /bin/bash
+  loop: "{{ filtered_users }}"
+  register: chage_output
+  ignore_errors: true
+
+- name: Process chage output and set facts for each user
+  set_fact:
+    current_user_data: "{{ (chage_output.results | selectattr('item', 'equalto', item) | first).stdout_lines }}"
+    user_data: "{{ (chage_output.results | selectattr('item', 'equalto', item) | first) }}"
+  loop: "{{ filtered_users }}"
+  when: (chage_output.results | selectattr('item', 'equalto', item) | first).rc == 0
+
+- name: Calculate days until password expiry and compile report data
+  set_fact:
+    user_expiry_data: >
+      {{ user_expiry_data + [{
+          'username': item,
+          'expiry_date': (user_data.stdout_lines | select('match', 'Password expires') | list | first | default('Password expires                                : never') | regex_replace('.*expires\\s*:\\s*(.*)', '\\1')),
+          'days_remaining': ((user_data.stdout_lines | select('match', 'Password expires') | list | first | default('Password expires                                : never') | regex_replace('.*expires\\s*:\\s*(.*)', '\\1')) != 'never') | ternary((ansible_date_time.iso8601 | to_datetime('%Y-%m-%dT%H:%M:%SZ', 'utc') - ((user_data.stdout_lines | select('match', 'Password expires') | list | first | regex_replace('.*:\\s*', '')) | to_datetime('%b %d, %Y', '%Y-%m-%d') | to_datetime(None, '%Y-%m-%d'))).days, 'never')
+      }] }}
+  loop: "{{ filtered_users }}"
+  vars:
+    ansible_date_time: "{{ lookup('pipe', 'date +%Y-%m-%dT%H:%M:%SZ') }}"
+
+- name: Generate the password expiry report on the remote host
+  template:
+    src: password_expiry_report.j2
+    dest: "/tmp/password_expiry_report_{{ ansible_hostname }}.txt"
+  register: report_file_path
+
+- name: Fetch the generated report to the Ansible control node
+  fetch:
+    src: "{{ report_file_path.dest }}"
+    dest: "./reports/"
+    flat: yes
