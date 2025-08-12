@@ -1,0 +1,108 @@
+---
+- name: Collect sudo users and their groups
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Read /etc/sudoers
+      slurp:
+        src: /etc/sudoers
+      register: sudoers_main
+
+    - name: Find files in /etc/sudoers.d
+      find:
+        paths: /etc/sudoers.d
+        file_type: file
+      register: sudoers_d
+      ignore_errors: true
+
+    - name: Read sudoers.d files
+      slurp:
+        src: "{{ item.path }}"
+      loop: "{{ sudoers_d.files | default([]) }}"
+      register: sudoers_d_contents
+      ignore_errors: true
+
+    - name: Combine sudoers content into one list of lines
+      set_fact:
+        sudoers_lines: >-
+          {{
+            (
+              [sudoers_main.content | b64decode]
+              + (sudoers_d_contents.results | default([]) | map(attribute='content') | map('b64decode') | list)
+            )
+            | join('\n')
+            | split('\n')
+          }}
+
+    - name: Extract sudo entries (users or %groups)
+      set_fact:
+        sudo_entries: >-
+          {{ sudoers_lines
+             | map('regex_replace','^\\s+','')
+             | reject('match','^#')
+             | reject('match','^$')
+             | select('search','ALL')
+             | map('regex_search','^(%?\\S+)')
+             | select('!=', None)
+             | list | unique }}
+
+    - name: Get group membership for each sudo entry
+      command: id "{{ item | regex_replace('^%','') }}"
+      register: id_results
+      changed_when: false
+      loop: "{{ sudo_entries | map('regex_replace','^%','') | list }}"
+      ignore_errors: true
+
+    - name: Build per-host report text
+      set_fact:
+        host_report: |
+          Host: {{ inventory_hostname }}
+          --------------------------------
+          {% for entry in sudo_entries %}
+          {{ entry }} -> {% set uname = entry | regex_replace('^%','') %}
+          {% for r in id_results.results if r.item == uname %}
+          {{ r.stdout }}
+          {% endfor %}
+          {% endfor %}
+
+    - name: Save report to control node
+      delegate_to: localhost
+      copy:
+        dest: "/tmp/sudo_audit_report.txt"
+        content: |
+          {{ host_report }}
+        mode: '0644'
+      run_once: false
+      vars:
+        ansible_become: false
+
+- name: Merge all host reports into one file
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Find all individual host reports
+      find:
+        paths: /tmp
+        patterns: sudo_audit_report.txt
+      register: reports
+
+    - name: Read all host reports
+      slurp:
+        src: "{{ item.path }}"
+      loop: "{{ reports.files }}"
+      register: all_reports
+
+    - name: Create final combined report
+      copy:
+        dest: /tmp/final_sudo_audit_report.txt
+        content: |
+          {% for r in all_reports.results %}
+          {{ r.content | b64decode }}
+          {% endfor %}
+      mode: '0644'
+
+    - name: Show where the final report is
+      debug:
+        msg: "Final sudo audit report saved at /tmp/final_sudo_audit_report.txt"
+
