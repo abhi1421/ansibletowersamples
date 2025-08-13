@@ -1,15 +1,52 @@
+#---
+#- name: Controlled Reboot Playbook
+#  hosts: all
+#  become: true
+#
+#  tasks:
+#    - name: Initiate reboot
+#      ansible.builtin.reboot:
+#        reboot_timeout: 600
+#        test_command: uptime
+#      register: reboot_result
+#
+#    - name: Show reboot result
+#      ansible.builtin.debug:
+#        var: reboot_result
+
+
 ---
-- name: Controlled Reboot Playbook
+- name: Controlled reboot only if needed
   hosts: all
   become: true
 
+  pre_tasks:
+    - name: Check if 'needs-restarting' command exists
+      ansible.builtin.command: which needs-restarting
+      register: needs_restarting_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install dnf-utils if needs-restarting not found
+      ansible.builtin.yum:
+        name: dnf-utils
+        state: present
+      when: needs_restarting_check.rc != 0
+
+    - name: Check if system needs reboot
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_check
+      failed_when: false
+      changed_when: false
+
   tasks:
-    - name: Initiate reboot
+    - name: Reboot the system if required
       ansible.builtin.reboot:
         reboot_timeout: 600
-        test_command: uptime
-      register: reboot_result
+        test_command: whoami
+      when: reboot_check.rc != 0
 
-    - name: Show reboot result
+    - name: Debug message if reboot not needed
       ansible.builtin.debug:
-        var: reboot_result
+        msg: "System does not require a reboot."
+      when: reboot_check.rc == 0
