@@ -1,0 +1,6 @@
+---
+- name: DEIO Backup role
+  hosts: all
+  become: true
+  roles:
+    - deio_backup

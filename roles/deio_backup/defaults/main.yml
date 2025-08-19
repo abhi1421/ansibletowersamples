@@ -1,0 +1,13 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for deio_backup
+
+backup_base_dir: "/Archives/Backup"
+dbrbackup_src: "/DBRBackup"
+dbrmirror_src: "/DBRMirror"
+saa_data_backup_src: "/Alliance/Access/usrdata/backup/db"
+
+saa_bin: "./Alliance/Access/bin/saa_system"
+
+archive_mount: "/Archives"
+utilization_threshold: 80
