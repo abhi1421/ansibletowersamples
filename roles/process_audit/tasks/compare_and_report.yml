@@ -16,7 +16,9 @@
 - name: Pick previous snapshot path if exists
   delegate_to: localhost
   set_fact:
-    _prev_path: "{{ (_glob_all | length) > 1 | ternary((_glob_all | difference([_cur_path]))[-1], '') }}"
+    _prev_path: >-
+      {% set others = (_glob_all | difference([_cur_path]) | sort) %}
+      {{ (others | length > 0) | ternary(others[-1], '') }}
 
 - name: Load current snapshot JSON
   delegate_to: localhost
