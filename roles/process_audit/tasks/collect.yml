@@ -1,4 +1,10 @@
 ---
+- name: Set audit date (controller timestamp)
+  set_fact:
+    audit_date: "{{ lookup('pipe', 'date +%F') }}"
+  run_once: true
+  delegate_to: localhost
+
 - name: Collect processes (PID-agnostic, stable fields)
   shell: |
     set -o pipefail
