@@ -26,9 +26,15 @@
     _cur_json: "{{ lookup('file', _cur_path) | from_json }}"
 
 - name: Load previous snapshot if available
-  delegate_to: localhost
   set_fact:
-    _prev_json: "{{ (_prev_path | length) > 0 | ternary(lookup('file', _prev_path) | from_json, {}) }}"
+    prev_snapshot: "{{ lookup('file', previous_snapshot_path) | from_json }}"
+  when: previous_snapshot_path is defined and previous_snapshot_path != ""
+
+- name: Initialize prev_snapshot as empty
+  set_fact:
+    prev_snapshot: {}
+  when: previous_snapshot_path is not defined or previous_snapshot_path == ""
+
 
 - name: Compute diffs (processes)
   delegate_to: localhost
