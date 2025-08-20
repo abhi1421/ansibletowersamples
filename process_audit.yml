@@ -1,7 +1,7 @@
 ---
 - name: Daily Process Audit
   hosts: all
-  gather_facts: false
+  gather_facts: true
   vars:
     smtp_host: "smtp.internal.bank"
     smtp_port: 25
