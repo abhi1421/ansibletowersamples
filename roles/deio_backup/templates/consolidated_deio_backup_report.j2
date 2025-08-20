@@ -1,0 +1,13 @@
+DEIO Backup Report - {{ today_date }}
+====================================
+
+{% for item in results %}
+Host: {{ item.hostname }}
+Day: {{ item.day }}
+Action Taken: {{ item.action_taken }}
+Backup Directory: {{ item.backup_dir }}
+Disk Utilization: {{ item.disk_util }}
+System Status Before: {{ item.system_status_before }}
+System Status After: {{ item.system_status_after }}
+------------------------------------
+{% endfor %}
