@@ -43,16 +43,14 @@
     proc_removed: "{{ (_prev_json.processes | default([])) | difference(_cur_json.processes | default([])) }}"
 
 - name: Compute diffs (listeners/services/crons)
-  delegate_to: localhost
   set_fact:
-    listen_added: "{{ (_cur_json.listeners | default([])) | difference(_prev_json.listeners | default([])) }}"
-    listen_removed: "{{ (_prev_json.listeners | default([])) | difference(_cur_json.listeners | default([])) }}"
-    svc_added: "{{ (_cur_json.services_running | default([])) | difference(_prev_json.services_running | default([])) }}"
-    svc_removed: "{{ (_prev_json.services_running | default([])) | difference(_cur_json.services_running | default([])) }}"
-    cron_diff: "{{ _cur_json.crontabs | default('') | difference(_prev_json.crontabs | default('')) if _prev_json != {} else '' }}"
-  vars:
-    # Jinja difference doesn't work on raw strings; keep for completeness
-    difference: "{{ '' }}"
+    listener_diffs: >-
+      {{ current_snapshot.listeners | difference(prev_snapshot.listeners | default([])) }}
+    service_diffs: >-
+      {{ current_snapshot.services | difference(prev_snapshot.services | default([])) }}
+    cron_diffs: >-
+      {{ current_snapshot.crons | difference(prev_snapshot.crons | default([])) }}
+
 
 - name: Flag risk items
   delegate_to: localhost
