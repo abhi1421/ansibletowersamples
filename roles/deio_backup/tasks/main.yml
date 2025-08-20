@@ -104,3 +104,25 @@
   become: true
   become_user: all_adm
   when: today_day not in ["Saturday", "Sunday"]
+
+
+# Capture action summary (for report)
+- name: Capture DEIO backup action summary
+  set_fact:
+    deio_backup_result:
+      hostname: "{{ inventory_hostname }}"
+      day: "{{ today_day }}"
+      action_taken: >-
+        {% if today_day == "Sunday" %}
+          Skipped (Non-working day)
+        {% elif today_day == "Monday" %}
+          Only Startup performed
+        {% elif today_day == "Saturday" %}
+          Only Backup performed
+        {% else %}
+          Backup + Startup performed
+        {% endif %}
+      backup_dir: "{{ today_backup_dir | default('N/A') }}"
+      disk_util: "{{ archive_util.stdout | default('N/A') }}"
+      system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
+      system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"

@@ -4,3 +4,28 @@
   become: true
   roles:
     - deio_backup
+
+## Reporting section
+#- name: Generate and send consolidated DEIO backup report
+#  hosts: localhost
+#  gather_facts: false
+#  tasks:
+#    - name: Aggregate results from all hosts
+#      set_fact:
+#        deio_all_results: "{{ deio_all_results | default([]) + [hostvars[item].deio_backup_result] }}"
+#      with_items: "{{ groups['all'] }}"
+#      run_once: true
+#
+#    - name: Generate consolidated DEIO backup report file
+#      ansible.builtin.template:
+#        src: consolidated_deio_backup_report.j2
+#        dest: /tmp/deio_backup_report_{{ lookup('pipe', 'date +%d%m%Y') }}.txt
+#      vars:
+#        results: "{{ deio_all_results }}"
+#        today_date: "{{ lookup('pipe', 'date +%d%m%Y') }}"
+#      run_once: true
+#
+#    - name: Send consolidated DEIO backup report via email
+#      ansible.builtin.shell: |
+#        mailx -s "DEIO Backup Report - {{ lookup('pipe', 'date +%d%m%Y') }}" ops_team@bank.com < /tmp/deio_backup_report_{{ lookup('pipe', 'date +%d%m%Y') }}.txt
+#      run_once: true
