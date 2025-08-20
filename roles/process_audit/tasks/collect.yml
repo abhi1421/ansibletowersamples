@@ -103,7 +103,8 @@
 
 - name: Fetch snapshot to controller
   fetch:
-    src: "{{ remote_snapshot_dir }}/process_snapshot_{{ ansible_date_time.date }}.json"
-    dest: "{{ controller_snapshot_root }}/{{ inventory_hostname }}/"
-    flat: no
+    src: "{{ remote_snapshot_dir }}/process_snapshot_{{ audit_date }}.json"
+    dest: "{{ controller_snapshot_root }}/{{ inventory_hostname }}/process_snapshot_{{ audit_date }}.json"
+    flat: yes
     fail_on_missing: true
+
