@@ -21,19 +21,22 @@
       {{ (others | length > 0) | ternary(others[-1], '') }}
 
 - name: Load current snapshot JSON
-  delegate_to: localhost
   set_fact:
-    _cur_json: "{{ lookup('file', _cur_path) | from_json }}"
+    current_snapshot: "{{ lookup('file', current_snapshot_path) | from_json }}"
+  delegate_to: localhost
 
 - name: Load previous snapshot if available
+  when: previous_snapshot_path is defined
   set_fact:
     prev_snapshot: "{{ lookup('file', previous_snapshot_path) | from_json }}"
-  when: previous_snapshot_path is defined and previous_snapshot_path != ""
+  delegate_to: localhost
 
 - name: Initialize prev_snapshot as empty
+  when: previous_snapshot_path is not defined
   set_fact:
     prev_snapshot: {}
-  when: previous_snapshot_path is not defined or previous_snapshot_path == ""
+  delegate_to: localhost
+
 
 
 - name: Compute diffs (processes)
