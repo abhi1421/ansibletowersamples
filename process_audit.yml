@@ -1,6 +1,6 @@
 ---
 - name: Daily Process Audit
-  hosts: linux_all
+  hosts: all
   gather_facts: false
   vars:
     smtp_host: "smtp.internal.bank"
