@@ -1,0 +1,109 @@
+---
+- name: Collect processes (PID-agnostic, stable fields)
+  shell: |
+    set -o pipefail
+    ps -eo user:20,comm:40,pcpu,pmem,args --no-headers \
+    | awk '{$1=$1}1' \
+    | sed 's/[[:space:]]\{1,\}/ /g'
+  args:
+    executable: /bin/bash
+  register: ps_out
+  changed_when: false
+
+- name: Collect listening sockets (TCP/UDP)
+  shell: |
+    set -o pipefail
+    ss -tulpen | tail -n +2 | awk '{$1=$1}1' | sed 's/[[:space:]]\{1,\}/ /g'
+  args:
+    executable: /bin/bash
+  register: ss_out
+  changed_when: false
+
+- name: Collect running services (systemd)
+  shell: |
+    set -o pipefail
+    systemctl list-units --type=service --state=running --no-pager --no-legend \
+      | awk '{$1=$1}1' | sed 's/[[:space:]]\{1,\}/ /g'
+  args:
+    executable: /bin/bash
+  register: svc_out
+  changed_when: false
+
+- name: Collect crontab entries for all users (best effort)
+  shell: |
+    set -o pipefail
+    out=""
+    for u in $(awk -F: '{ if ($3>=1000 && $1!="nfsnobody") print $1 }' /etc/passwd; echo root); do
+      if crontab -l -u "$u" >/dev/null 2>&1; then
+        lines=$(crontab -l -u "$u" | sed 's/[[:space:]]\{1,\}/ /g' | sed '/^#/d;/^$/d')
+        if [ -n "$lines" ]; then
+          printf "### user:%s\n%s\n" "$u" "$lines"
+        fi
+      fi
+    done
+    if [ -d /etc/cron.d ]; then
+      printf "### etc:cron.d\n"
+      grep -h -vE '^\s*#|^\s*$' /etc/cron.d/* 2>/dev/null || true
+    fi
+    if [ -f /etc/crontab ]; then
+      printf "### etc:crontab\n"
+      grep -vE '^\s*#|^\s*$' /etc/crontab || true
+    fi
+  args:
+    executable: /bin/bash
+  register: cron_out
+  changed_when: false
+
+- name: Optionally hash executables (heavy)
+  when: enable_sha256_binaries
+  shell: |
+    set -o pipefail
+    echo "{{ ps_out.stdout }}" | awk '{print $5}' | while read -r cmd; do
+      case "$cmd" in
+        /*)
+          if [ -f "$cmd" ]; then sha256sum "$cmd" | awk '{print $1" "$2}'; fi
+          ;;
+      esac
+    done
+  args:
+    executable: /bin/bash
+  register: bin_hashes
+  changed_when: false
+
+- name: Build normalized snapshot dict
+  vars:
+    _redacted_procs: >-
+      {{
+        ps_out.stdout_lines
+        | map('regex_replace', redact_patterns[0], '\1REDACTED')
+        | map('regex_replace', redact_patterns[1], '\1REDACTED')
+        | map('regex_replace', redact_patterns[2], '\1REDACTED')
+        | map('regex_replace', redact_patterns[3], '\1REDACTED')
+        | list
+      }}
+    snapshot_obj:
+      host: "{{ inventory_hostname }}"
+      when: "{{ ansible_date_time.iso8601 }}"
+      processes: "{{ _redacted_procs | map('truncate', max_cmdline_len, end='…') | list }}"
+      listeners: "{{ ss_out.stdout_lines | list }}"
+      services_running: "{{ svc_out.stdout_lines | list }}"
+      crontabs: "{{ cron_out.stdout }}"
+      hashes: "{{ (enable_sha256_binaries | ternary(bin_hashes.stdout_lines, [])) | list }}"
+  copy:
+    content: "{{ snapshot_obj | to_nice_json }}"
+    dest: "{{ remote_snapshot_dir }}/process_snapshot_{{ ansible_date_time.date }}.json"
+    mode: "0640"
+
+- name: Symlink latest on remote
+  file:
+    src: "{{ remote_snapshot_dir }}/process_snapshot_{{ ansible_date_time.date }}.json"
+    dest: "{{ remote_snapshot_dir }}/latest.json"
+    state: link
+    force: true
+
+- name: Fetch snapshot to controller
+  fetch:
+    src: "{{ remote_snapshot_dir }}/process_snapshot_{{ ansible_date_time.date }}.json"
+    dest: "{{ controller_snapshot_root }}/{{ inventory_hostname }}/"
+    flat: no
+    fail_on_missing: true
