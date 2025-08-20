@@ -1,0 +1,49 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for process_audit
+# SMTP / Email (store secrets in AAP Credential or extra vars)
+smtp_host: "smtp.internal.bank"
+smtp_port: 25
+smtp_use_starttls: false
+smtp_username: ""
+smtp_password: ""
+mail_from: "aap-process-audit@bank.internal"
+mail_to:
+  - "unix-security@bank.internal"
+  - "platform-ops@bank.internal"
+mail_subject_prefix: "[Process Audit]"
+
+# Storage (controller side)
+controller_snapshot_root: "/var/lib/audit/process_audit"   # Ensure writable by the AAP user
+retention_days: 90
+
+# Storage (remote host side)
+remote_snapshot_dir: "/var/log/process_audit"
+
+# Diff options / policies
+allowed_listening_ports: [22, 25, 53, 80, 123, 443, 5432, 1521]   # EDIT for your bank
+allowed_process_globs:
+  - "sshd*"
+  - "systemd*"
+  - "chronyd*"
+  - "rsyslogd*"
+  - "crond*"
+  - "httpd*"
+  - "nginx*"
+  - "postgres*"
+  - "oracle*"
+  - "java*"
+  - "python*"
+cpu_spike_threshold: 30.0   # % CPU to flag
+mem_spike_threshold: 20.0   # % MEM to flag
+
+# Redaction of secrets in args (regex list)
+redact_patterns:
+  - "(?i)(password=)[^\\s]+"
+  - "(?i)(pass=)[^\\s]+"
+  - "(?i)(secret=)[^\\s]+"
+  - "(?i)(token=)[^\\s]+"
+
+# Optional heavy checks
+enable_sha256_binaries: false
+max_cmdline_len: 300

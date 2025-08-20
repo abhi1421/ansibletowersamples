@@ -1,0 +1,21 @@
+{{ hostname }} — Daily Process Audit
+
+Added:
+  Processes: {{ added_counts.processes }}
+  Listeners: {{ added_counts.listeners }}
+  Services:  {{ added_counts.services }}
+
+Removed:
+  Processes: {{ removed_counts.processes }}
+  Listeners: {{ removed_counts.listeners }}
+  Services:  {{ removed_counts.services }}
+
+Risk:
+  CPU spikes:  {{ risk_counts.cpu }}
+  MEM spikes:  {{ risk_counts.mem }}
+  Root@/tmp:   {{ risk_counts.root_tmp }}
+  New ports*:  {{ risk_counts.ports }}
+  New procs*:  {{ risk_counts.procs }}
+
+* Compared against allowlists defined in role vars.
+See attached HTML report for details.

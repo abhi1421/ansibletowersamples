@@ -1,0 +1,17 @@
+---
+- name: Daily Process Audit
+  hosts: linux_all
+  gather_facts: false
+  vars:
+    smtp_host: "smtp.internal.bank"
+    smtp_port: 25
+    smtp_use_starttls: false
+    mail_from: "aap-process-audit@bank.internal"
+    mail_to:
+      - "unix-security@bank.internal"
+      - "platform-ops@bank.internal"
+    controller_snapshot_root: "/var/lib/audit/process_audit"
+    retention_days: 90
+  roles:
+    - process_audit
+
