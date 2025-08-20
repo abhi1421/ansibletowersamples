@@ -1,24 +1,33 @@
 ---
+# roles/process_audit/tasks/compare_and_report.yml
+
 - name: Ensure controller host dir exists
-  delegate_to: localhost
   file:
-    path: "{{ controller_snapshot_root }}/{{ inventory_hostname }}"
+    path: "{{ controller_snapshot_dir }}"
     state: directory
-    mode: "0750"
+  delegate_to: localhost
+
+- name: Gather all snapshots from controller dir
+  find:
+    paths: "{{ controller_snapshot_dir }}"
+    patterns: "snapshot_*.json"
+    file_type: file
+  register: controller_snapshots
+  delegate_to: localhost
 
 - name: Determine current and previous snapshot paths
-  delegate_to: localhost
   set_fact:
-    _cur_path: "{{ controller_snapshot_root }}/{{ inventory_hostname }}/process_snapshot_{{ ansible_date_time.date }}.json"
-    _glob_all: "{{ lookup('ansible.builtin.fileglob', controller_snapshot_root ~ '/' ~ inventory_hostname ~ '/process_snapshot_*.json') | sort }}"
-  run_once: false
+    current_snapshot_path: "{{ controller_snapshot_dir }}/snapshot_{{ audit_date }}.json"
+    previous_snapshot_path: >-
+      {{ (controller_snapshots.files | map(attribute='path') | list | sort)[-2]
+         if (controller_snapshots.files | length) > 1 else None }}
+  delegate_to: localhost
 
 - name: Pick previous snapshot path if exists
-  delegate_to: localhost
   set_fact:
-    _prev_path: >-
-      {% set others = (_glob_all | difference([_cur_path]) | sort) %}
-      {{ (others | length > 0) | ternary(others[-1], '') }}
+    previous_snapshot_path: "{{ previous_snapshot_path }}"
+  when: previous_snapshot_path is not none
+  delegate_to: localhost
 
 - name: Load current snapshot JSON
   set_fact:
@@ -37,89 +46,30 @@
     prev_snapshot: {}
   delegate_to: localhost
 
-
-
 - name: Compute diffs (processes)
-  delegate_to: localhost
   set_fact:
-    proc_added: "{{ (_cur_json.processes | default([])) | difference(_prev_json.processes | default([])) }}"
-    proc_removed: "{{ (_prev_json.processes | default([])) | difference(_cur_json.processes | default([])) }}"
+    process_diffs: >-
+      {{ {
+          'added': current_snapshot.processes | difference(prev_snapshot.processes | default([])),
+          'removed': prev_snapshot.processes | default([]) | difference(current_snapshot.processes)
+        } }}
+  delegate_to: localhost
 
 - name: Compute diffs (listeners/services/crons)
   set_fact:
-    listener_diffs: >-
-      {{ current_snapshot.listeners | difference(prev_snapshot.listeners | default([])) }}
-    service_diffs: >-
-      {{ current_snapshot.services | difference(prev_snapshot.services | default([])) }}
-    cron_diffs: >-
-      {{ current_snapshot.crons | difference(prev_snapshot.crons | default([])) }}
-
-
-- name: Flag risk items
+    lsc_diffs: >-
+      {{ {
+          'listeners_added': current_snapshot.listeners | difference(prev_snapshot.listeners | default([])),
+          'listeners_removed': prev_snapshot.listeners | default([]) | difference(current_snapshot.listeners),
+          'services_added': current_snapshot.services | difference(prev_snapshot.services | default([])),
+          'services_removed': prev_snapshot.services | default([]) | difference(current_snapshot.services),
+          'crons_added': current_snapshot.crons | difference(prev_snapshot.crons | default([])),
+          'crons_removed': prev_snapshot.crons | default([]) | difference(current_snapshot.crons)
+        } }}
   delegate_to: localhost
-  vars:
-    _cpu_spikes: "{{ _cur_json.processes | select('search', ' [3-9][0-9]\\.|[1-9][0-9]{2,}\\. ') | list }}"
-    _mem_spikes: "{{ _cur_json.processes | select('search', ' [2-9][0-9]\\. [^ ]* ') | list }}"
-    _root_tmp: "{{ _cur_json.processes | select('search', '^root ') | select('search', '/tmp|/var/tmp') | list }}"
-    _new_non_whitelist_listeners: >-
-      {{
-        listen_added | reject('search', '(:|\\s)(' ~ (allowed_listening_ports | join("|")) ~ ')(\\s|$)') | list
-      }}
-    _new_non_whitelist_procs: >-
-      {{
-        proc_added
-        | reject('match', '(' ~ (allowed_process_globs | map('regex_escape') | join("|")) ~ ')')
-        | list
-      }}
-  set_fact:
-    risk_cpu: "{{ _cpu_spikes }}"
-    risk_mem: "{{ _mem_spikes }}"
-    risk_root_tmp: "{{ _root_tmp }}"
-    risk_ports: "{{ _new_non_whitelist_listeners }}"
-    risk_procs: "{{ _new_non_whitelist_procs }}"
 
-- name: Prune old controller snapshots
-  delegate_to: localhost
-  find:
-    paths: "{{ controller_snapshot_root }}/{{ inventory_hostname }}"
-    patterns: "process_snapshot_*.json"
-    age: "{{ retention_days }}d"
-    age_stamp: mtime
-  register: old_snaps
-
-- name: Remove old files
-  delegate_to: localhost
-  file:
-    path: "{{ item.path }}"
-    state: absent
-  loop: "{{ old_snaps.files }}"
-
-- name: Render host HTML report
-  delegate_to: localhost
+- name: Render diff report
   template:
-    src: "host_report.html.j2"
-    dest: "{{ controller_snapshot_root }}/{{ inventory_hostname }}/report_{{ ansible_date_time.iso8601_basic_short }}.html"
-    mode: "0640"
-  vars:
-    cur: "{{ _cur_json }}"
-    prev: "{{ _prev_json }}"
-    added:
-      processes: "{{ proc_added }}"
-      listeners: "{{ listen_added }}"
-      services: "{{ svc_added }}"
-    removed:
-      processes: "{{ proc_removed }}"
-      listeners: "{{ listen_removed }}"
-      services: "{{ svc_removed }}"
-    risks:
-      cpu: "{{ risk_cpu }}"
-      mem: "{{ risk_mem }}"
-      root_tmp: "{{ risk_root_tmp }}"
-      ports: "{{ risk_ports }}"
-      procs: "{{ risk_procs }}"
-  register: rendered_report
-
-- name: Set path to report for email
+    src: process_audit_report.j2
+    dest: "{{ controller_snapshot_dir }}/audit_report_{{ audit_date }}.txt"
   delegate_to: localhost
-  set_fact:
-    host_report_path: "{{ rendered_report.dest }}"
