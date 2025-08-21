@@ -35,8 +35,11 @@
     group: core
 
 - name: Login to the hub to perform further uploading
-  shell: oc login --server https://api.ek3nphub.rbi1.rbi.org.in:6443 -uocpadmin --insecure-skip-tls-verify=true
-#  register: hublogin_status
+  shell: oc login --server https://api.ek3nphub.rbi1.rbi.org.in:6443 -uocpadmin --insecure-skip-tls-verify=true 
+  args:
+    timeout: 120 # Timeout for the shell script
+  retries: 5
+  delay: 20
 
 - name: Check if the hub login is done
   shell: oc whoami --show-console
