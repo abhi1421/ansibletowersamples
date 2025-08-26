@@ -1,0 +1,30 @@
+---
+- name: testing subman things
+  hosts: all
+  gather_facts: true
+  tasks:
+
+    - name: Enable required repositories (baseos, appstream, ha)
+      ansible.builtin.command: >
+        subscription-manager repos --enable={{ item }}
+      register: repo_enable_result
+      failed_when: false     # do not fail playbook if repo is missing
+      changed_when: "'enabled' in repo_enable_result.stdout or 'already enabled' in repo_enable_result.stdout"
+      loop:
+        - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+        - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+        - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-highavailability-rpms"
+
+    - name: Debug repo enable results
+      ansible.builtin.debug:
+        var: repo_enable_result.results
+
+    - name: Verify enabled repositories after setting target release
+      ansible.builtin.command: subscription-manager repos --list-enabled
+      register: target_repos_list
+      changed_when: false
+
+    - name: Display enabled repositories for target version
+      ansible.builtin.debug:
+        var: target_repos_list.stdout_lines
+
