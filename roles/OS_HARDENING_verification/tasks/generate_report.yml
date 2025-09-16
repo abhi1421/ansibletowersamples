@@ -30,6 +30,7 @@
   # This Jinja2 template generates a Markdown-formatted report.
   # It groups results by category for better readability.
   tags:
+    - always
     - report_generation # Tag for report generation
 
 - name: Display compliance report (console output)
@@ -37,14 +38,41 @@
     msg: "{{ report_content }}"
   # Output the report to the console for immediate viewing.
   tags:
+    - always
     - report_generation
 
-- name: Save compliance report to file
+- name: Define report filename
+  ansible.builtin.set_fact:
+    report_filename: "/tmp/compliance_report_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.iso8601_basic | replace('T', '_') | replace('Z', '') | replace('-', '') | replace(':', '') }}.md"
+  tags:
+    - always
+    - report_generation
+
+- name: Save compliance report to file on target host
   ansible.builtin.copy:
     content: "{{ report_content }}"
-    dest: "/tmp/compliance_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.md"
+    dest: "{{ report_filename }}"
     mode: '0644'
-  # Save the report to a file on the target host.
-  # The filename includes hostname and timestamp for uniqueness.
   tags:
+    - always
     - report_generation
+
+- name: Fetch report file to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ report_filename }}"
+    dest: "/home/ansible/reports/jobs/hardeningverify/"
+    flat: yes
+  tags:
+    - always
+    - report_generation
+
+
+#- name: Save compliance report to file
+#  ansible.builtin.copy:
+#    content: "{{ report_content }}"
+#    dest: "/tmp/compliance_report_{{ ansible_hostname }}_{{ ansible_date_time.iso8601 }}.md"
+#    mode: '0644'
+#  # Save the report to a file on the target host.
+#  # The filename includes hostname and timestamp for uniqueness.
+#  tags:
+#    - report_generation
