@@ -110,10 +110,3 @@
   # This final task compiles all collected results and generates a human-readable report.
   tags:
     - report_generation # Tag for report generation
-
-- name: Copy the report from Container to Controller node
-  copy: 
-    src: "/mnt/host_share/{{ report_filename }}"
-    dest: "/home/ansible/reports/jobs/hardeninverify"
-    mode: "0644"
-    force: yes
