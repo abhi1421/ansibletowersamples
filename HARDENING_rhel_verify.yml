@@ -5,3 +5,25 @@
   roles:
     #    - HARDENING_rhel_verify
     - OS_HARDENING_verification
+
+- name: Create destination directory on control node
+  ansible.builtin.file:
+    path: /home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: no
+  run_once: true
+  tags:
+    - always
+    - report_generation
+
+- name: Copy file from container to ansible localhost
+  copy: 
+    path: "/mnt/host_share/{{ report_filename }}"
+    dest: "/home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/"
+    flat: yes
+  delegate_to: localhost  
+  tags:
+    - always
+    - report_generation
