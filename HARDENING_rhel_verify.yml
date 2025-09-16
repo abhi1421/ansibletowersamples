@@ -8,6 +8,7 @@
 
 - name: To be performed for Ansible node
   hosts: localhost
+  gather_facts: true
   tasks:
 
     - name: Create destination directory on control node
