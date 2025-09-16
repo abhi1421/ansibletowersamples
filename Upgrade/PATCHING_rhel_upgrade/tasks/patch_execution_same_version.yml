@@ -18,6 +18,7 @@
   ansible.builtin.command: subscription-manager repos --list-enabled
   register: repos_list
   changed_when: false
+  
 - name: Display enabled repositories
   ansible.builtin.debug:
     var: repos_list.stdout_lines

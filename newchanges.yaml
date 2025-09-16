@@ -1,0 +1,44 @@
+Instructions
+
+- Add the below code to 2 files "patch_execution_same_version" and "patch_execution_higher_version" before below task
+
+- name: Verify enabled repositories after setting target release
+
+
+#----------------NEW ADDITION--------------------------------
+- name: Register system to Satellite if not registered
+  ansible.builtin.command: >
+    subscription-manager register
+    --org={{ satellite_org_id }} --activationkey={{ satellite_activation_key }}  --force
+  when: subscription_status_check.stdout != "Current"
+  tags:
+    - registration
+
+- name: Enable required repositories (baseos, appstream, ha)
+  ansible.builtin.command: >
+    subscription-manager repos --enable={{ item }}
+  register: repo_enable_result
+  failed_when: false     # do not fail playbook if repo is missing
+  changed_when: "'enabled' in repo_enable_result.stdout or 'already enabled' in repo_enable_result.stdout"
+  loop:
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-highavailability-rpms"
+
+- name: Debug repo enable results
+  ansible.builtin.debug:
+    var: repo_enable_result.results
+#----------------NEW ADDITION--------------------------------
+
+
+
+Add below vars in the defaults/main.yml
+
+# Satellite Server Registration Details
+# IMPORTANT: Replace with your actual Satellite server URL and activation key
+satellite_server_url: "https://pdcsatellitesrv.rbi.org.in"
+satellite_activation_key: "PROD_NGRTGS"
+satellite_org_id: "NGRTGS"
+
+
+IF POSSIBLE DO TEST THIS ON MULTIPLE SYSTEMS X86, S390S, ARCH
