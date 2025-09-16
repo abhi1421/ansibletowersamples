@@ -70,6 +70,7 @@
   stat:
     path: /mnt/host_share/{{ report_filename }}
   register: controller_file_stat
+  delegate_to: localhost
 
 - name: Debug the controller file
   debug:
