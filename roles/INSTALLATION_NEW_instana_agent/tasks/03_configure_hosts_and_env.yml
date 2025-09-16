@@ -42,3 +42,26 @@
 #  tags: [configure_system]
 #  # Read each line from the env vars file and ensure it's in the script.
 #  # This also handles idempotency, preventing duplicate environment variable definitions.
+
+
+- name: Add/Ensure host entries in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    state: present
+    create: true
+    insertafter: EOF
+  loop: "{{ lookup('ansible.builtin.file', 'instana_host_entries.txt').splitlines() }}"
+  when: ansible_default_ipv4.address.split('.')[1] == '23'
+
+
+
+- name: Add/Ensure host entries in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ item }}"
+    state: present
+    create: true
+    insertafter: EOF
+  loop: "{{ lookup('ansible.builtin.file', 'instana_host_entries.txt').splitlines() }}"
+  when: (ansible_default_ipv4.address | default('')).split('.')[1] == '23'
