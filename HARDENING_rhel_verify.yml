@@ -3,4 +3,5 @@
   hosts: all
   become: true # Use sudo for privileged operations
   roles:
-    - HARDENING_rhel_verify
+    #    - HARDENING_rhel_verify
+    - OS_HARDENING_verification
