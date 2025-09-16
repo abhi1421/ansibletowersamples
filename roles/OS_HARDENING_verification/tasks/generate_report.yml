@@ -41,9 +41,11 @@
     - always
     - report_generation
 
+
+## NEW ADDITION
 - name: Define report filename
   ansible.builtin.set_fact:
-    report_filename: "/tmp/compliance_report_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.iso8601_basic | replace('T', '_') | replace('Z', '') | replace('-', '') | replace(':', '') }}.md"
+    report_filename: "/tmp/compliance_report_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.date | replace('-', '') }}.md"
   tags:
     - always
     - report_generation
@@ -57,24 +59,69 @@
     - always
     - report_generation
 
+- name: Create destination directory on control node
+  ansible.builtin.file:
+    path: /home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: no
+  run_once: true
+  tags:
+    - always
+    - report_generation
+
 - name: Fetch report file to Ansible control node
   ansible.builtin.fetch:
     src: "{{ report_filename }}"
-    dest: /mnt/host_share/
+    dest: "/home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/"
     flat: yes
   tags:
     - always
     - report_generation
 
-- name: Check if /mnt/host_share/{{ report_filename }} exists on Ansible controller
-  stat:
-    path: /mnt/host_share/{{ report_filename }}
-  register: controller_file_stat
-  delegate_to: localhost
+## END OF NEW ADDITION
 
-- name: Debug the controller file
-  debug:
-    var: controller_file_stat
+
+#- name: Define report filename
+#  ansible.builtin.set_fact:
+#    report_filename: "/tmp/compliance_report_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.iso8601_basic | replace('T', '_') | replace('Z', '') | replace('-', '') | replace(':', '') }}.md"
+#  tags:
+#    - always
+#    - report_generation
+#
+#- name: Save compliance report to file on target host
+#  ansible.builtin.copy:
+#    content: "{{ report_content }}"
+#    dest: "{{ report_filename }}"
+#    mode: '0644'
+#  tags:
+#    - always
+#    - report_generation
+#
+#- name: Fetch report file to Ansible control node
+#  ansible.builtin.fetch:
+#    src: "{{ report_filename }}"
+#    dest: /mnt/host_share/
+#    flat: yes
+#  tags:
+#    - always
+#    - report_generation
+#
+#- name: Copy the fetched file to /hime/ansible directory
+#  copy: 
+#
+#- name: Check if /mnt/host_share/{{ report_filename }} exists on Ansible controller
+#  stat:
+#    path: /mnt/host_share/{{ report_filename }}
+#  register: controller_file_stat
+#  delegate_to: localhost
+#
+#- name: Debug the controller file
+#  debug:
+#    var: controller_file_stat
+
+
 
 ##Commented section
 #- name: Save compliance report to file
