@@ -8,6 +8,7 @@
     state: present
   register: aide_package_check
   check_mode: true
+  ignore_errors: true
   tags:
     - system_integrity_intrusion
     - aide
@@ -204,6 +205,7 @@
     state: started
   register: auditd_service_check
   check_mode: true
+  ignore_errors: true
   tags:
     - system_integrity_intrusion
     - auditd
@@ -253,6 +255,7 @@
     state: started
   register: rsyslog_service_check
   check_mode: true
+  ignore_errors: true
   tags:
     - system_integrity_intrusion
     - rsyslog
