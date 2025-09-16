@@ -75,7 +75,7 @@
   debug:
     var: controller_file_stat
 
-## OLD CODE commented
+##
 #- name: Save compliance report to file
 #  ansible.builtin.copy:
 #    content: "{{ report_content }}"
