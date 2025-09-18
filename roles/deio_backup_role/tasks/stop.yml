@@ -1,0 +1,16 @@
+---
+# Stop service section
+- name: Check saa_system status
+  ansible.builtin.command: "{{ saa_bin }} status"
+  register: saa_status
+  become: true
+  become_user: all_adm
+  changed_when: false
+  ignore_errors: true
+
+- name: Stop saa_system if operational
+  ansible.builtin.command: "{{ saa_bin }} stop"
+  become: true
+  become_user: all_adm
+  when: "'operational' in saa_status.stdout"
+  register: saa_status_after
