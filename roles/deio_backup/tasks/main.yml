@@ -16,24 +16,24 @@
 # -------------------------------
 # Check saa_system status
 # -------------------------------
-- name: Check saa_system status
-  ansible.builtin.command: "{{ saa_bin }} status"
-  register: saa_status
-  become: true
-  become_user: all_adm
-  ignore_errors: true
-  when: today_day != "Sunday"
-
-# -------------------------------
-# Stop system (except Monday & Sunday)
-# -------------------------------
-- name: Stop saa_system if operational
-  ansible.builtin.command: "{{ saa_bin }} stop"
-  become: true
-  become_user: all_adm
-  when:
-    - today_day not in ["Monday", "Sunday"]
-    - "'operational' in saa_status.stdout"
+#- name: Check saa_system status
+#  ansible.builtin.command: "{{ saa_bin }} status"
+#  register: saa_status
+#  become: true
+#  become_user: all_adm
+#  ignore_errors: true
+#  when: today_day != "Sunday"
+#
+## -------------------------------
+## Stop system (except Monday & Sunday)
+## -------------------------------
+#- name: Stop saa_system if operational
+#  ansible.builtin.command: "{{ saa_bin }} stop"
+#  become: true
+#  become_user: all_adm
+#  when:
+#    - today_day not in ["Monday", "Sunday"]
+#    - "'operational' in saa_status.stdout"
 
 # -------------------------------
 # Backup steps (not Monday, not Sunday)
@@ -85,25 +85,46 @@
   become_user: all_adm
   when: today_day not in ["Monday", "Sunday"]
 
-- name: Find latest SAA_DATA_BACKUP folder
-  ansible.builtin.shell: "ls -1t {{ saa_data_backup_src }} | grep SAA_DATA_BACKUP | head -1"
+
+- name: Find latest SAA_DATA_BACKUP file
+  ansible.builtin.shell: |
+    ls -1t {{ saa_data_backup_src }}/*SAA_DATA_BACKUP* 2>/dev/null | head -1
   register: latest_backup
+  changed_when: false
+  failed_when: latest_backup.stdout == ""
   when: today_day not in ["Monday", "Sunday"]
 
-- name: Copy latest SAA_DATA_BACKUP
-  ansible.builtin.command: "cp -pR {{ saa_data_backup_src }}/{{ latest_backup.stdout }} {{ today_db_dir }}/"
+- name: Copy latest SAA_DATA_BACKUP file
+  ansible.builtin.command: "cp -p {{ latest_backup.stdout }} {{ today_db_dir }}/"
   become: true
   become_user: all_adm
   when: today_day not in ["Monday", "Sunday"]
+
+
+
+#- name: Find latest SAA_DATA_BACKUP folder
+#  ansible.builtin.shell: "ls -1t {{ saa_data_backup_src }} | grep SAA_DATA_BACKUP | head -1"
+#  register: latest_backup
+#  when: today_day not in ["Monday", "Sunday"]
+#
+#- name: Copy latest SAA_DATA_BACKUP
+#  ansible.builtin.command: "cp -pR {{ saa_data_backup_src }}/{{ latest_backup.stdout }} {{ today_db_dir }}/"
+#  become: true
+#  become_user: all_adm
+#  when: today_day not in ["Monday", "Sunday"]
+
+
+
+
 
 # -------------------------------
 # Restart system (except Saturday & Sunday)
-# -------------------------------
-- name: Start saa_system again
-  ansible.builtin.command: "{{ saa_bin }} start operational"
-  become: true
-  become_user: all_adm
-  when: today_day not in ["Saturday", "Sunday"]
+## -------------------------------
+#- name: Start saa_system again
+#  ansible.builtin.command: "{{ saa_bin }} start operational"
+#  become: true
+#  become_user: all_adm
+#  when: today_day not in ["Saturday", "Sunday"]
 
 
 # Capture action summary (for report)
