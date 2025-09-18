@@ -82,7 +82,7 @@
     - "{{ dbrbackup_src }}"
     - "{{ dbrmirror_src }}"
   become: true
-  become_user: all_adm
+  #become_user: all_adm
   when: today_day not in ["Monday", "Sunday"]
 
 
@@ -97,7 +97,7 @@
 - name: Copy latest SAA_DATA_BACKUP file
   ansible.builtin.command: "cp -p {{ latest_backup.stdout }} {{ today_db_dir }}/"
   become: true
-  become_user: all_adm
+#  become_user: all_adm
   when: today_day not in ["Monday", "Sunday"]
 
 
