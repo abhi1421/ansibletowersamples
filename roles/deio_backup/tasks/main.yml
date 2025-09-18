@@ -145,5 +145,6 @@
         {% endif %}
       backup_dir: "{{ today_backup_dir | default('N/A') }}"
       disk_util: "{{ archive_util.stdout | default('N/A') }}"
+      file_copied: "{{ latest_backup.stdout | default('N/A')}}"
       system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
       system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"
