@@ -53,6 +53,10 @@
   set_fact:
     audit_usernames: "{{ audit_users | map('first') | list }}"
 
+- name: Debug audit_usernames
+  debug:
+    var: audit_usernames
+
 # 2. Collect sudo privileges for each user
 - name: Check sudo privileges from /etc/sudoers and /etc/sudoers.d
   shell: "grep -E '^{{ item }}\\b' /etc/sudoers /etc/sudoers.d/* 2>/dev/null || true"
