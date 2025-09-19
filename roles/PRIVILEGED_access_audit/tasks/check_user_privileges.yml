@@ -65,10 +65,11 @@
     user_sudo_privileges: >-
       {{
         dict(
-          (item.item, item.stdout_lines | default([]))
+          (item.item, item.stdout_lines | default(['No sudo privileges found']))
           for item in sudo_privs.results
         )
       }}
+
 
 # 3. Collect authorized_keys for each user
 - name: Read authorized_keys if present
