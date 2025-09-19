@@ -1,6 +1,6 @@
 ---
 # This role is designed to identify users with sudo privileges on a system.
-# It does this by inspecting the /etc/sudoers file and all files in the /etc/sudoers.d/ directory.
+# It does this by checking each user's sudo capabilities.
 
 - name: Get list of all users
   ansible.builtin.getent:
@@ -9,21 +9,48 @@
   # This task uses the getent module, which is a reliable way to get user information
   # that works across different systems and authentication backends (e.g., local, LDAP).
 
-- name: Get content of /etc/sudoers
+- name: Initialize sudo users list
+  ansible.builtin.set_fact:
+    sudo_users: []
+
+- name: Check for sudo privileges for each user
+  ansible.builtin.shell:
+    cmd: "sudo -n -l -U {{ item.key }} | grep -c 'ALL'"
+    # The -n flag ensures no password prompt.
+    # The -l flag lists the user's sudo privileges.
+    # The -U flag specifies the user to check.
+    # We grep for 'ALL' to see if they have full sudo access.
+  args:
+    executable: /bin/bash
+  changed_when: false
+  loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
+  register: sudo_check_results
+  # Looping through all users and running a shell command is the most reliable
+  # way to check for sudo privileges across various system configurations.
+
+- name: Add users with sudo privileges to the list
+  ansible.builtin.set_fact:
+    sudo_users: "{{ sudo_users + [ item.item.key ] }}"
+  when: item.stdout | int > 0
+  loop: "{{ sudo_check_results.results }}"
+  # This task iterates through the results of the previous loop.
+  # If the grep command found at least one line with 'ALL',
+  # it means the user has sudo privileges, and we add them to our list.
+
+- name: Get content of /etc/sudoers (for reporting purposes)
   ansible.builtin.slurp:
     src: /etc/sudoers
   register: sudoers_content
   # The slurp module is used to read the file content securely and base64-encode it.
-  # This avoids issues with special characters and large files.
 
-- name: Find all files in /etc/sudoers.d/
+- name: Find all files in /etc/sudoers.d/ (for reporting purposes)
   ansible.builtin.find:
     paths: /etc/sudoers.d/
     file_type: file
   register: sudoers_d_files
   # This finds all standard files within the directory, excluding subdirectories.
 
-- name: Get content of sudoers.d files
+- name: Get content of sudoers.d files (for reporting purposes)
   ansible.builtin.slurp:
     src: "{{ item.path }}"
   loop: "{{ sudoers_d_files.files }}"
@@ -37,20 +64,7 @@
         (sudoers_content.content | b64decode) + '\n' +
         (sudoers_d_content.results | map(attribute='content') | map('b64decode') | join('\n'))
       }}
-  # This combines all the sudoer content into a single string for easier searching.
-  # The content is decoded from base64 before being concatenated.
-
-- name: Identify users with sudo privileges
-  ansible.builtin.set_fact:
-    sudo_users: >-
-      {{
-        all_users_info.ansible_facts.getent_passwd.keys() |
-        select('search', '^root$|^sudo$|^wheel$') |
-        list
-      }}
-  # Fix: The 'select' filter's search test does not use a 'regex' keyword.
-  # The pattern is passed directly as the second argument. This change should resolve the 'unexpected keyword argument' error.
-  # This simplified version checks for common sudo groups like `wheel` and `sudo` and also includes the root user.
+  # This task combines all the sudoer content into a single string for easier searching in the report.
 
 - name: Generate sudo report
   ansible.builtin.template:
