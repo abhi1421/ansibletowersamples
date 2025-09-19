@@ -25,8 +25,9 @@
   changed_when: false
   loop: "{{ all_users_info.ansible_facts.getent_passwd | dict2items }}"
   register: sudo_check_results
-  # Looping through all users and running a shell command is the most reliable
-  # way to check for sudo privileges across various system configurations.
+  ignore_errors: true
+  # Added ignore_errors: true to prevent the playbook from failing on system accounts
+  # that are not allowed to run sudo commands.
 
 - name: Add users with sudo privileges to the list
   ansible.builtin.set_fact:
