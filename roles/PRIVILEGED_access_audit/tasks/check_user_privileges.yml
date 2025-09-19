@@ -1,27 +1,88 @@
----
-- name: Get all users from /etc/passwd
-  command: getent passwd
-  register: passwd_output
+#---
+#- name: Get all users from /etc/passwd
+#  command: getent passwd
+#  register: passwd_output
+#
+#- name: Parse users
+#  set_fact:
+#    parsed_users: "{{ passwd_output.stdout_lines | map('split', ':') | list }}"
+#
+#- name: Extract root user
+#  set_fact:
+#    root_user: "{{ parsed_users | selectattr('0', 'equalto', 'root') | map(attribute=0) | list }}"
+#
+#- name: Extract users with UID >= 1000
+#  set_fact:
+#    regular_users: >-
+#      {{ parsed_users
+#         | select('defined')
+#         | select('match', '^[0-9]+$', attribute=2)
+#         | select('select', lambda x: (x[2] | int) >= 1000)
+#         | map(attribute=0)
+#         | list }}
+#
+#
+#- name: Combine valid users
+#  set_fact:
+#    valid_users: "{{ root_user + regular_users }}"
 
-- name: Parse users
+
+---
+# tasks/check_user_privileges.yml
+
+# 1. Get all system users (UID >= 1000 and root)
+- name: Get all users with UID >= 1000 and root
+  command: getent passwd
+  register: passwd_entries
+
+- name: Parse users into list
   set_fact:
-    parsed_users: "{{ passwd_output.stdout_lines | map('split', ':') | list }}"
+    parsed_users: "{{ passwd_entries.stdout_lines
+                      | map('split', ':')
+                      | list }}"
 
 - name: Extract root user
   set_fact:
-    root_user: "{{ parsed_users | selectattr('0', 'equalto', 'root') | map(attribute=0) | list }}"
+    audit_users: "{{ parsed_users | selectattr('0', 'equalto', 'root') | list }}"
 
 - name: Extract users with UID >= 1000
   set_fact:
-    regular_users: >-
-      {{ parsed_users
-         | select('defined')
-         | select('match', '^[0-9]+$', attribute=2)
-         | select('select', lambda x: (x[2] | int) >= 1000)
-         | map(attribute=0)
-         | list }}
+    audit_users: "{{ audit_users + (parsed_users | selectattr('2', 'int') | selectattr('2', '>=', 1000) | list) }}"
 
-
-- name: Combine valid users
+- name: Build audit_usernames list
   set_fact:
-    valid_users: "{{ root_user + regular_users }}"
+    audit_usernames: "{{ audit_users | map('first') | list }}"
+
+# 2. Collect sudo privileges for each user
+- name: Check sudo privileges from /etc/sudoers and /etc/sudoers.d
+  shell: "grep -E '^{{ item }}\\b' /etc/sudoers /etc/sudoers.d/* 2>/dev/null || true"
+  loop: "{{ audit_usernames }}"
+  register: sudo_privs
+  changed_when: false
+
+- name: Save sudo privileges into fact
+  set_fact:
+    user_sudo_privileges: >-
+      {{
+        dict(
+          (item.item, item.stdout_lines | default([]))
+          for item in sudo_privs.results
+        )
+      }}
+
+# 3. Collect authorized_keys for each user
+- name: Read authorized_keys if present
+  shell: "cat ~{{ item }}/.ssh/authorized_keys 2>/dev/null || true"
+  loop: "{{ audit_usernames }}"
+  register: user_keys
+  changed_when: false
+
+- name: Save authorized_keys into fact
+  set_fact:
+    user_authorized_keys: >-
+      {{
+        dict(
+          (item.item, item.stdout_lines | default([]))
+          for item in user_keys.results
+        )
+      }}
