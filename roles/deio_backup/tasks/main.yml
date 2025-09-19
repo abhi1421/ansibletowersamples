@@ -76,6 +76,11 @@
     - "{{ today_db_dir }}"
   when: today_day not in ["Monday", "Sunday"]
 
+- Debug today's backup directories
+  debug:
+    msg: today_db_dir: "{{ today_backup_dir }}/DB"
+  register: db_backup_dir
+
 - name: Copy DBRBackup and DBRMirror
   ansible.builtin.command: "cp -pR {{ item }} {{ today_backup_dir }}/"
   with_items:
@@ -99,23 +104,6 @@
   become: true
 #  become_user: all_adm
   when: today_day not in ["Monday", "Sunday"]
-
-
-
-#- name: Find latest SAA_DATA_BACKUP folder
-#  ansible.builtin.shell: "ls -1t {{ saa_data_backup_src }} | grep SAA_DATA_BACKUP | head -1"
-#  register: latest_backup
-#  when: today_day not in ["Monday", "Sunday"]
-#
-#- name: Copy latest SAA_DATA_BACKUP
-#  ansible.builtin.command: "cp -pR {{ saa_data_backup_src }}/{{ latest_backup.stdout }} {{ today_db_dir }}/"
-#  become: true
-#  become_user: all_adm
-#  when: today_day not in ["Monday", "Sunday"]
-
-
-
-
 
 # -------------------------------
 # Restart system (except Saturday & Sunday)
@@ -144,6 +132,7 @@
           Backup + Startup performed
         {% endif %}
       backup_dir: "{{ today_backup_dir | default('N/A') }}"
+      db_backup: "{{ db_backup_dir | default('N/A') }}"
       disk_util: "{{ archive_util.stdout | default('N/A') }}"
       file_copied: "{{ latest_backup.stdout | default('N/A')}}"
       system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
