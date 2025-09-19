@@ -1,5 +1,3 @@
-#SPDX-License-Identifier: MIT-0
-# tasks file for sudo_privilege_checker
 ---
 # This role is designed to identify users with sudo privileges on a system.
 # It does this by inspecting the /etc/sudoers file and all files in the /etc/sudoers.d/ directory.
@@ -47,10 +45,11 @@
     sudo_users: >-
       {{
         all_users_info.ansible_facts.getent_passwd.keys() |
-        select('search', regex='^root$|^sudo$|^wheel$') |
+        select('search', '^root$|^sudo$|^wheel$') |
         list
       }}
-  # A more robust search would be to iterate through the users and their groups and check against the sudoers content.
+  # Fix: The 'select' filter's search test does not use a 'regex' keyword.
+  # The pattern is passed directly as the second argument. This change should resolve the 'unexpected keyword argument' error.
   # This simplified version checks for common sudo groups like `wheel` and `sudo` and also includes the root user.
 
 - name: Generate sudo report
