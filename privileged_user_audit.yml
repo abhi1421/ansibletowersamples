@@ -2,5 +2,6 @@
   hosts: all
   become: yes
   roles:
-    - privileged_user_audit
+#    - privileged_user_audit
 #    - PRIVILEGED_access_audit
+    - sudo_privilege_checker
