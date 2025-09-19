@@ -78,7 +78,7 @@
 
 - Debug today's backup directories
   debug:
-    msg: today_db_dir: "{{ today_backup_dir }}/DB"
+    msg: "{{ today_db_dir: {{ today_backup_dir }}/DB }}"
   register: db_backup_dir
 
 - name: Copy DBRBackup and DBRMirror
