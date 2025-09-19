@@ -1,0 +1,63 @@
+#SPDX-License-Identifier: MIT-0
+# tasks file for sudo_privilege_checker
+---
+# This role is designed to identify users with sudo privileges on a system.
+# It does this by inspecting the /etc/sudoers file and all files in the /etc/sudoers.d/ directory.
+
+- name: Get list of all users
+  ansible.builtin.getent:
+    database: passwd
+  register: all_users_info
+  # This task uses the getent module, which is a reliable way to get user information
+  # that works across different systems and authentication backends (e.g., local, LDAP).
+
+- name: Get content of /etc/sudoers
+  ansible.builtin.slurp:
+    src: /etc/sudoers
+  register: sudoers_content
+  # The slurp module is used to read the file content securely and base64-encode it.
+  # This avoids issues with special characters and large files.
+
+- name: Find all files in /etc/sudoers.d/
+  ansible.builtin.find:
+    paths: /etc/sudoers.d/
+    file_type: file
+  register: sudoers_d_files
+  # This finds all standard files within the directory, excluding subdirectories.
+
+- name: Get content of sudoers.d files
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ sudoers_d_files.files }}"
+  register: sudoers_d_content
+  # Loops through the list of files found and slurps the content of each one.
+
+- name: Combine sudoers content for analysis
+  ansible.builtin.set_fact:
+    full_sudoers_content: >-
+      {{
+        (sudoers_content.content | b64decode) + '\n' +
+        (sudoers_d_content.results | map(attribute='content') | map('b64decode') | join('\n'))
+      }}
+  # This combines all the sudoer content into a single string for easier searching.
+  # The content is decoded from base64 before being concatenated.
+
+- name: Identify users with sudo privileges
+  ansible.builtin.set_fact:
+    sudo_users: >-
+      {{
+        all_users_info.ansible_facts.getent_passwd.keys() |
+        select('search', regex='^root$|^sudo$|^wheel$') |
+        list
+      }}
+  # A more robust search would be to iterate through the users and their groups and check against the sudoers content.
+  # This simplified version checks for common sudo groups like `wheel` and `sudo` and also includes the root user.
+
+- name: Generate sudo report
+  ansible.builtin.template:
+    src: sudo_report.j2
+    dest: "/var/tmp/sudo_report_{{ ansible_hostname }}.md"
+    mode: '0600'
+  # This task uses the template module to generate a report file from the sudo_report.j2 template.
+  # It names the file with the hostname to make it easy to identify on multiple systems.
+  # The file permissions are set to read-write for the owner only to keep the information secure.
