@@ -1,0 +1,16 @@
+DEIO Backup Report - {{ ansible_date_time.date }}
+
+{% for host in play_hosts %}
+Host: {{ host }}
+Day: {{ hostvars[host].deio_backup_result.day }}
+Today: {{ hostvars[host].deio_backup_result.today_date }}
+Yesterday: {{ hostvars[host].deio_backup_result.yesterday_date }}
+Holiday Status: {{ hostvars[host].deio_backup_result.holiday_status }}
+Action Taken: {{ hostvars[host].deio_backup_result.action_taken }}
+Backup Dir: {{ hostvars[host].deio_backup_result.backup_dir }}
+DB Backup Dir: {{ hostvars[host].deio_backup_result.db_backup }}
+Disk Util: {{ hostvars[host].deio_backup_result.disk_util }}
+File Copied: {{ hostvars[host].deio_backup_result.file_copied }}
+
+{% endfor %}
+
