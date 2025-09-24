@@ -1,0 +1,40 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for deio_backup_new
+
+# Paths
+archive_mount: "/Archives"
+backup_base_dir: "/Archives/Backup"
+today_backup_dir: "{{ backup_base_dir }}/{{ lookup('pipe', 'date +%d%m%Y') }}"
+today_db_dir: "{{ today_backup_dir }}/DB"
+
+dbrbackup_src: "/DBRBackup"
+dbrmirror_src: "/DBRMirror"
+saa_data_backup_src: "/Alliance/Access/usrdata/backup/db"
+saa_bin: "./Alliance/Access/bin/saa_system"
+
+# Utilization threshold
+utilization_threshold: 80
+
+# Holidays (DD-MM-YYYY)
+holiday_list:
+  - "19-02-2025"
+  - "26-02-2025"
+  - "14-03-2025"
+  - "31-03-2025"
+  - "01-04-2025"
+  - "10-04-2025"
+  - "14-04-2025"
+  - "18-04-2025"
+  - "01-05-2025"
+  - "12-05-2025"
+  - "07-06-2025"
+  - "15-08-2025"
+  - "27-08-2025"
+  - "08-09-2025"
+  - "02-10-2025"
+  - "21-10-2025"
+  - "22-10-2025"
+  - "05-11-2025"
+  - "25-12-2025"
+

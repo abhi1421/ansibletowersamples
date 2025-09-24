@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Run DEIO Backup
+  hosts: all
+  gather_facts: false
+  roles:
+    - deio_backup_new
+
+- name: Send DEIO Backup Report
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Render consolidated report
+      ansible.builtin.template:
+        src: "roles/deio_backup/templates/deio_backup_report.j2"
+        dest: "{{ report_file }}"
+
+    - name: Send report via email
+      ansible.builtin.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        to: "{{ report_email_to }}"
+        from: "{{ report_email_from }}"
+        subject: "{{ report_email_subject }}"
+        body: "{{ lookup('file', report_file) }}"
+
