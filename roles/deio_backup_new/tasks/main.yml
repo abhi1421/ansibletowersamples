@@ -94,7 +94,7 @@
   become: true
   become_user: all_adm
   when:
-    - not skip_backup
+    - not skip_backup  # not skup_backup meaning backup step is true
     - "'operational' in saa_status.stdout"
 
 
@@ -119,7 +119,7 @@
 - name: Sort backup folders
   ansible.builtin.set_fact:
     sorted_backups: "{{ backup_dirs.files | map(attribute='path') | sort }}"
-  when: not skip_backup | bool
+  when: not skip_backup | bool  # not skup_backup meaning backup step is true
 
 - name: Delete 2nd last backup if utilization > threshold
   ansible.builtin.file:
@@ -167,17 +167,8 @@
 - name: Start saa_system
   ansible.builtin.command: "{{ saa_bin }} start operational"
   become: true
-  when: not skip_startup | bool
+  when: not skip_startup | bool  # not skip_startup meaning start service step is true
 
-# -------------------------------
-# Start system if startup is planned
-# -------------------------------
-- name: Start saa_system again
-  ansible.builtin.command: "{{ saa_bin }} start operational"
-  become: true
-  become_user: all_adm
-  register: system_after_status
-  when: not skip_startup
 
 
 # -------------------------------
