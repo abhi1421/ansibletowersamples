@@ -1,47 +1,109 @@
 # tasks file for ai_api
+#---
+#- name: "Read the input file to summarize"
+#  ansible.builtin.slurp:
+#    src: "{{ input_file }}"
+#  register: file_data
+#
+#- name: "Decode the input file content"
+#  ansible.builtin.set_fact:
+#    file_content: "{{ file_data.content | b64decode }}"
+#
+#- name: "Call OpenAI ChatGPT API to generate summary"
+#  ansible.builtin.uri:
+#    url: "https://api.openai.com/v1/chat/completions"
+#    method: POST
+#    headers:
+#      Content-Type: "application/json"
+#      Authorization: "Bearer {{ openai_api_key }}"
+#    body_format: json
+#    body:
+#      model: "{{ ai_model }}"
+#      messages:
+#        - role: system
+#          content: "{{ ai_system_prompt }}"
+#        - role: user
+#          content: "Summarize the following in layman terms:\n\n{{ file_content }}"
+#    return_content: yes
+#  register: ai_response
+#  failed_when: ai_response.status not in [200, 201]
+#  changed_when: false
+#
+#- name: "Extract AI summary from response"
+#  ansible.builtin.set_fact:
+#    ai_summary: "{{ ai_response.json.choices[0].message.content | default('No summary returned') }}"
+#
+#- name: "Save AI summary to output file"
+#  ansible.builtin.copy:
+#    dest: "{{ output_file }}"
+#    content: "{{ ai_summary }}"
+#    mode: "0644"
+#
+#- name: "Display summary in output"
+#  ansible.builtin.debug:
+#    msg: |
+#      ✅ AI Summary Generated Successfully:
+#      
+#      {{ ai_summary }}
+
+
 ---
-- name: "Read the input file to summarize"
-  ansible.builtin.slurp:
-    src: "{{ input_file }}"
-  register: file_data
+- name: Ensure input report file exists
+  stat:
+    path: "{{ input_file }}"
+  register: file_check
 
-- name: "Decode the input file content"
-  ansible.builtin.set_fact:
-    file_content: "{{ file_data.content | b64decode }}"
+- name: Fail if input report file not found
+  fail:
+    msg: "Input report file not found at {{ input_file }}"
+  when: not file_check.stat.exists
 
-- name: "Call OpenAI ChatGPT API to generate summary"
-  ansible.builtin.uri:
-    url: "https://api.openai.com/v1/chat/completions"
+#####################################################################
+# 🧠 SECTION 1: OpenAI ChatGPT API (Commented Out for Now)
+# This requires a valid OpenAI API key and internet access.
+#####################################################################
+# - name: Call OpenAI ChatGPT API to generate summary
+#   uri:
+#     url: "https://api.openai.com/v1/chat/completions"
+#     method: POST
+#     headers:
+#       Content-Type: "application/json"
+#       Authorization: "Bearer {{ openai_api_key }}"
+#     body_format: json
+#     body:
+#       model: "gpt-3.5-turbo"
+#       messages:
+#         - role: system
+#           content: "You are an AI assistant that summarizes complex technical reports into simple, layman-friendly language."
+#         - role: user
+#           content: "Summarize the following report in layman terms:\n\n{{ lookup('file', input_file) }}"
+#     return_content: true
+#   register: ai_response
+#   failed_when: ai_response.status != 200
+
+# - name: Display AI Summary (ChatGPT)
+#   debug:
+#     msg: "{{ ai_response.json.choices[0].message.content }}"
+
+#####################################################################
+# 🤖 SECTION 2: OLLAMA (Local / Offline AI)
+# This runs entirely offline on your system and needs no API key.
+#####################################################################
+
+- name: Generate summary using Ollama (local AI)
+  uri:
+    url: "http://localhost:11434/api/generate"
     method: POST
-    headers:
-      Content-Type: "application/json"
-      Authorization: "Bearer {{ openai_api_key }}"
     body_format: json
     body:
-      model: "{{ ai_model }}"
-      messages:
-        - role: system
-          content: "{{ ai_system_prompt }}"
-        - role: user
-          content: "Summarize the following in layman terms:\n\n{{ file_content }}"
-    return_content: yes
-  register: ai_response
-  failed_when: ai_response.status not in [200, 201]
-  changed_when: false
+      model: "llama3"
+      prompt: "Summarize the following report in simple, layman terms:\n\n{{ lookup('file', input_file) }}"
+    return_content: true
+  register: ollama_response
+  failed_when: ollama_response.status != 200
+  when: file_check.stat.exists
 
-- name: "Extract AI summary from response"
-  ansible.builtin.set_fact:
-    ai_summary: "{{ ai_response.json.choices[0].message.content | default('No summary returned') }}"
-
-- name: "Save AI summary to output file"
-  ansible.builtin.copy:
-    dest: "{{ output_file }}"
-    content: "{{ ai_summary }}"
-    mode: "0644"
-
-- name: "Display summary in output"
-  ansible.builtin.debug:
-    msg: |
-      ✅ AI Summary Generated Successfully:
-      
-      {{ ai_summary }}
+- name: Display AI Summary (Ollama)
+  debug:
+    msg: "{{ ollama_response.json.response }}"
+  when: ollama_response is defined
