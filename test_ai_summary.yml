@@ -1,5 +1,5 @@
 ---
-- name: Test AI Summary Generator Role
+- name: Test AI Summary Generator Role sample
   hosts: localhost
   gather_facts: no
   roles:
