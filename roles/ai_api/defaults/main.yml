@@ -6,7 +6,7 @@
 openai_api_key: "{{ lookup('env', 'OPENAI_API_KEY') | default('DUMMY_KEY_FOR_TESTING') }}"
 
 # OpenAI model to use
-ai_model: "gpt-3.5-turbo"
+ai_model: "gpt-3.5-turbo-0125"
 
 # Input file to summarize
 input_file: "{{ role_path }}/files/sample_report.txt"
