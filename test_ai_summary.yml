@@ -1,0 +1,6 @@
+---
+- name: Test AI Summary Generator Role
+  hosts: localhost
+  gather_facts: no
+  roles:
+    - ai_api

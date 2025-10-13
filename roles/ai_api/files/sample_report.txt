@@ -1,0 +1,4 @@
+The CPU utilization on the server has been high during peak hours, reaching up to 90%.
+Memory usage is stable at around 60%.
+Disk usage has increased by 10% over the last week.
+No network issues have been observed.

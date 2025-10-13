@@ -1,0 +1,59 @@
+# tasks file for instana-agent-windows
+---
+- name: 1. Create temporary staging directory for the installer
+  ansible.windows.win_file:
+    path: "{{ instana_staging_dir }}"
+    state: directory
+  # Ansible modules automatically handle 'become' (admin rights) if configured in inventory/playbook
+
+- name: 2. Copy the Instana installer executable to the target host
+  ansible.windows.win_copy:
+    src: "files/{{ instana_installer_file }}"
+    dest: "{{ instana_staging_dir }}\\{{ instana_installer_file }}"
+
+- name: 3. Add required host entries for air-gapped connectivity
+  ansible.windows.win_lineinfile:
+    path: "{{ instana_hosts_file }}"
+    line: "{{ item.ip }}    {{ item.name }}"
+    regexp: '^\s*{{ item.ip }}\s+{{ item.name }}$'
+    state: present
+  loop: "{{ instana_hosts_entries }}"
+  loop_control:
+    label: "Adding host entry: {{ item.ip }} {{ item.name }}"
+
+- name: 4. Execute the Instana Agent silent installation
+  # We use win_shell to execute the command string exactly as provided by the Instana team.
+  ansible.windows.win_shell: |
+    & '{{ instana_staging_dir }}\\{{ instana_installer_file }}' ^
+    INSTANA_AGENT_ENDPOINT="{{ instana_agent_endpoint }}" ^
+    INSTANA_AGENT_ENDPOINT_PORT="{{ instana_agent_port }}" ^
+    INSTANA_AGENT_KEY="{{ instana_agent_key }}" ^
+    INSTANA_DOWNLOAD_KEY="{{ instana_download_key }}" ^
+    /quiet
+  register: install_result
+  # The installer should return 0 (success) or 3010 (success, but reboot required).
+  failed_when: install_result.rc != 0 and install_result.rc != 3010
+  # Note: The '^' character is the line continuation character in Windows command prompt/batch scripts.
+
+- name: 5. Display installation result (and reboot requirement if applicable)
+  ansible.builtin.debug:
+    msg: "Installation complete. Return Code: {{ install_result.rc }}. (Code 3010 means success, but a reboot is required.)"
+
+- name: 6. Clean up the installer file
+  ansible.windows.win_file:
+    path: "{{ instana_staging_dir }}\\{{ instana_installer_file }}"
+    state: absent
+
+- name: 7. Verify the Instana Agent service is running
+  ansible.windows.win_service:
+    name: "{{ instana_agent_service_name }}"
+    state: started
+  register: service_status
+  # Check status multiple times to allow service startup
+  retries: 5
+  delay: 10
+  until: service_status.state == 'running' or service_status.state == 'start_pending'
+
+- name: 8. Report final service status
+  ansible.builtin.debug:
+    msg: "Instana Agent service is now running: {{ service_status.state }}"
