@@ -1,0 +1,20 @@
+# defaults file for ai_api
+---
+# Default variables for AI Summary Generator role
+
+# ChatGPT API key (testing only)
+openai_api_key: "{{ lookup('env', 'OPENAI_API_KEY') | default('DUMMY_KEY_FOR_TESTING') }}"
+
+# OpenAI model to use
+ai_model: "gpt-3.5-turbo"
+
+# Input file to summarize
+input_file: "{{ role_path }}/files/sample_report.txt"
+
+# Output file for AI summary
+output_file: "/tmp/ai_summary_output.txt"
+
+# System prompt to guide AI
+ai_system_prompt: >
+  You are an AI assistant that summarizes complex technical reports
+  into simple, layman-friendly language.
