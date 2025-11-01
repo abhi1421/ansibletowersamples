@@ -19,18 +19,13 @@
 # -------------------------------
 # Compute action flags (weekday + holiday)
 # -------------------------------
-
-- name: Compute action flags (weekday + holiday overlap)
+- name: Decide actions based on weekday & holiday
   ansible.builtin.set_fact:
     skip_backup: >-
-      {% if is_today_holiday and is_yesterday_holiday %}
-        true
-      {% elif is_yesterday_holiday %}
-        true  # yesterday holiday → skip backup
-      {% elif today_day == "Sunday" %}
+      {% if today_day == "Sunday" %}
         true
       {% elif today_day == "Monday" %}
-        true  # Monday never does backup
+        true   # Monday never does backup
       {% elif today_day == "Saturday" and not is_today_holiday %}
         false  # Saturday = backup
       {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
@@ -39,22 +34,37 @@
         true
       {% endif %}
     skip_startup: >-
-      {% if is_today_holiday and is_yesterday_holiday %}
-        true
-      {% elif is_today_holiday %}
-        true  # today holiday → skip startup
-      {% elif today_day == "Sunday" %}
+      {% if today_day == "Sunday" %}
         true
       {% elif today_day == "Monday" and not is_today_holiday %}
         false  # Monday startup
       {% elif today_day == "Saturday" %}
-        true  # Saturday never does startup
+        true   # Saturday never does startup
       {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
         false  # Tue–Fri startup
       {% else %}
         true
       {% endif %}
 
+# Override logic if yesterday/today are holidays
+- name: Adjust action flags for holiday overlap
+  ansible.builtin.set_fact:
+    skip_backup: >-
+      {% if is_today_holiday and is_yesterday_holiday %}
+        true
+      {% elif is_yesterday_holiday %}
+        true   # yesterday holiday → skip backup
+      {% else %}
+        {{ skip_backup }}
+      {% endif %}
+    skip_startup: >-
+      {% if is_today_holiday and is_yesterday_holiday %}
+        true
+      {% elif is_today_holiday %}
+        true   # today holiday → skip startup
+      {% else %}
+        {{ skip_startup }}
+      {% endif %}
 
 - name: Debug computed actions
   ansible.builtin.debug:
@@ -65,42 +75,27 @@
       skip_backup={{ skip_backup }}
       skip_startup={{ skip_startup }}
 
+# -------------------------------
+# Check saa_system status
+# -------------------------------
+- name: Check saa_system status
+  ansible.builtin.command: "{{ saa_bin }} status"
+  register: saa_status
+  become: true
+  become_user: all_adm
+  ignore_errors: true
+  when: not skip_backup or not skip_startup
 
 # -------------------------------
-# Startup Step (Test Mode)
+# Stop system if backup is planned
 # -------------------------------
-- name: Simulate SAA system startup
-  ansible.builtin.debug:
-    msg: "🟢 Startup would have been executed today ({{ today_day }}) — condition met."
-  when: not (skip_startup | bool)
-
-- name: Simulate skipping startup
-  ansible.builtin.debug:
-    msg: "⛔ Startup skipped for {{ today_day }} (skip_startup={{ skip_startup }})"
-  when: skip_startup | bool
-
-
-
-## -------------------------------
-## Check saa_system status
-## -------------------------------
-#- name: Check saa_system status
-#  ansible.builtin.command: "{{ saa_bin }} status"
-#  register: saa_status
-#  changed_when: false
-#  failed_when: false
-#  ignore_errors: true
-#  when: (not (skip_backup|bool)) or (not (skip_startup|bool))
-#
-## -------------------------------
-## Stop system if backup is planned
-## -------------------------------
-#- name: Stop saa_system if operational
-#  ansible.builtin.shell: "{{ saa_bin }} stop"
-#  ignore_errors: true
-#  when:
-#    - not (skip_backup | bool)
-#    - "'operational' in (saa_status.stdout | lower)"
+- name: Stop saa_system if operational
+  ansible.builtin.command: "{{ saa_bin }} stop"
+  become: true
+  become_user: all_adm
+  when:
+    - not skip_backup  # not skup_backup meaning backup step is true
+    - "'operational' in saa_status.stdout"
 
 
 # -------------------------------
@@ -108,10 +103,10 @@
 # -------------------------------
 
 - name: Check utilization of /Archives
-  ansible.builtin.shell: "df -Pg {{ archive_mount }} | awk 'NR==2 {print $5}' | sed 's/%//'"
+  ansible.builtin.shell: "df -h {{ archive_mount }} | awk 'NR==2 {print $5}' | sed 's/%//'"
   register: archive_util
   changed_when: false
-  when: not (skip_backup|bool)
+  when: not skip_backup | bool
 
 - name: Find backup folders
   ansible.builtin.find:
@@ -119,19 +114,19 @@
     file_type: directory
     patterns: "[0-9]*"
   register: backup_dirs
-  when: not (skip_backup|bool)
+  when: not skip_backup | bool
 
 - name: Sort backup folders
   ansible.builtin.set_fact:
     sorted_backups: "{{ backup_dirs.files | map(attribute='path') | sort }}"
-  when: not (skip_backup|bool)
+  when: not skip_backup | bool  # not skup_backup meaning backup step is true
 
 - name: Delete 2nd last backup if utilization > threshold
   ansible.builtin.file:
     path: "{{ sorted_backups[-2] }}"
     state: absent
   when:
-    - (not skip_backup) | bool
+    - not skip_backup | bool
     - (archive_util.stdout | int) > utilization_threshold
     - sorted_backups | length > 2
 
@@ -143,46 +138,37 @@
   loop:
     - "{{ today_backup_dir }}"
     - "{{ today_db_dir }}"
-  when: not (skip_backup|bool)
+  when: not skip_backup | bool
 
 - name: Copy DBRBackup and DBRMirror
   ansible.builtin.command: "cp -pR {{ item }} {{ today_backup_dir }}/"
   loop:
     - "{{ dbrbackup_src }}"
     - "{{ dbrmirror_src }}"
-  when: not (skip_backup|bool)
+  become: true
+  when: not skip_backup | bool
 
 - name: Find latest SAA_DATA_BACKUP file
   ansible.builtin.shell: |
     ls -1t {{ saa_data_backup_src }}/*SAA_DATA_BACKUP* 2>/dev/null | head -1
   register: latest_backup
   changed_when: false
-  failed_when: latest_backup.stdout | trim == ""
-  ignore_errors: true
-  when: not (skip_backup | bool)
-
-- name: Clean up filename (remove trailing colon)
-  ansible.builtin.set_fact:
-    latest_backup_clean: "{{ latest_backup.stdout | trim | regex_replace(':$', '') }}"
-  when: not (skip_backup | bool)
-
-- name: Debug cleaned path
-  ansible.builtin.debug:
-    msg: "Copying file: '{{ latest_backup_clean }}' to '{{ today_db_dir }}'"
-  when: not (skip_backup | bool)
+  failed_when: latest_backup.stdout == ""
+  when: not skip_backup | bool
 
 - name: Copy latest SAA_DATA_BACKUP file
-  ansible.builtin.command:
-    cmd: "cp -p '{{ latest_backup_clean }}' '{{ today_db_dir }}/'"
-  when: not (skip_backup | bool)
+  ansible.builtin.command: "cp -p {{ latest_backup.stdout }} {{ today_db_dir }}/"
+  become: true
+  when: not skip_backup | bool
 
 # -------------------------------
 # Startup Step
 # -------------------------------
-#- name: Start saa_system
-#  ansible.builtin.command: "{{ saa_bin }} start operational"
-#  ignore_errors: true
-#  when: not (skip_startup|bool)
+- name: Start saa_system
+  ansible.builtin.command: "{{ saa_bin }} start operational"
+  become: true
+  when: not skip_startup | bool  # not skip_startup meaning start service step is true
+
 
 
 # -------------------------------
@@ -202,5 +188,5 @@
       db_backup: "{{ today_db_dir | default('N/A') }}"
       disk_util: "{{ archive_util.stdout | default('N/A') }}"
       file_copied: "{{ latest_backup.stdout | default('N/A') }}"
-#      system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
-#      system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"
+      system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
+      system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"
