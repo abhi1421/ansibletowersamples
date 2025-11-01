@@ -71,13 +71,13 @@
 # -------------------------------
 - name: Simulate SAA system startup
   ansible.builtin.debug:
-    msg: "🟢 Startup would have been executed today ({{ today_day }}) — condition met."
-  when: not (skip_startup | bool)
+    msg: >-
+      {% if skip_startup | bool %}
+        🔴 Startup skipped today ({{ today_day }})
+      {% else %}
+        🟢 Startup would have been executed today ({{ today_day }})
+      {% endif %}
 
-- name: Simulate skipping startup
-  ansible.builtin.debug:
-    msg: "⛔ Startup skipped for {{ today_day }} (skip_startup={{ skip_startup }})"
-  when: skip_startup | bool
 
 
 
