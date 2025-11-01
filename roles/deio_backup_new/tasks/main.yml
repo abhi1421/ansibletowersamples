@@ -56,6 +56,12 @@
       {% endif %}
 
 
+- name: Normalize skip flags to boolean
+  ansible.builtin.set_fact:
+    skip_backup: "{{ (skip_backup | string | trim) | bool }}"
+    skip_startup: "{{ (skip_startup | string | trim) | bool }}"
+
+
 - name: Debug computed actions
   ansible.builtin.debug:
     msg: |
