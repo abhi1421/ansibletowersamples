@@ -26,15 +26,15 @@
       {% if is_today_holiday and is_yesterday_holiday %}
         true
       {% elif is_yesterday_holiday %}
-        true  # yesterday holiday → skip backup
+        true
       {% elif today_day == "Sunday" %}
         true
       {% elif today_day == "Monday" %}
-        true  # Monday never does backup
+        true
       {% elif today_day == "Saturday" and not is_today_holiday %}
-        false  # Saturday = backup
+        false
       {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
-        false  # Tue–Fri = backup
+        false
       {% else %}
         true
       {% endif %}
@@ -42,18 +42,19 @@
       {% if is_today_holiday and is_yesterday_holiday %}
         true
       {% elif is_today_holiday %}
-        true  # today holiday → skip startup
+        true
       {% elif today_day == "Sunday" %}
         true
       {% elif today_day == "Monday" and not is_today_holiday %}
-        false  # Monday startup
+        false
       {% elif today_day == "Saturday" %}
-        true  # Saturday never does startup
+        true
       {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
-        false  # Tue–Fri startup
+        false
       {% else %}
         true
       {% endif %}
+
 
 
 - name: Normalize skip flags to boolean
