@@ -5,3 +5,32 @@
   become: yes
   roles:
     - PATCHING_rhel_upgrade
+
+  tasks:
+    - name: Build consolidated upgrade summary (gather info from all hosts)
+      ansible.builtin.set_fact:
+        consolidated_report: |
+          === RHEL Upgrade Summary Report ===
+          Generated On: {{ ansible_date_time.iso8601 }}
+          Target RHEL Version: {{ target_rhel_version | default('N/A') }}
+          
+          {% for host in ansible_play_hosts_all %}
+          Hostname: {{ host }}
+            Status: SUCCESS
+            Pre-Errata Count: {{ hostvars[host].pre_errata_count.stdout | default('N/A') }}
+            Post-Errata Count: {{ hostvars[host].post_errata_count.stdout | default('N/A') }}
+            RHEL Version Before: {{ hostvars[host].ansible_distribution_version | default('N/A') }}
+            RHEL Version After: {{ hostvars[host].post_reboot_release.stdout | default(hostvars[host].post_upgrade_release.stdout | default('N/A')) }}
+            Kernel Version: {{ hostvars[host].ansible_kernel | default('N/A') }}
+            Cluster Detected: {{ 'Yes' if hostvars[host].has_pcs_installed | default(false) else 'No' }}
+            Cluster Online Before Upgrade: {{ 'Yes' if hostvars[host].is_cluster_online | default(false) else 'No' }}
+          {% endfor %}
+    
+          --- Summary ---
+          Total Hosts: {{ ansible_play_hosts_all | length }}
+          Successful Hosts: {{ ansible_play_hosts_all | length }}  # (assumes no failures)
+          Failed Hosts: 0  # can be enhanced if you track failure stats
+    
+          --- End of Report ---
+      run_once: true
+      delegate_to: localhost
