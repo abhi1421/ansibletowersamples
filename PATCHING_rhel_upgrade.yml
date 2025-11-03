@@ -34,3 +34,17 @@
           --- End of Report ---
       run_once: true
       delegate_to: localhost
+
+- name: Send consolidated RHEL upgrade report email
+  ansible.builtin.mail:
+    host: "{{ smtp_server }}"
+    port: "{{ smtp_port | default(25) }}"
+    to: "{{ mail_to }}"
+    from: "{{ mail_from }}"
+    subject: "Consolidated RHEL Upgrade Report - {{ ansible_date_time.date }}"
+    body: "{{ consolidated_report }}"
+  run_once: true
+  delegate_to: localhost
+  ignore_errors: true
+  tags:
+    - reporting
