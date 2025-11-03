@@ -212,31 +212,69 @@
 # -------------------------------
 # Simulate Email (Write to Text File)
 # -------------------------------
+#- name: Generate DEIO Backup Summary Email (for testing)
+#  ansible.builtin.copy:
+#    dest: "/tmp/deio_backup_summary_{{ inventory_hostname }}_{{ today_date }}.txt"
+#    content: |
+#      Hello Team,
+#
+#      Below is the DEIO Backup Summary for {{ inventory_hostname }}:
+#
+#      ▸ Date: {{ today_date }}
+#      ▸ Day: {{ today_day }}
+#      ▸ Yesterday: {{ yesterday_date }}
+#      ▸ Holiday Status: Today={{ is_today_holiday }}, Yesterday={{ is_yesterday_holiday }}
+#
+#      ▸ Backup Skipped: {{ skip_backup }}
+#      ▸ Startup Skipped: {{ skip_startup }}
+#
+#      ▸ Backup Directory: {{ today_backup_dir | default('N/A') }}
+#      ▸ DB Backup Directory: {{ today_db_dir | default('N/A') }}
+#      ▸ Disk Utilization: {{ archive_util.stdout | default('N/A') }}%
+#
+#      ▸ Copied File: {{ latest_backup_clean | default('N/A') }}
+#
+#      ▸ System Status (Before): {{ saa_status.stdout | default('Unknown') }}
+#      ▸ System Status (After): {{ system_after_status.stdout | default('Unknown') }}
+#
+#      Regards,
+#      DEIO Backup Automation
+#  when: deio_backup_result is defined
+
+  # -------------------------------
+# Simulate Email (Write to Text File)
+# -------------------------------
 - name: Generate DEIO Backup Summary Email (for testing)
   ansible.builtin.copy:
     dest: "/tmp/deio_backup_summary_{{ inventory_hostname }}_{{ today_date }}.txt"
     content: |
       Hello Team,
 
-      Below is the DEIO Backup Summary for {{ inventory_hostname }}:
+      Here’s the DEIO Backup Summary for **{{ inventory_hostname }}** on **{{ today_date }} ({{ today_day }})**.
 
-      ▸ Date: {{ today_date }}
-      ▸ Day: {{ today_day }}
-      ▸ Yesterday: {{ yesterday_date }}
-      ▸ Holiday Status: Today={{ is_today_holiday }}, Yesterday={{ is_yesterday_holiday }}
+      Summary:
+      - Yesterday’s Date: {{ yesterday_date }}
+      - Today is a Holiday: {{ is_today_holiday }}
+      - Yesterday was a Holiday: {{ is_yesterday_holiday }}
 
-      ▸ Backup Skipped: {{ skip_backup }}
-      ▸ Startup Skipped: {{ skip_startup }}
+      Backup Activity:
+      - Backup Performed: {{ (not skip_backup) | ternary('Yes', 'No (Skipped)') }}
+      - Startup Performed: {{ (not skip_startup) | ternary('Yes', 'No (Skipped)') }}
 
-      ▸ Backup Directory: {{ today_backup_dir | default('N/A') }}
-      ▸ DB Backup Directory: {{ today_db_dir | default('N/A') }}
-      ▸ Disk Utilization: {{ archive_util.stdout | default('N/A') }}%
+      Backup Details:
+      - Backup Folder: {{ today_backup_dir | default('N/A') }}
+      - Database Backup Folder: {{ today_db_dir | default('N/A') }}
+      - Disk Usage on {{ archive_mount | default('/Archives') }}: {{ archive_util.stdout | default('N/A') }}%
 
-      ▸ Copied File: {{ latest_backup_clean | default('N/A') }}
+      File Information:
+      - File Copied: {{ latest_backup_clean | default('N/A') }}
 
-      ▸ System Status (Before): {{ saa_status.stdout | default('Unknown') }}
-      ▸ System Status (After): {{ system_after_status.stdout | default('Unknown') }}
+      System Information:
+      - System Status Before Backup: {{ saa_status.stdout | default('Unknown') }}
+      - System Status After Backup: {{ system_after_status.stdout | default('Unknown') }}
 
-      Regards,
+      Everything else executed as per the schedule.
+
+      Regards,  
       DEIO Backup Automation
   when: deio_backup_result is defined
