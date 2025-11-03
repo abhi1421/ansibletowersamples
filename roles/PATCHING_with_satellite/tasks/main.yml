@@ -111,11 +111,11 @@
     - start_services
   when: enable_service_management | bool
 
-- name: Include Post-Patching Checklist
-  ansible.builtin.include_tasks: post_patching_checklist.yml
-  when: run_post_patching_checklist | bool
-  tags:
-    - post_patching
+#- name: Include Post-Patching Checklist
+#  ansible.builtin.include_tasks: post_patching_checklist.yml
+#  when: run_post_patching_checklist | bool
+#  tags:
+#    - post_patching
 
 - name: Register patch summary for consolidated report
   ansible.builtin.set_fact:
