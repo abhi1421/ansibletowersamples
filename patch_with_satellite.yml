@@ -2,4 +2,4 @@
   hosts: all
   become: yes
   roles:
-    - patch_with_satellite
+    - PATCHING_with_satellite
