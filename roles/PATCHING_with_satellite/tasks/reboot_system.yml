@@ -1,0 +1,9 @@
+# tasks/reboot_system.yml
+# Task to reboot the system if required
+
+- name: Reboot the system if required
+  ansible.builtin.reboot:
+    reboot_timeout: 600 # Wait up to 10 minutes for the system to come back up
+  when: reboot_after_patching | bool
+  tags:
+    - reboot

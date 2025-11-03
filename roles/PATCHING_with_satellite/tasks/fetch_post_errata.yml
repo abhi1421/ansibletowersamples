@@ -1,0 +1,16 @@
+# tasks/fetch_post_errata.yml
+# Task to fetch and display post-patching errata information
+
+- name: Fetch post-patching errata information
+  ansible.builtin.shell: >
+    {{ 'dnf' if ansible_facts['distribution_major_version'] | int >= 8 else 'yum' }} updateinfo list security bugfix | tee {{ errata_report_path }}_post_{{ ansible_date_time.iso8601 }}.log
+  register: post_errata_output
+  changed_when: false
+  tags:
+    - errata_info
+
+- name: Display post-patching errata (for logging/debugging)
+  ansible.builtin.debug:
+    msg: "Post-patching Errata:\n{{ post_errata_output.stdout }}"
+  tags:
+    - errata_info

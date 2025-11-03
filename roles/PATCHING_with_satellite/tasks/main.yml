@@ -1,0 +1,149 @@
+# tasks/main.yml
+# Main tasks for the satellite_patching role - orchestrates sub-tasks
+
+- name: Include Pre-Patching Checklist
+  ansible.builtin.include_tasks: pre_patching_checklist.yml
+  when: run_pre_patching_checklist | bool
+  tags:
+    - pre_patching
+
+- name: Include task to stop services
+  ansible.builtin.import_tasks: stop_services.yml
+  tags:
+    - stop_services
+  when: enable_service_management | bool
+
+- name: Include task to check Satellite registration
+  ansible.builtin.import_tasks: check_registration.yml
+  tags:
+    - registration_check
+  when: enable_satellite_registration | bool
+
+- name: Include task to register system to Satellite if needed
+  ansible.builtin.import_tasks: register_system.yml
+  tags:
+    - registration
+  when: enable_satellite_registration | bool
+
+- name: Include DNF/YUM plugin installation task
+  ansible.builtin.import_tasks: ensure_dnf_yum_plugin.yml
+  tags:
+    - setup_plugins
+  when: enable_plugin_installation | bool
+
+- name: Include task to fetch pre-patching errata
+  ansible.builtin.import_tasks: fetch_pre_errata.yml
+  tags:
+    - errata_info
+    - pre_patch_info
+  when: enable_errata_reporting | bool
+
+- name: Include task to apply security patches
+  ansible.builtin.import_tasks: apply_security.yml
+  tags:
+    - patching
+    - security_patches
+  when: apply_security_patches | bool # Existing variable
+
+- name: Include task to apply bugfix patches
+  ansible.builtin.import_tasks: apply_bugfix.yml
+  tags:
+    - patching
+    - bugfix_patches
+  when: apply_bugfix_patches | bool # Existing variable
+
+- name: Include task to apply kernel patches
+  ansible.builtin.import_tasks: apply_kernel.yml
+  tags:
+    - patching
+    - kernel_patches
+  when: apply_kernel_patches | bool # Existing variable
+
+- name: Include task to apply enhancements patches
+  ansible.builtin.import_tasks: apply_enhancement.yml
+  tags:
+    - patching
+    - emhancement_patches
+  when: apply_enhancement_patches | bool
+
+# DRACUT execution for the kernel
+- name: Find the latest installed kernel for dracut
+  ansible.builtin.find:
+    paths: /boot
+    patterns: "vmlinuz-*"
+    file_type: file
+    use_regex: true
+  register: installed_kernels
+
+- name: Determine kernel version for dracut based on latest vmlinuz
+  # Assuming the latest vmlinuz is the one to use for dracut.
+  # This might need refinement if there's a more robust way to get the *target* kernel post-upgrade.
+  ansible.builtin.set_fact:
+    kernel_for_dracut: "{{ installed_kernels.files | sort(attribute='path', reverse=true) | map(attribute='path') | first | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
+  when: installed_kernels.files | length > 0
+
+- name: Execute dracut for the detected kernel ({{ kernel_for_dracut }})
+  ansible.builtin.command: "dracut -f /boot/initramfs-{{ kernel_for_dracut }}.img {{ kernel_for_dracut }}"
+  changed_when: true
+  when: kernel_for_dracut is defined
+
+- name: Execute zipl
+  ansible.builtin.command: zipl
+  changed_when: true
+  when: ansible_architecture == 's390x'
+
+- name: Include task to reboot the system if required
+  ansible.builtin.import_tasks: reboot_system.yml
+  tags:
+    - reboot
+  when: reboot_after_patching | bool # Existing variable
+
+- name: Include task to fetch post-patching errata
+  ansible.builtin.import_tasks: fetch_post_errata.yml
+  tags:
+    - errata_info
+    - post_patch_info
+  when: enable_errata_reporting | bool
+
+- name: Include task to start services
+  ansible.builtin.import_tasks: start_services.yml
+  tags:
+    - start_services
+  when: enable_service_management | bool
+
+- name: Include Post-Patching Checklist
+  ansible.builtin.include_tasks: post_patching_checklist.yml
+  when: run_post_patching_checklist | bool
+  tags:
+    - post_patching
+
+- name: Register patch summary for consolidated report
+  ansible.builtin.set_fact:
+    patch_summary_entry:
+      hostname: "{{ inventory_hostname }}"
+      os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+      kernel: "{{ ansible_kernel }}"
+      security: "{{ apply_security_patches | default(false) }}"
+      bugfix: "{{ apply_bugfix_patches | default(false) }}"
+      kernel_patch: "{{ apply_kernel_patches | default(false) }}"
+      enhancement: "{{ apply_enhancement_patches | default(false) }}"
+      rebooted: "{{ reboot_after_patching | default(false) }}"
+      status: "Completed"
+
+- name: Build summary table from all hosts
+  ansible.builtin.set_fact:
+    consolidated_report: |
+      Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
+      -------------------------------------------------------------------
+      {% for host in hostvars.keys() | sort %}
+      Hostname: {{ host }}
+      OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
+      Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
+      Security: {{ hostvars[host].patch_summary_entry.security | default(false) }}
+      Bugfix: {{ hostvars[host].patch_summary_entry.bugfix | default(false) }}
+      Kernel Patches: {{ hostvars[host].patch_summary_entry.kernel_patch | default(false) }}
+      Enhancement: {{ hostvars[host].patch_summary_entry.enhancement | default(false) }}
+      Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
+      Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
+      -------------------------------------------------------------------
+      {% endfor %}

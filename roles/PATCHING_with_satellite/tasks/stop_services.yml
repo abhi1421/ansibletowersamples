@@ -1,0 +1,8 @@
+- name: Stop specified services before patching
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ patching_services_to_manage }}"
+  ignore_errors: true # Continue even if a service isn't found or running
+  tags:
+    - stop_services

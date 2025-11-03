@@ -1,0 +1,12 @@
+# tasks/apply_bugfix.yml
+# Task to apply bugfix patches
+
+- name: Apply Bugfix Patches
+  ansible.builtin.yum:
+    name: "*"
+    bugfix: true # Apply only bugfix updates
+    state: latest
+  when: apply_bugfix_patches | bool
+  tags:
+    - patching
+    - bugfix_patches

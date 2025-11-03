@@ -1,0 +1,11 @@
+# tasks/start_services.yml
+# Task to start specified services after patching
+
+- name: Start specified services after patching
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+  loop: "{{ patching_services_to_manage }}"
+  ignore_errors: true # Continue even if a service fails to start
+  tags:
+    - start_services

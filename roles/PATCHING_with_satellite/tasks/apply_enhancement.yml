@@ -1,0 +1,36 @@
+# tasks/apply_enhancement.yml
+# Task to apply enhancement advisories (RHEA)
+
+- name: Fail if attempting to apply enhancement patches on non-DNF systems
+  ansible.builtin.fail:
+    msg: "Applying enhancement patches is only explicitly supported on RHEL/CentOS 8+ (DNF-based systems) using the '--enhancement' flag."
+  when:
+    - ansible_facts['distribution_major_version'] | int < 8
+    - ansible_facts['os_family'] == "RedHat"
+  tags:
+    - patching
+    - enhancement_patches
+
+- name: Apply Enhancement Patches (RHEA) using DNF
+  ansible.builtin.shell: >
+    dnf upgrade-minimal --enhancement -y
+  when:
+    - ansible_facts['distribution_major_version'] | int >= 8
+    - ansible_facts['os_family'] == "RedHat"
+  register: dnf_enhancement_output
+  changed_when: "'Nothing to do.' not in dnf_enhancement_output.stdout"
+  tags:
+    - patching
+    - enhancement_patches
+
+- name: Display DNF enhancement patching output
+  ansible.builtin.debug:
+    msg: "Enhancement Patching Output:\n{{ dnf_enhancement_output.stdout }}"
+  when:
+    - ansible_facts['distribution_major_version'] | int >= 8
+    - ansible_facts['os_family'] == "RedHat"
+    - dnf_enhancement_output is defined and dnf_enhancement_output.stdout != ""
+  tags:
+    - patching
+    - enhancement_patches
+
