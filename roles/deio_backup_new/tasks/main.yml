@@ -73,42 +73,26 @@
       skip_startup={{ skip_startup }}
 
 
-# -------------------------------
-# Startup Step (Test Mode)
-# -------------------------------
-- name: Simulate SAA system startup
-  ansible.builtin.debug:
-    msg: >-
-      {% if skip_startup | bool %}
-        🔴 Startup skipped today ({{ today_day }})
-      {% else %}
-        🟢 Startup would have been executed today ({{ today_day }})
-      {% endif %}
-
-
-
-
 ## -------------------------------
 ## Check saa_system status
 ## -------------------------------
-#- name: Check saa_system status
-#  ansible.builtin.command: "{{ saa_bin }} status"
-#  register: saa_status
-#  changed_when: false
-#  failed_when: false
-#  ignore_errors: true
-#  when: (not (skip_backup|bool)) or (not (skip_startup|bool))
-#
+- name: Check saa_system status
+  ansible.builtin.command: "{{ saa_bin }} status"
+  register: saa_status
+  changed_when: false
+  failed_when: false
+  ignore_errors: true
+  when: (not (skip_backup|bool)) or (not (skip_startup|bool))
+
 ## -------------------------------
 ## Stop system if backup is planned
 ## -------------------------------
-#- name: Stop saa_system if operational
-#  ansible.builtin.shell: "{{ saa_bin }} stop"
-#  ignore_errors: true
-#  when:
-#    - not (skip_backup | bool)
-#    - "'operational' in (saa_status.stdout | lower)"
-
+- name: Stop saa_system if operational
+  ansible.builtin.shell: "{{ saa_bin }} stop"
+  ignore_errors: true
+  when:
+    - not (skip_backup | bool)
+    - "'operational' in (saa_status.stdout | lower)"
 
 # -------------------------------
 # Backup Steps
@@ -183,13 +167,25 @@
     cmd: "cp -p '{{ latest_backup_clean }}' '{{ today_db_dir }}/'"
   when: not (skip_backup | bool)
 
+# ---------------
+# Startup Step
+# ---------------
+- name: Simulate SAA system startup
+  ansible.builtin.debug:
+    msg: >-
+      {% if skip_startup | bool %}
+        🔴 Startup skipped today ({{ today_day }})
+      {% else %}
+        🟢 Startup would have been executed today ({{ today_day }})
+      {% endif %}
+
 # -------------------------------
 # Startup Step
 # -------------------------------
-#- name: Start saa_system
-#  ansible.builtin.command: "{{ saa_bin }} start operational"
-#  ignore_errors: true
-#  when: not (skip_startup|bool)
+- name: Start saa_system
+  ansible.builtin.command: "{{ saa_bin }} start operational"
+  ignore_errors: true
+  when: not (skip_startup|bool)
 
 
 # -------------------------------
@@ -208,6 +204,39 @@
       backup_dir: "{{ today_backup_dir | default('N/A') }}"
       db_backup: "{{ today_db_dir | default('N/A') }}"
       disk_util: "{{ archive_util.stdout | default('N/A') }}"
-      file_copied: "{{ latest_backup.stdout | default('N/A') }}"
-#      system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
-#      system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"
+      file_copied: "{{ latest_backup_clean | default('N/A') }}"
+      system_status_before: "{{ saa_status.stdout | default('Unknown') }}"
+      system_status_after: "{{ system_after_status.stdout | default('Unknown') }}"
+
+
+# -------------------------------
+# Simulate Email (Write to Text File)
+# -------------------------------
+- name: Generate DEIO Backup Summary Email (for testing)
+  ansible.builtin.copy:
+    dest: "/tmp/deio_backup_summary_{{ inventory_hostname }}_{{ today_date }}.txt"
+    content: |
+      Hello Team,
+
+      Below is the DEIO Backup Summary for {{ inventory_hostname }}:
+
+      ▸ Date: {{ today_date }}
+      ▸ Day: {{ today_day }}
+      ▸ Yesterday: {{ yesterday_date }}
+      ▸ Holiday Status: Today={{ is_today_holiday }}, Yesterday={{ is_yesterday_holiday }}
+
+      ▸ Backup Skipped: {{ skip_backup }}
+      ▸ Startup Skipped: {{ skip_startup }}
+
+      ▸ Backup Directory: {{ today_backup_dir | default('N/A') }}
+      ▸ DB Backup Directory: {{ today_db_dir | default('N/A') }}
+      ▸ Disk Utilization: {{ archive_util.stdout | default('N/A') }}%
+
+      ▸ Copied File: {{ latest_backup_clean | default('N/A') }}
+
+      ▸ System Status (Before): {{ saa_status.stdout | default('Unknown') }}
+      ▸ System Status (After): {{ system_after_status.stdout | default('Unknown') }}
+
+      Regards,
+      DEIO Backup Automation
+  when: deio_backup_result is defined
