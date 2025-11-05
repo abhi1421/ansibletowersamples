@@ -102,7 +102,7 @@
 # -------------------------------
 
 - name: Check utilization of /Archives
-  ansible.builtin.shell: "df -Pg {{ archive_mount }} | awk 'NR==2 {print $5}' | sed 's/%//'"
+  ansible.builtin.shell: "df -h {{ archive_mount }} | awk 'NR==2 {print $5}' | sed 's/%//'"
   register: archive_util
   changed_when: false
   when: not (skip_backup|bool)
