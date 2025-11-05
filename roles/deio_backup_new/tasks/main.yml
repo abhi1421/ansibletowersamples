@@ -45,9 +45,9 @@
 #        true
 #      {% endif %}
 
- -------------------------------
- Compute action flags (weekday + holiday)
- -------------------------------
+# -------------------------------
+# Compute action flags (weekday + holiday)
+# -------------------------------
 
 - name: Compute action flags (weekday + holiday overlap)
   ansible.builtin.set_fact:
