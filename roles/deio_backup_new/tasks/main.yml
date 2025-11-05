@@ -53,7 +53,7 @@
   ansible.builtin.set_fact:
     skip_backup: >-
       {% if is_today_holiday and not is_yesterday_holiday %}
-        true
+        false
       {% elif is_today_holiday and is_yesterday_holiday %}
         true
       {% elif today_day == "Sunday" %}
