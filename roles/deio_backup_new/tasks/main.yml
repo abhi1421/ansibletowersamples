@@ -16,49 +16,12 @@
     is_today_holiday: "{{ today_date in holiday_list }}"
     is_yesterday_holiday: "{{ yesterday_date in holiday_list }}"
 
-- name: Compute action flags (backup)
-  ansible.builtin.set_fact:
-    skip_backup: >-
-      {% if is_today_holiday or today_day in ["Sunday", "Monday"] %}
-        true
-      {% elif is_yesterday_holiday %}
-        true
-      {% elif today_day == "Saturday" and not is_today_holiday %}
-        false
-      {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
-        false
-      {% else %}
-        true
-      {% endif %}
-
-
-- name: Compute action flags (startup)
-  ansible.builtin.set_fact:
-    skip_startup: >-
-      {% if is_today_holiday or today_day in ["Sunday", "Saturday"] %}
-        true
-      {% elif today_day == "Monday" and not is_today_holiday %}
-        false
-      {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
-        false
-      {% else %}
-        true
-      {% endif %}
-
-# -------------------------------
-# Compute action flags (weekday + holiday)
-# -------------------------------
-#
-#- name: Compute action flags (weekday + holiday overlap)
+#- name: Compute action flags (backup)
 #  ansible.builtin.set_fact:
 #    skip_backup: >-
-#      {% if is_today_holiday and is_yesterday_holiday %}
+#      {% if is_today_holiday or today_day in ["Sunday", "Monday"] %}
 #        true
 #      {% elif is_yesterday_holiday %}
-#        true
-#      {% elif today_day == "Sunday" %}
-#        true
-#      {% elif today_day == "Monday" %}
 #        true
 #      {% elif today_day == "Saturday" and not is_today_holiday %}
 #        false
@@ -67,22 +30,59 @@
 #      {% else %}
 #        true
 #      {% endif %}
+#
+#
+#- name: Compute action flags (startup)
+#  ansible.builtin.set_fact:
 #    skip_startup: >-
-#      {% if is_today_holiday and is_yesterday_holiday %}
-#        true
-#      {% elif is_today_holiday %}
-#        true
-#      {% elif today_day == "Sunday" %}
+#      {% if is_today_holiday or today_day in ["Sunday", "Saturday"] %}
 #        true
 #      {% elif today_day == "Monday" and not is_today_holiday %}
 #        false
-#      {% elif today_day == "Saturday" %}
-#        true
 #      {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
 #        false
 #      {% else %}
 #        true
 #      {% endif %}
+
+ -------------------------------
+ Compute action flags (weekday + holiday)
+ -------------------------------
+
+- name: Compute action flags (weekday + holiday overlap)
+  ansible.builtin.set_fact:
+    skip_backup: >-
+      {% if is_today_holiday and not is_yesterday_holiday %}
+        true
+      {% elif is_today_holiday and is_yesterday_holiday %}
+        true
+      {% elif today_day == "Sunday" %}
+        true
+      {% elif today_day == "Monday" %}
+        true
+      {% elif today_day == "Saturday" and not is_today_holiday %}
+        false
+      {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
+        false
+      {% else %}
+        true
+      {% endif %}
+    skip_startup: >-
+      {% if is_today_holiday and is_yesterday_holiday %}
+        true
+      {% elif is_today_holiday %}
+        true
+      {% elif today_day == "Sunday" %}
+        true
+      {% elif today_day == "Monday" and not is_today_holiday %}
+        false
+      {% elif today_day == "Saturday" %}
+        true
+      {% elif today_day in ["Tuesday", "Wednesday", "Thursday", "Friday"] and not is_today_holiday %}
+        false
+      {% else %}
+        true
+      {% endif %}
 
 
 
