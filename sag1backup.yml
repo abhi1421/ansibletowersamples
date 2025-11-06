@@ -1,0 +1,174 @@
+---
+# Playbook to perform weekly backup of SWIFT Alliance Gateway (SAG) and SNL components.
+# Automation steps followed by a Consolidated Report email.
+
+- name: SAG and SNL Weekly Backup Automation and Reporting
+  hosts: all  # <<< CHANGE THIS to your actual host group
+  become: yes                 
+  gather_facts: yes
+  
+  vars:
+    # --- Email Variables ---
+    notification_recipients: "operations_team@example.com" # <<< UPDATE THIS EMAIL
+    notification_sender: "ansible_bot@example.com"         # <<< UPDATE THIS EMAIL
+    
+    # --- Backup Variables ---
+    backup_date_dir: "{{ ansible_date_time.strftime('%d%m%Y') }}"
+    base_backup_path: "/tmp/backup/{{ backup_date_dir }}"
+    sag_backup_path: "{{ base_backup_path }}/sagbackup1"
+    snl_backup_path: "{{ base_backup_path }}/snl1"
+    sag_bin_path: "/Alliance/Gateway/bin"
+    swiftnet_bin_path: "/opt/swift/SNL/Swiftnet/bin"
+    pki_source_path: "/opt/swift/SNL/Swiftnet/data/pki"
+    secrets_source_path: "/etc/opt/secrets_backup"
+    
+    # Placeholder owners (MUST BE UPDATED)
+    swift_app_owner: "swiftuser" 
+    swift_app_group: "swiftgroup"
+
+  tasks:
+    # --- 1. SAG Stop and Backup ---
+    
+    - name: 🛑 Stop SAG system
+      ansible.builtin.command: "{{ sag_bin_path }}/sag_system stop"
+      register: sag_stop_result
+      changed_when: "sag_stop_result.rc == 0"
+
+    - name: 📂 Create SAG backup directory structure
+      ansible.builtin.file:
+        path: "{{ sag_backup_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: 💾 Perform SAG system backup
+      ansible.builtin.command: "{{ sag_bin_path }}/sag_system backup {{ sag_backup_path }}/sag"
+      register: sag_backup_result
+
+    - name: ✨ Check SAG backup directory contents (ls -lrt)
+      ansible.builtin.command: "ls -lrt {{ sag_backup_path }}"
+      register: sag_ls_result
+      changed_when: false
+
+    - name: 📏 Check SAG backup directory size (du -sm)
+      ansible.builtin.command: "du -sm {{ sag_backup_path }}"
+      register: sag_du_result
+      changed_when: false
+    
+    # --- 2. SNL Steps (Init, Status, Script, Copy Files) ---
+
+    - name: 🚀 Initialize SwiftNet Link (SNL)
+      ansible.builtin.command: "{{ swiftnet_bin_path }}/swiftnet init"
+      register: snl_init_result
+
+    - name: ℹ️ Check SNL status
+      ansible.builtin.command: "{{ swiftnet_bin_path }}/swiftnet status"
+      register: snl_status_result
+      changed_when: false
+        
+    - name: 📜 Execute custom SNL backup script (SNL_BackUp.pl)
+      ansible.builtin.command: "perl SNL_BackUp.pl"
+      args:
+        chdir: "/path/to/script/location/"  # <<< UPDATE THIS PATH
+      register: snl_script_result
+      
+    - name: 📂 Create SNL backup base directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ snl_backup_path }}"
+        - "{{ snl_backup_path }}/pkidata"
+        - "{{ snl_backup_path }}/secrets"
+
+    - name: 🔑 Copy SNL PKI data (certificates/keys)
+      ansible.builtin.copy:
+        src: "{{ pki_source_path }}/"
+        dest: "{{ snl_backup_path }}/pkidata/"
+        remote_src: yes 
+        owner: "{{ swift_app_owner }}"
+        group: "{{ swift_app_group }}"
+        mode: preserve 
+
+    - name: 🔒 Copy SNL secrets backup
+      ansible.builtin.copy:
+        src: "{{ secrets_source_path }}/"
+        dest: "{{ snl_backup_path }}/secrets/"
+        remote_src: yes
+        owner: "{{ swift_app_owner }}"
+        group: "{{ swift_app_group }}"
+        mode: preserve
+
+    - name: ✨ Check SNL PKI backup contents (ls -lrt)
+      ansible.builtin.command: "ls -lrt {{ snl_backup_path }}/pkidata"
+      register: snl_pkidata_ls_result
+      changed_when: false
+
+    - name: 📏 Check SNL backup directory size (du -sm)
+      ansible.builtin.command: "du -sm {{ snl_backup_path }}"
+      register: snl_du_result
+      changed_when: false
+
+    # --- 3. SAG Start and Final Status ---
+
+    - name: 🟢 Start SAG system
+      ansible.builtin.command: "{{ sag_bin_path }}/sag_system start"
+      register: sag_start_result
+      changed_when: "sag_start_result.rc == 0"
+
+    - name: ✅ Check final SAG status
+      ansible.builtin.command: "{{ sag_bin_path }}/sag_system status"
+      register: sag_status_after_start
+      changed_when: false
+      
+    # --- 4. POST-ACTIVITY CONSOLIDATED REPORT ---
+
+    - name: 📧 Notify team: Backup Activity Completed with Report
+      ansible.builtin.mail:
+        subject: "SUCCESS REPORT: SWIFT Gateway ({{ inventory_hostname }}) Weekly Backup Completed on {{ backup_date_dir }}"
+        body: |
+          ### SWIFT Gateway Weekly Backup Report for {{ ansible_date_time.iso8601_basic }}
+          
+          Host: {{ inventory_hostname }}
+          Backup Date Directory: {{ backup_date_dir }}
+          
+          --------------------------------------------------
+          
+          **A. SAG Service Stop & Restart Status**
+          
+          1. SAG Stop Result (RC): {{ sag_stop_result.rc }}
+          2. Final SAG Status Output:
+          {{ sag_status_after_start.stdout | indent(4) }}
+          
+          --------------------------------------------------
+          
+          **B. SAG Backup Details**
+          
+          Location: {{ sag_backup_path }}
+          Size: {{ sag_du_result.stdout_lines[0] }}
+          
+          Contents (ls -lrt):
+          {{ sag_ls_result.stdout | indent(4) }}
+
+          --------------------------------------------------
+          
+          **C. SNL/PKI/Secrets Backup Details**
+          
+          Base Location: {{ snl_backup_path }}
+          Total Size: {{ snl_du_result.stdout_lines[0] }}
+          
+          SNL Init Result (RC): {{ snl_init_result.rc }}
+          SNL Status Output: 
+          {{ snl_status_result.stdout | indent(4) }}
+          
+          SNL Script (SNL_BackUp.pl) Result (RC): {{ snl_script_result.rc }}
+          
+          PKI Directory Contents ({{ snl_backup_path }}/pkidata):
+          {{ snl_pkidata_ls_result.stdout | indent(4) }}
+          
+          --------------------------------------------------
+          
+          ACTION REQUIRED: Please verify application functionality and backup integrity.
+        to: "{{ notification_recipients }}"
+        from: "{{ notification_sender }}"
+      delegate_to: localhost
