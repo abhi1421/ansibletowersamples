@@ -80,7 +80,7 @@
 # -------------------------------
 # DEBUG-ONLY: Check saa_system status (would run or not)
 # -------------------------------
-- name: DEBUG: Would check saa_system status?
+- name: DEBUG Would check saa_system status?
   ansible.builtin.debug:
     msg: >-
       Will run saa_system status check:
@@ -105,7 +105,7 @@
 # -------------------------------
 # DEBUG-ONLY: Stop saa_system if operational (would run or not)
 # -------------------------------
-- name: DEBUG: Would stop saa_system if operational?
+- name: DEBUG Would stop saa_system if operational?
   ansible.builtin.debug:
     msg: >-
       Stop condition evaluation:
@@ -156,7 +156,7 @@
 # -------------------------------
 # DEBUG-ONLY: Delete 2nd last backup decision (would delete or not and why)
 # -------------------------------
-- name: DEBUG: Would delete 2nd last backup?
+- name: DEBUG Would delete 2nd last backup?
   ansible.builtin.debug:
     msg: >-
       Decision for deletion:
@@ -190,7 +190,7 @@
 # -------------------------------
 # DEBUG-ONLY: Create today's backup dirs (would create or not)
 # -------------------------------
-- name: DEBUG: Would create today's backup directories?
+- name: DEBUG Would create today's backup directories?
   ansible.builtin.debug:
     msg: >-
       Condition `not skip_backup` => {{ not (skip_backup|bool) }}
@@ -214,7 +214,7 @@
 # -------------------------------
 # DEBUG-ONLY: Copy DBRBackup and DBRMirror (would copy or not)
 # -------------------------------
-- name: DEBUG: Would copy DBRBackup and DBRMirror?
+- name: DEBUG Would copy DBRBackup and DBRMirror?
   ansible.builtin.debug:
     msg: >-
       Condition `not skip_backup` => {{ not (skip_backup|bool) }}
