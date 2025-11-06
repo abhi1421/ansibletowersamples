@@ -136,7 +136,7 @@
   ansible.builtin.shell: "df -h {{ archive_mount }} | awk 'NR==2 {print $5}' | sed 's/%//'"
   register: archive_util
   changed_when: false
-#  when: not (skip_backup|bool)
+  when: not (skip_backup|bool)
 
 - name: Find backup folders
   ansible.builtin.find:
@@ -144,12 +144,12 @@
     file_type: directory
     patterns: "[0-9]*"
   register: backup_dirs
-#  when: not (skip_backup|bool)
+  when: not (skip_backup|bool)
 
 - name: Sort backup folders
   ansible.builtin.set_fact:
     sorted_backups: "{{ backup_dirs.files | map(attribute='path') | sort }}"
-#  when: not (skip_backup|bool)
+  when: not (skip_backup|bool)
 
 
 
@@ -182,8 +182,8 @@
     path: "{{ sorted_backups[-2] }}"
     state: absent
   when:
-#    - (not skip_backup) | bool
-#    - (archive_util.stdout | int) > utilization_threshold
+    - (not skip_backup) | bool
+    - (archive_util.stdout | int) > utilization_threshold
     - sorted_backups | length > 2
 
 
@@ -200,15 +200,15 @@
   when: not (skip_backup | bool)
 
 
-#- name: Create today’s backup directories
-#  ansible.builtin.file:
-#    path: "{{ item }}"
-#    state: directory
-#    mode: "0755"
-#  loop:
-#    - "{{ today_backup_dir }}"
-#    - "{{ today_db_dir }}"
-#  when: not (skip_backup|bool)
+- name: Create today’s backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ today_backup_dir }}"
+    - "{{ today_db_dir }}"
+  when: not (skip_backup|bool)
 
 
 # -------------------------------
@@ -224,12 +224,12 @@
   when: not (skip_backup | bool)
 
   
-#- name: Copy DBRBackup and DBRMirror
-#  ansible.builtin.command: "cp -pR {{ item }} {{ today_backup_dir }}/"
-#  loop:
-#    - "{{ dbrbackup_src }}"
-#    - "{{ dbrmirror_src }}"
-#  when: not (skip_backup|bool)
+- name: Copy DBRBackup and DBRMirror
+  ansible.builtin.command: "cp -pR {{ item }} {{ today_backup_dir }}/"
+  loop:
+    - "{{ dbrbackup_src }}"
+    - "{{ dbrmirror_src }}"
+  when: not (skip_backup|bool)
 
 - name: Find latest SAA_DATA_BACKUP file
   ansible.builtin.shell: |
@@ -250,10 +250,10 @@
     msg: "Copying file: '{{ latest_backup_clean }}' to '{{ today_db_dir }}'"
   when: not (skip_backup | bool)
 
-#- name: Copy latest SAA_DATA_BACKUP file
-#  ansible.builtin.command:
-#    cmd: "cp -p '{{ latest_backup_clean }}' '{{ today_db_dir }}/'"
-#  when: not (skip_backup | bool)
+- name: Copy latest SAA_DATA_BACKUP file
+  ansible.builtin.command:
+    cmd: "cp -p '{{ latest_backup_clean }}' '{{ today_db_dir }}/'"
+  when: not (skip_backup | bool)
 
 # ---------------
 # Startup Step
@@ -270,10 +270,10 @@
 # -------------------------------
 # Startup Step
 # -------------------------------
-#- name: Start saa_system
-#  ansible.builtin.command: "{{ saa_bin }} start operational"
-#  ignore_errors: true
-#  when: not (skip_startup|bool)
+- name: Start saa_system
+  ansible.builtin.command: "{{ saa_bin }} start operational"
+  ignore_errors: true
+  when: not (skip_startup|bool)
 
 
 # -------------------------------
