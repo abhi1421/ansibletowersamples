@@ -1,0 +1,76 @@
+---
+# os_hardening_verification/tasks/generate_report.yml
+# This file contains tasks to generate and display the final compliance report.
+
+- name: Prepare report content
+  ansible.builtin.set_fact:
+    report_content: |
+      # Compliance Report for Host: {{ ansible_facts.hostname }} ({{ ansible_facts.default_ipv4.address }})
+      ## Date: {{ ansible_date_time.iso8601_basic }}
+
+      This report summarizes the compliance status of the host against the defined hardening requirements.
+
+      ### Summary of Compliance Status:
+      - **COMPLIANT:** {{ compliance_report_results | selectattr('status', 'equalto', 'COMPLIANT') | list | length }} items
+      - **NON_COMPLIANT:** {{ compliance_report_results | selectattr('status', 'equalto', 'NON_COMPLIANT') | list | length }} items
+      - **MANUAL_REQUIRED:** {{ compliance_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }} items
+
+      ### Detailed Compliance Information:
+
+      {% set categories = compliance_report_results | map(attribute='category') | unique | list %}
+      {% for category in categories %}
+      #### {{ category }}
+
+      | Item | Status | Expected | Actual | Message |
+      |---|---|---|---|---|
+      {% for item in compliance_report_results | selectattr('category', 'equalto', category) %}
+      | {{ item.item }} | **{{ item.status }}** | {{ item.expected }} | {{ item.actual }} | {{ item.message }} |
+      {% endfor %}
+      {% endfor %}
+  tags:
+    - always
+    - report_generation
+
+- name: Display compliance report (console output)
+  ansible.builtin.debug:
+    msg: "{{ report_content }}"
+  tags:
+    - always
+    - report_generation
+
+- name: Define report filename
+  ansible.builtin.set_fact:
+    report_filename: "/tmp/compliance_report_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.date | replace('-', '') }}.md"
+  tags:
+    - always
+    - report_generation
+
+- name: Save compliance report to file on target host
+  ansible.builtin.copy:
+    content: "{{ report_content }}"
+    dest: "{{ report_filename }}"
+    mode: '0644'
+  tags:
+    - always
+    - report_generation
+
+- name: Create destination directory on control node
+  ansible.builtin.file:
+    path: /home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: no
+  run_once: true
+  tags:
+    - always
+    - report_generation
+
+- name: Fetch report file to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ report_filename }}"
+    dest: "/home/ansible/reports/jobs/hardeningverify/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/"
+    flat: yes
+  tags:
+    - always
+    - report_generation
