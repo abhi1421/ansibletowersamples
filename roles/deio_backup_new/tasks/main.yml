@@ -182,7 +182,7 @@
     path: "{{ sorted_backups[-2] }}"
     state: absent
   when:
-    - (not skip_backup) | bool
+    - not (skip_backup | bool)
     - (archive_util.stdout | int) > utilization_threshold
     - sorted_backups | length > 2
 
