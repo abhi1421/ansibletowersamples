@@ -24,7 +24,7 @@
         consolidated_report: |
           Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
           -------------------------------------------------------------------
-          {% for host in hostvars.keys() | sort %}
+          {% for host in hostvars.keys() | reject('equalto', 'localhost') | sort %}
           Hostname: {{ host }}
           OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
           Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
