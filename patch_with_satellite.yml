@@ -3,3 +3,38 @@
   become: yes
   roles:
     - PATCHING_with_satellite
+
+  tasks:
+
+    - name: Register patch summary for consolidated report
+      ansible.builtin.set_fact:
+        patch_summary_entry:
+          hostname: "{{ inventory_hostname }}"
+          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          kernel: "{{ ansible_kernel }}"
+          security: "{{ apply_security_patches | default(false) }}"
+          bugfix: "{{ apply_bugfix_patches | default(false) }}"
+          kernel_patch: "{{ apply_kernel_patches | default(false) }}"
+          enhancement: "{{ apply_enhancement_patches | default(false) }}"
+          rebooted: "{{ reboot_after_patching | default(false) }}"
+          status: "Completed"
+
+    - name: Build summary table from all hosts
+      ansible.builtin.set_fact:
+        consolidated_report: |
+          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
+          -------------------------------------------------------------------
+          {% for host in hostvars.keys() | sort %}
+          Hostname: {{ host }}
+          OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
+          Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
+          Security: {{ hostvars[host].patch_summary_entry.security | default(false) }}
+          Bugfix: {{ hostvars[host].patch_summary_entry.bugfix | default(false) }}
+          Kernel Patches: {{ hostvars[host].patch_summary_entry.kernel_patch | default(false) }}
+          Enhancement: {{ hostvars[host].patch_summary_entry.enhancement | default(false) }}
+          Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
+          Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
+          -------------------------------------------------------------------
+          {% endfor %}
+      run_once: true
+      delegate_to: localhost
