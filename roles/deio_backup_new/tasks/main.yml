@@ -325,3 +325,18 @@
       Regards,
       DEIO Backup Automation
   run_once: true
+
+- name: Send an additional email
+  ansible.builtin.set_fact:
+    captioned_mail: |
+      Madam/ Deat Sir,
+
+      In reference to the captioned subject, DEIO-SWIFT daily backup has been completed.
+
+      2. The latest user data available - {{ latest_backup_clean | default('N/A') }} has been copied.
+
+      3. Alliance servers have been made operational.
+
+      Regards,
+      DEIO Backup Automation
+  run_once: true
