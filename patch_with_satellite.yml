@@ -19,7 +19,7 @@
           rebooted: "{{ reboot_after_patching | default(false) }}"
           status: "Completed"
 
-    - name: Build summary table from all hosts
+    - name: Build summary table from all hosts from the inventory
       ansible.builtin.set_fact:
         consolidated_report: |
           Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
