@@ -39,19 +39,62 @@
 #      run_once: true
 #      delegate_to: localhost
 
+
+## BELOW SECTION GIVES A COUNT
+#
+#    - name: Register patch summary for consolidated report
+#      ansible.builtin.set_fact:
+#        patch_summary_entry:
+#          hostname: "{{ inventory_hostname }}"
+#          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+#          kernel: "{{ ansible_kernel }}"
+#          security: "{{ security_packages_count | default(0) }}"
+#          bugfix: "{{ bugfix_packages_count | default(0) }}"
+#          kernel_patch: "{{ kernel_packages_count | default(0) }}"
+#          enhancement: "{{ enhancement_packages_count | default(0) }}"
+#          rebooted: "{{ reboot_after_patching | default(false) }}"
+#          status: "Completed"
+#    
+#    
+#    - name: Build consolidated summary table
+#      ansible.builtin.set_fact:
+#        consolidated_report: |
+#          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
+#          -------------------------------------------------------------------
+#          {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
+#          Hostname: {{ host }}
+#          OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
+#          Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
+#          Security Packages Updated: {{ hostvars[host].patch_summary_entry.security | default(0) }}
+#          Bugfix Packages Updated: {{ hostvars[host].patch_summary_entry.bugfix | default(0) }}
+#          Kernel Packages Updated: {{ hostvars[host].patch_summary_entry.kernel_patch | default(0) }}
+#          Enhancement Packages Updated: {{ hostvars[host].patch_summary_entry.enhancement | default(0) }}
+#          Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
+#          Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
+#          -------------------------------------------------------------------
+#          {% endfor %}
+#      run_once: true
+#      delegate_to: localhost
+#----------------------------------------------------------------------------
+
+## BELOW SECTION IS A BIT MORE UNDERSTANDABLE
+
     - name: Register patch summary for consolidated report
       ansible.builtin.set_fact:
         patch_summary_entry:
           hostname: "{{ inventory_hostname }}"
           os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
           kernel: "{{ ansible_kernel }}"
-          security: "{{ security_packages_count | default(0) }}"
-          bugfix: "{{ bugfix_packages_count | default(0) }}"
-          kernel_patch: "{{ kernel_packages_count | default(0) }}"
-          enhancement: "{{ enhancement_packages_count | default(0) }}"
+          security_enabled: "{{ apply_security_patches | default(false) }}"
+          bugfix_enabled: "{{ apply_bugfix_patches | default(false) }}"
+          kernel_enabled: "{{ apply_kernel_patches | default(false) }}"
+          enhancement_enabled: "{{ apply_enhancement_patches | default(false) }}"
+          security_count: "{{ security_patch_count | default(0) }}"
+          bugfix_count: "{{ bugfix_patch_count | default(0) }}"
+          kernel_count: "{{ kernel_patch_count | default(0) }}"
+          enhancement_count: "{{ enhancement_patch_count | default(0) }}"
           rebooted: "{{ reboot_after_patching | default(false) }}"
           status: "Completed"
-    
     
     - name: Build consolidated summary table
       ansible.builtin.set_fact:
@@ -62,10 +105,31 @@
           Hostname: {{ host }}
           OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
           Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
-          Security Packages Updated: {{ hostvars[host].patch_summary_entry.security | default(0) }}
-          Bugfix Packages Updated: {{ hostvars[host].patch_summary_entry.bugfix | default(0) }}
-          Kernel Packages Updated: {{ hostvars[host].patch_summary_entry.kernel_patch | default(0) }}
-          Enhancement Packages Updated: {{ hostvars[host].patch_summary_entry.enhancement | default(0) }}
+    
+          Security Packages Updated: {{
+            (hostvars[host].patch_summary_entry.security_count|string + ' packages updated')
+            if hostvars[host].patch_summary_entry.security_enabled
+            else 'Not Applied'
+          }}
+    
+          Bugfix Packages Updated: {{
+            (hostvars[host].patch_summary_entry.bugfix_count|string + ' packages updated')
+            if hostvars[host].patch_summary_entry.bugfix_enabled
+            else 'Not Applied'
+          }}
+    
+          Kernel Packages Updated: {{
+            (hostvars[host].patch_summary_entry.kernel_count|string + ' packages updated')
+            if hostvars[host].patch_summary_entry.kernel_enabled
+            else 'Not Applied'
+          }}
+    
+          Enhancement Packages Updated: {{
+            (hostvars[host].patch_summary_entry.enhancement_count|string + ' packages updated')
+            if hostvars[host].patch_summary_entry.enhancement_enabled
+            else 'Not Applied'
+          }}
+    
           Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
           Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
           -------------------------------------------------------------------
