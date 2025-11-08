@@ -1,11 +1,27 @@
 # tasks/apply_kernel.yml
 # Task to apply kernel patches
 
+#- name: Apply Kernel Patches
+#  ansible.builtin.yum:
+#    name: "kernel*" # Target kernel packages specifically
+#    state: latest
+#  when: apply_kernel_patches | bool
+#  tags:
+#    - patching
+#    - kernel_patches
+
 - name: Apply Kernel Patches
   ansible.builtin.yum:
-    name: "kernel*" # Target kernel packages specifically
+    name: "kernel*"
     state: latest
+  register: kernel_update_result
   when: apply_kernel_patches | bool
-  tags:
-    - patching
-    - kernel_patches
+
+- name: Count number of kernel packages updated
+  ansible.builtin.set_fact:
+    kernel_packages_count: "{{ kernel_update_result.results
+      | selectattr('changes', 'defined')
+      | map(attribute='changes')
+      | map('length')
+      | sum | default(0) }}"
+  when: apply_kernel_patches | bool

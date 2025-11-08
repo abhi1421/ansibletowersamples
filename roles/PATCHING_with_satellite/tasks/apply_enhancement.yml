@@ -23,6 +23,15 @@
     - patching
     - enhancement_patches
 
+- name: Count number of enhancement packages updated
+  ansible.builtin.set_fact:
+    enhancement_packages_count: "{{ dnf_enhancement_output.stdout_lines
+      | select('search', '^Upgraded:')
+      | list | length }}"
+  when:
+    - dnf_enhancement_output is defined
+    - "'Nothing to do.' not in dnf_enhancement_output.stdout"
+
 - name: Display DNF enhancement patching output
   ansible.builtin.debug:
     msg: "Enhancement Patching Output:\n{{ dnf_enhancement_output.stdout }}"
@@ -33,4 +42,3 @@
   tags:
     - patching
     - enhancement_patches
-

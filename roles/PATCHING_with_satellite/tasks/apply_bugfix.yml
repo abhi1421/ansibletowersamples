@@ -1,12 +1,29 @@
 # tasks/apply_bugfix.yml
 # Task to apply bugfix patches
 
+#- name: Apply Bugfix Patches
+#  ansible.builtin.yum:
+#    name: "*"
+#    bugfix: true # Apply only bugfix updates
+#    state: latest
+#  when: apply_bugfix_patches | bool
+#  tags:
+#    - patching
+#    - bugfix_patches
+
 - name: Apply Bugfix Patches
   ansible.builtin.yum:
     name: "*"
-    bugfix: true # Apply only bugfix updates
+    bugfix: true
     state: latest
+  register: bugfix_update_result
   when: apply_bugfix_patches | bool
-  tags:
-    - patching
-    - bugfix_patches
+
+- name: Count number of bugfix packages updated
+  ansible.builtin.set_fact:
+    bugfix_packages_count: "{{ bugfix_update_result.results
+      | selectattr('changes', 'defined')
+      | map(attribute='changes')
+      | map('length')
+      | sum | default(0) }}"
+  when: apply_bugfix_patches | bool

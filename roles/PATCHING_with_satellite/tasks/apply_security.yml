@@ -1,12 +1,32 @@
 # tasks/apply_security.yml
 # Task to apply security patches
 
+#- name: Apply Security Patches
+#  ansible.builtin.yum:
+#    name: "*"
+#    security: true # Apply only security updates
+#    state: latest
+#  when: apply_security_patches | bool
+#  tags:
+#    - patching
+#    - security_patches
+
 - name: Apply Security Patches
   ansible.builtin.yum:
     name: "*"
-    security: true # Apply only security updates
+    security: true
     state: latest
+  register: security_update_result
   when: apply_security_patches | bool
   tags:
     - patching
     - security_patches
+
+- name: Count number of security packages updated
+  ansible.builtin.set_fact:
+    security_packages_count: "{{ security_update_result.results
+      | selectattr('changes', 'defined')
+      | map(attribute='changes')
+      | map('length')
+      | sum | default(0) }}"
+  when: apply_security_patches | bool
