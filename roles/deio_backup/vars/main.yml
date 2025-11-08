@@ -1,7 +1,0 @@
-#SPDX-License-Identifier: MIT-0
----
-# vars file for deio_backup
-# Date format for today’s backup directory
-today_date: "{{ lookup('pipe', 'date +%d%m%Y') }}"
-today_backup_dir: "{{ backup_base_dir }}/{{ today_date }}"
-today_db_dir: "{{ today_backup_dir }}/DB"
