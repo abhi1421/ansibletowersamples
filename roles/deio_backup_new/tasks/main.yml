@@ -326,15 +326,22 @@
       DEIO Backup Automation
   run_once: true
 
-- name: Send an additional email
+# -------------------------------
+# Prepare Captioned (Formal) Email
+# -------------------------------
+- name: Prepare captioned summary email content
   ansible.builtin.set_fact:
     captioned_mail: |
-      Madam/ Deat Sir,
+      Madam / Dear Sir,
 
-      In reference to the captioned subject, DEIO-SWIFT daily backup has been completed.
-      2. The latest user data available - {{ latest_backup_clean | default('N/A') }} has been copied.
-      3. Alliance servers have been made operational.
+      In reference to the captioned subject, please be informed that the DEIO-SWIFT daily backup has been completed successfully.
 
-      Regards,
+      1. The latest user data file **{{ latest_backup_clean | basename | default('N/A') }}** has been copied as part of today’s backup.
+      2. The Alliance servers are {{ 'operational' if ('operational' in (system_after_status.stdout | lower)) else 'not operational at this time' }}.
+
+      Regards,  
       DEIO Backup Automation
+  when:
+    - not (skip_backup | bool)
+    - latest_backup_clean is defined
   run_once: true
