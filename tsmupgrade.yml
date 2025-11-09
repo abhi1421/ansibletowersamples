@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Upgrade IBM TSM BA Client
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - tsm_baclient_upgrade
+
+  tasks:
+
+    #######################################################################
+    # 1️⃣  Register upgrade summary for each host
+    #######################################################################
+    - name: Register upgrade summary for consolidated report
+      ansible.builtin.set_fact:
+        upgrade_summary_entry:
+          hostname: "{{ inventory_hostname }}"
+          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          kernel: "{{ ansible_kernel }}"
+          pre_version: "{{ current_version.stdout_lines | default([]) }}"
+          post_version: "{{ upgraded_version.stdout_lines | default([]) }}"
+          upgrade_result: "{{ 'SUCCESS' if rpm_upgrade_output.rc == 0 else 'FAILED' }}"
+          upgrade_time: "{{ lookup('pipe', 'date +%Y-%m-%d_%H:%M:%S') }}"
+      when: rpm_upgrade_output is defined
+
+    #######################################################################
+    # 2️⃣  Build consolidated report (run once, delegate to localhost)
+    #######################################################################
+    - name: Build consolidated TSM BA Client upgrade summary
+      ansible.builtin.set_fact:
+        consolidated_upgrade_report: |
+          ======================================================================
+                          Consolidated TSM BA Client Upgrade Summary
+                             Generated on {{ ansible_date_time.iso8601 }}
+          ======================================================================
+
+          {% for host in hostvars.keys() | reject('equalto', 'localhost') | sort %}
+          Hostname          : {{ host }}
+          OS Version        : {{ hostvars[host].upgrade_summary_entry.os_version | default('Unknown') }}
+          Kernel Version    : {{ hostvars[host].upgrade_summary_entry.kernel | default('Unknown') }}
+          Upgrade Time      : {{ hostvars[host].upgrade_summary_entry.upgrade_time | default('N/A') }}
+          Upgrade Result    : {{ hostvars[host].upgrade_summary_entry.upgrade_result | default('N/A') }}
+
+          Previous Version  :
+          {% for line in hostvars[host].upgrade_summary_entry.pre_version | default([]) %}
+            {{ line }}
+          {% else %}
+            Not Installed
+          {% endfor %}
+
+          Upgraded Version  :
+          {% for line in hostvars[host].upgrade_summary_entry.post_version | default([]) %}
+            {{ line }}
+          {% else %}
+            Not Available
+          {% endfor %}
+
+          ----------------------------------------------------------------------
+          {% endfor %}
+      run_once: true
+      delegate_to: localhost
+
+    #######################################################################
+    # 3️⃣  Save the consolidated report locally
+    #######################################################################
+    - name: Save consolidated upgrade report to /tmp
+      ansible.builtin.copy:
+        dest: "/tmp/consolidated_tsm_upgrade_report.txt"
+        content: "{{ consolidated_upgrade_report }}"
+        mode: '0644'
+      run_once: true
+      delegate_to: localhost
+
+    #######################################################################
+    # 4️⃣  Display consolidated report in controller logs
+    #######################################################################
+    - name: Display consolidated upgrade report
+      ansible.builtin.debug:
+        msg: "{{ consolidated_upgrade_report.split('\n') }}"
+      run_once: true
+      delegate_to: localhost
+
+    #######################################################################
+    # 5️⃣  Email the report (optional)
+    #######################################################################
+    - name: Email consolidated TSM upgrade report
+      ansible.builtin.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port | default(25) }}"
+        from: "{{ mail_from }}"
+        to: "{{ mail_to }}"
+        subject: "Consolidated TSM BA Client Upgrade Report"
+        body: "{{ consolidated_upgrade_report }}"
+      when:
+        - smtp_host is defined
+        - mail_to is defined
+      run_once: true
+      delegate_to: localhost
+
