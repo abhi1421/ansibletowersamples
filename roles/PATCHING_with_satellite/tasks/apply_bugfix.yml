@@ -27,3 +27,16 @@
       | map('length')
       | sum | default(0) }}"
   when: apply_bugfix_patches | bool
+
+
+
+#- name: Count bugfix packages updated
+#  ansible.builtin.set_fact:
+#    bugfix_patch_count: >-
+#      {{
+#        bugfix_result.results
+#        | select('match', '^Installed:')
+#        | list
+#        | length
+#      }}
+#  when: bugfix_result is defined
