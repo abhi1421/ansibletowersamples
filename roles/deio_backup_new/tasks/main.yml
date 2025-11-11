@@ -337,7 +337,7 @@
       In reference to the captioned subject, please be informed that the DEIO-SWIFT daily backup has been completed successfully.
 
       1. The latest user data file **{{ latest_backup_clean | basename | default('N/A') }}** has been copied as part of today’s backup.
-      2. The Alliance servers are {{ 'operational' if ('operational' in (system_after_status.stdout | lower)) else 'not operational at this time' }}.
+      2. The Alliance servers are {{ 'operational' if ('operational' in (system_after_status | string | lower)) else 'not operational at this time' }}.
 
       Regards,  
       DEIO Backup Automation
