@@ -74,8 +74,6 @@
               RHEL Version Before: {{ hostvars[host].ansible_distribution_version | default('N/A') }}
               RHEL Version After: {{ hostvars[host].post_reboot_release.stdout | default(hostvars[host].post_upgrade_release.stdout | default('N/A')) }}
               Kernel Version: {{ hostvars[host].ansible_kernel | default('N/A') }}
-              Pre-Errata Count: {{ hostvars[host].pre_errata_count.stdout | default('N/A') }}
-              Post-Errata Count: {{ hostvars[host].post_errata_count.stdout | default('N/A') }}
               Upgrade Start: {{ hostvars[host].upgrade_start_time | default('N/A') }}
               Upgrade End: {{ hostvars[host].upgrade_end_time | default('N/A') }}
               ---
