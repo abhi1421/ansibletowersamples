@@ -18,7 +18,7 @@
   # Use 'keytool -list' to check if a certificate with the specified alias already exists in the keystore.
 
 - name: Import certificate into Instana agent's cacerts keystore
-  ansible.builtin.command: "{{ instana_keytool_path }} -import -trustcacerts -alias {{ instana_certificate_alias }} -file /tmp/{{ instana_certificate_file_src | ansible.builtin.basename }} -keystore {{ instana_cacerts_path }} -storepass {{ instana_cacerts_password }} -noprompt"
+  ansible.builtin.command: "{{ instana_keytool_path }} -import -alias {{ instana_certificate_alias }} -file /tmp/{{ instana_certificate_file_src | ansible.builtin.basename }} -keystore {{ instana_cacerts_path }} -storepass {{ instana_cacerts_password }} -noprompt -v"
   when: cert_check.rc != 0 # Only import if the certificate was NOT found in the previous check (rc != 0)
   tags: [import_cert]
   # Import the certificate using keytool.

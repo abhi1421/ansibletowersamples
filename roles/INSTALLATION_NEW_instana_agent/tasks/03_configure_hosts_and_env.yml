@@ -14,6 +14,7 @@
   # Read directly from the role's 'files/' directory on the control machine
   loop: "{{ lookup('ansible.builtin.file', 'instana_host_entries.txt').splitlines() }}"
   tags: [configure_system]
+  when: ansible_default_ipv4.address.split('.')[1] == '23'
   # For each line, ensure it exists in /etc/hosts.
   # 'state: present' ensures idempotency: if the exact line is already there, it does nothing,
   # preventing duplicate entries on re-execution.
@@ -21,47 +22,24 @@
 # Removed: - name: Copy environment variables file to temporary location
 # The file is now read directly from the control machine's 'files/' directory.
 
-#- name: Create Instana environment script directory
-#  ansible.builtin.file:
-#    path: "{{ instana_env_vars_script | ansible.builtin.dirname }}"
-#    state: directory
-#    mode: '0755'
-#  tags: [configure_system]
-#  # Ensure the directory for the environment script (e.g., /etc/profile.d/) exists.
-#
-#- name: Add/Ensure environment variables in Instana script
-#  ansible.builtin.lineinfile:
-#    path: "{{ instana_env_vars_script }}"
-#    line: "{{ item }}"
-#    state: present # Ensures the line is present; if it exists, it won't be added again.
-#    create: true # Create the file if it doesn't exist.
-#    mode: '0644' # Set appropriate permissions for the script.
-#    insertafter: EOF # Add new lines at the end of the file.
-#  # Read directly from the role's 'files/' directory on the control machine
-#  loop: "{{ lookup('ansible.builtin.file', 'instana_env_vars.txt').splitlines() }}"
-#  tags: [configure_system]
-#  # Read each line from the env vars file and ensure it's in the script.
-#  # This also handles idempotency, preventing duplicate environment variable definitions.
+- name: Create Instana environment script directory
+  ansible.builtin.file:
+    path: "{{ instana_env_vars_script | ansible.builtin.dirname }}"
+    state: directory
+    mode: '0755'
+  tags: [configure_system]
+  # Ensure the directory for the environment script (e.g., /etc/profile.d/) exists.
 
-
-- name: Add/Ensure host entries in /etc/hosts
+- name: Add/Ensure environment variables in Instana script
   ansible.builtin.lineinfile:
-    path: /etc/hosts
+    path: "{{ instana_env_vars_script }}"
     line: "{{ item }}"
-    state: present
-    create: true
-    insertafter: EOF
-  loop: "{{ lookup('ansible.builtin.file', 'instana_host_entries.txt').splitlines() }}"
-  when: ansible_default_ipv4.address.split('.')[1] == '23'
-
-
-
-- name: Add/Ensure host entries in /etc/hosts
-  ansible.builtin.lineinfile:
-    path: /etc/hosts
-    line: "{{ item }}"
-    state: present
-    create: true
-    insertafter: EOF
-  loop: "{{ lookup('ansible.builtin.file', 'instana_host_entries.txt').splitlines() }}"
-  when: (ansible_default_ipv4.address | default('')).split('.')[1] == '23'
+    state: present # Ensures the line is present; if it exists, it won't be added again.
+    create: true # Create the file if it doesn't exist.
+    mode: '0644' # Set appropriate permissions for the script.
+    insertafter: EOF # Add new lines at the end of the file.
+  # Read directly from the role's 'files/' directory on the control machine
+  loop: "{{ lookup('ansible.builtin.file', 'instana_env_vars.txt').splitlines() }}"
+  tags: [configure_system]
+  # Read each line from the env vars file and ensure it's in the script.
+  # This also handles idempotency, preventing duplicate environment variable definitions.

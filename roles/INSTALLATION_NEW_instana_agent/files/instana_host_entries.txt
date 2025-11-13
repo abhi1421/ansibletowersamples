@@ -1,7 +1,0 @@
-1.1.1.1 a.example.com
-2.2.2.2 b.example.com
-3.3.3.3 c.example.com
-4.4.4.4 d.example.com
-5.5.5.5 e.example.com
-6.6.6.6 f.example.com
-

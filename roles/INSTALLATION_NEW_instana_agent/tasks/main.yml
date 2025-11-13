@@ -44,3 +44,13 @@
   ansible.builtin.include_tasks: 07_manage_services_post_install.yml
   when: instana_enable_manage_services_post_install | bool
   tags: [manage_services]
+
+- name: Include task to configure Instana setenv file
+  ansible.builtin.include_tasks: 08_configure_setenv.yml
+  when: instana_enable_configure_setenv | bool
+  tags: [configure_setenv]
+
+- name: Include task to configure Instana setenv file
+  ansible.builtin.include_tasks: 09_configure_setzone.yml
+  when: instana_enable_configure_setzone | bool
+  tags: [configure_setzone]

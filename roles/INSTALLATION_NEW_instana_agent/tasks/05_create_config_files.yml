@@ -3,26 +3,61 @@
 
 - name: Create Instana agent configuration directories
   ansible.builtin.file:
-    path: "{{ item.path }}"
+    path: /etc/systemd/system/instana-agent.service.d
     state: directory
     mode: '0755'
     recurse: true # Create parent directories if they don't exist
-  loop: "{{ instana_config_files }}"
-  loop_control:
-    label: "Creating directory {{ item.path }}"
   tags: [create_configs]
   # Iterate through the list of config files defined in defaults/main.yml
   # and ensure that the parent directory for each config file exists.
 
-- name: Create Instana agent configuration files
-  ansible.builtin.copy:
-    content: "{{ item.content }}" # Use the 'content' defined in the variable
-    dest: "{{ item.path }}/{{ item.filename }}"
-    mode: '0644'
-  loop: "{{ instana_config_files }}"
-  loop_control:
-    label: "Creating config file {{ item.filename }} in {{ item.path }}"
+- name: Create Instana agent configuration directories
+  ansible.builtin.file:
+    path: /opt/instana/agent/etc/instana
+    state: directory
+    mode: '0755'
+    recurse: true # Create parent directories if they don't exist
   tags: [create_configs]
-  # Create each configuration file.
-  # This task is idempotent: if a file exists with the same content, it will not be changed.
-  # This is where the sensitive content for config files will be injected.
+
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: 10-environment.conf 
+    dest: /etc/systemd/system/instana-agent.service.d/10-environment.conf
+    mode: '0644'
+  tags: [create_configs]
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: 30-service.conf
+    dest: /etc/systemd/system/instana-agent.service.d/30-service.conf
+    mode: '0644'
+  tags: [create_configs]
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: 40-memory.conf
+    dest: /etc/systemd/system/instana-agent.service.d/40-memory.conf
+    mode: '0644'
+  tags: [create_configs]
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: com.instana.agent.main.sender.Backend.cfg
+    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.sender.Backend.cfg
+    mode: '0644'
+  tags: [create_configs]
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: com.instana.agent.main.config.UpdateManager.cfg
+    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.config.UpdateManager.cfg
+    mode: '0644'
+  tags: [create_configs]
+
+- name: Copy Instana agent config files from role files/ dir
+  ansible.builtin.copy:
+    src: configuration.yaml
+    dest: /opt/instana/agent/etc/instana/configuration.yaml
+    mode: '0644'
+  tags: [create_configs]

@@ -29,28 +29,17 @@
   tags: [check_status]
   # Parse the output of 'systemctl status' to accurately determine if the service exists and is actively running.
 
-- name: Check if Instana package is already installed (Linux)
-  ansible.builtin.yum:
-    list: "{{ instana_service_name }}" # Use the service name as the package name for checking
-    state: installed # This parameter checks for installation status without attempting to install
-  register: instana_package_check
-  failed_when: false # Do not fail if package not found; this is an expected scenario
-  changed_when: false # This is purely a check operation, no system change is intended
+- name: Set fact for Instana package installed status
+  set_fact:
+    instana_package_installed: "{{ instana_service_exists  }}"
   when: ansible_os_family == 'RedHat'
   tags: [check_status]
-
-- name: Set fact for Instana package installed status (Linux)
-  ansible.builtin.set_fact:
-    instana_package_installed: "{{ (instana_package_check.results | default([]) | length > 0) }}"
-  when: ansible_os_family == 'RedHat'
-  tags: [check_status]
-  # Determine if the Instana package is installed by checking if 'yum list' returned any results.
 
 - name: Display current Instana agent status summary
   ansible.builtin.debug:
     msg: |
       "Instana agent service '{{ instana_service_name }}' exists: {{ instana_service_exists }}. Running: {{ instana_agent_running }}"
-      "Instana package installed: {{ instana_package_installed }}"
+      "Instana package installed(inferred from service existence): {{ instana_package_installed  }}"
   tags: [check_status]
 
 # --- Comprehensive Checks if Agent is Running and Package is Installed ---

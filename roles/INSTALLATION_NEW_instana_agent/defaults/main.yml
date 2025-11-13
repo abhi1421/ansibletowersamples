@@ -1,4 +1,3 @@
-# defaults file for INSTALLATION_NEW_instana_agent
 ---
 # defaults file for INSTALLATION_Instana_Agent
 
@@ -9,16 +8,20 @@ instana_env_vars_script: "/etc/profile.d/instana.sh"
 # --- Variables for Certificate Import ---
 # Path to the certificate file on the Ansible control machine, relative to the role's 'files/' directory.
 # Ensure 'instana_certificate.crt' is placed in the 'files/' directory.
-instana_certificate_file_src: "instana_certificate.crt"
+instana_certificate_file_src: "instana_server.crt"
 # Alias to use when importing the certificate into the keystore.
-instana_certificate_alias: "instana_custom_cert"
+instana_certificate_alias: "instana-server"
 # Password for the Java cacerts keystore (default is 'changeit').
 # IMPORTANT: For production, use Ansible Vault to secure this variable.
 instana_cacerts_password: "changeit"
 # Path to the Java keystore where the certificate will be imported.
 instana_cacerts_path: "/opt/instana/agent/jvm/lib/security/cacerts"
 # Path to the keytool executable. Adjust if not in default PATH or if a specific JVM's keytool is needed.
-instana_keytool_path: "keytool"
+instana_keytool_path: "/opt/instana/agent/jvm/bin/keytool"
+
+instana_setzone_path: "/opt/instana/agent/etc/instana/configuration.yaml"
+zone_name: "RTGS_UAT_PDC"  
+
 
 # --- Boolean Flags for Step Execution Control ---
 # Set these to 'false' in your playbook or inventory to skip specific steps.
@@ -29,3 +32,5 @@ instana_enable_install_agent: true
 instana_enable_create_config_files: true
 instana_enable_import_certificate: true
 instana_enable_manage_services_post_install: true
+instana_enable_configure_setenv: true
+instana_enable_configure_setzone: true

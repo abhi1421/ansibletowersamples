@@ -7,27 +7,22 @@
 #    state: present
 #  when: ansible_os_family == 'RedHat'
 #  tags: [install_agent]
-#  # Use the yum module (or dnf, which yum module can abstract) to install the RPM on RedHat-based Linux.
-#  # This module is idempotent: it will only install/update if necessary.
-#  # If the agent is already installed with the same version, this task will report 'changed=false'.
-
-# tasks/04_install_agent.yml
+  # Use the yum module (or dnf, which yum module can abstract) to install the RPM on RedHat-based Linux.
+  # This module is idempotent: it will only install/update if necessary.
+  # If the agent is already installed with the same version, this task will report 'changed=false'.
+  #
 
 - name: Show installer file
-  debug: 
+  debug:
     msg:
       The file is "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}"
-  
+
+
 - name: Install Instana agent RPM
-  ansible.builtin.yum:
-    # The 'name' parameter for yum should be the full path to the RPM on the TARGET machine.
-    name: "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}"
-    state: present # Ensures the package is installed; handles upgrades automatically.
-  when: ansible_os_family == 'RedHat' and not instana_package_installed # Skip if already installed
+  ansible.builtin.command: rpm -Uvh "{{ instana_target_dir }}/{{ instana_rpm_file | ansible.builtin.basename }}"
+#  ansible.builtin.command: "rpm -Uvh /home/ansible/instana-agent-static-j9-*.rpm"
+  when: ansible_os_family == 'RedHat' and not instana_package_installed
   tags: [install_agent]
-  # This task installs the Instana Agent RPM on RedHat-based Linux systems.
-  # It is conditionally skipped if the package is already detected as installed by '01_check_agent_status.yml',
-  # preventing "conflicting package" errors.
 
 - name: Echo message after installing RPM
   ansible.builtin.debug:
@@ -36,7 +31,7 @@
   tags: [install_agent]
 
 - name: Echo message if RPM was already installed
-  ansible.builtin.debug:
-    msg: "Instana Agent RPM was already installed, skipping installation task."
+  debug:
+    msg: "Instana agent RPM was already installed, skipping installation task"
   when: ansible_os_family == 'RedHat' and instana_package_installed
   tags: [install_agent]
