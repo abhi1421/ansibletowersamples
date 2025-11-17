@@ -1,3 +1,13 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # vars file for instana_aix_installation
+base_dir: "/home/ansible/instana"
+archive_name: "agent-assembly-offline-1.303.19-aix-ppc-64bit.tar"
+install_dir: "/opt/instana-agent"
+
+backend_host: "agent-acceptor.instanapilot.rbi1.rbi.org.in"
+backend_port: 443
+backend_protocol: "HTTP/2"
+backend_key: "GWFdc2Z3RG1p2j4XYUUOXA"
+
+java_home_path: "/usr/java8_64/"
