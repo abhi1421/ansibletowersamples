@@ -85,7 +85,7 @@
          "pcstate>stopped" in sag_status_stop_check.stdout.lower())
       become_user: "{{ run_as_user }}"
 
-    - name: Create final sag backup directory (path used in manual run)
+    - name: Create final sag backup directory
       ansible.builtin.file:
         path: "{{ sag_backup_dir }}"
         state: directory
