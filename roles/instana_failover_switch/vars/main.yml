@@ -1,0 +1,12 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for instana_failover_switch
+zones:
+  ODC:
+    key: "ODC_INSTANA_KEY_XXXX"
+    url: "https://odc.instana.bank.internal"
+  PDC:
+    key: "PDC_INSTANA_KEY_YYYY"
+    url: "https://pdc.instana.bank.internal"
+
+instana_env_file: "/etc/systemd/system/instana-agent.service.d/10-environment.conf"

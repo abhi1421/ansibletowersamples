@@ -1,0 +1,33 @@
+- name: Phase 1 Download CVE Bundle on Download Host
+  hosts: download_servers # Targets the group containing your download host (e.g., 172.23.161.20)
+  gather_facts: true # Optimize: No facts needed for this phase
+  tasks:
+    - name: Include download related tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/download_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+- name: PLAY2 - Copy Downloaded files to destination host
+  hosts: upload_servers
+  tasks:
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once per play
+    
+    - name: Copy CVE zip from tmp  to upload host path (as core user)
+      ansible.builtin.copy:
+        src: "/mnt/host_share/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+        dest: "/tmp/"
+        mode: '0644'
+        force: yes
+
+
+
+        #- name: Phase 2 Upload CVE Bundle to Upload Host
+        #  hosts: upload_servers # Targets the group containing your upload host (e.g., 172.23.162.4)
+        #  become: true # Enable privilege escalation for the 'core' user
+        #  become_user: core # Execute tasks as the 'core' user on the upload host
+        #  tasks:
+        #    - name: Include upload related tasks from role
+        #      ansible.builtin.include_tasks: roles/PATCHING_acs_cve_sync/tasks/upload_tasks.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
