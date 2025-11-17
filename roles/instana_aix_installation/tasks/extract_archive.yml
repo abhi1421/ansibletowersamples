@@ -1,0 +1,17 @@
+---
+- name: Create /opt if not exists
+  file:
+    path: /opt
+    state: directory
+  tags:
+    - instana_extract
+    - instana_agent
+
+- name: Extract Instana archive
+  unarchive:
+    src: "{{ base_dir }}/{{ archive_name }}"
+    dest: /opt
+    remote_src: yes
+  tags:
+    - instana_extract
+    - instana_agent

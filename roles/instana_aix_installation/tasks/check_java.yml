@@ -1,0 +1,25 @@
+---
+- name: Check for java binary
+  command: "which java"
+  register: java_path
+  failed_when: false
+  changed_when: false
+  tags:
+    - instana_java
+    - instana_agent
+
+- name: Fail if java not found
+  fail:
+    msg: "Java not found in PATH!"
+  when: java_path.rc != 0
+  tags:
+    - instana_java
+    - instana_agent
+
+- name: Display Java version
+  command: "{{ java_path.stdout }} -version"
+  changed_when: false
+  register: java_version
+  tags:
+    - instana_java
+    - instana_agent

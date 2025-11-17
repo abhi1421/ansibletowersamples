@@ -1,0 +1,12 @@
+---
+- name: Append backend config lines
+  blockinfile:
+    path: "{{ install_dir }}/etc/instana/com.instana.agent.main.sender.Backend.cfg"
+    block: |
+      host={{ backend_host }}
+      port={{ backend_port }}
+      protocol={{ backend_protocol }}
+      key={{ backend_key }}
+  tags:
+    - instana_backend_cfg
+    - instana_agent

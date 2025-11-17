@@ -1,0 +1,63 @@
+# tasks file for instana_aix_installation
+---
+# PRECHECK
+- name: "Check if Instana is installed and running"
+  include_tasks: precheck.yml
+  tags:
+    - instana_precheck
+    - instana_agent
+
+# INSTALLATION (runs only if precheck does not end the play)
+- name: "Check archive availability"
+  include_tasks: check_files.yml
+  tags:
+    - instana_check
+    - instana_agent
+
+- name: "Backup /etc/hosts"
+  include_tasks: backup_hosts.yml
+  tags:
+    - instana_backup
+    - instana_agent
+
+- name: "Check system Java"
+  include_tasks: check_java.yml
+  tags:
+    - instana_java
+    - instana_agent
+
+- name: "Extract Instana Agent"
+  include_tasks: extract_archive.yml
+  tags:
+    - instana_extract
+    - instana_agent
+
+- name: "Create JVM symlink"
+  include_tasks: create_jvm_symlink.yml
+  tags:
+    - instana_jvm
+    - instana_agent
+
+- name: "Update setenv with JAVA_HOME"
+  include_tasks: update_setenv.yml
+  tags:
+    - instana_setenv
+    - instana_agent
+
+- name: "Update Backend.cfg"
+  include_tasks: update_backend_cfg.yml
+  tags:
+    - instana_backend_cfg
+    - instana_agent
+
+- name: "Update configuration.yaml"
+  include_tasks: update_configuration_yaml.yml
+  tags:
+    - instana_yaml_cfg
+    - instana_agent
+
+- name: "Start Instana agent & verify"
+  include_tasks: start_and_check.yml
+  tags:
+    - instana_start
+    - instana_agent

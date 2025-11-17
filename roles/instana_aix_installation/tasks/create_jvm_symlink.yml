@@ -1,0 +1,25 @@
+---
+- name: Detect JAVA_HOME directory
+  command: "dirname $(dirname $(which java))"
+  register: detected_java_home
+  changed_when: false
+  tags:
+    - instana_jvm
+    - instana_agent
+
+- name: Remove existing jvm folder or symlink
+  file:
+    path: "{{ install_dir }}/jvm"
+    state: absent
+  tags:
+    - instana_jvm
+    - instana_agent
+
+- name: Create new jvm symlink
+  file:
+    src: "{{ detected_java_home.stdout }}"
+    dest: "{{ install_dir }}/jvm"
+    state: link
+  tags:
+    - instana_jvm
+    - instana_agent

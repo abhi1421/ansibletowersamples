@@ -1,0 +1,11 @@
+---
+- name: Append hardware plugin YAML settings
+  blockinfile:
+    path: "{{ install_dir }}/etc/instana/configuration.yaml"
+    block: |
+      com.instana.plugin.generic.hardware:
+        enabled: true
+        availability-zone: 'AIX'
+  tags:
+    - instana_yaml_cfg
+    - instana_agent

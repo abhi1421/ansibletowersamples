@@ -1,0 +1,34 @@
+---
+- name: Check setenv file exists
+  stat:
+    path: "{{ install_dir }}/bin/setenv"
+  register: setenv_file
+  tags:
+    - instana_setenv
+    - instana_agent
+
+- name: Fail if setenv missing
+  fail:
+    msg: "setenv file not found in {{ install_dir }}/bin/"
+  when: not setenv_file.stat.exists
+  tags:
+    - instana_setenv
+    - instana_agent
+
+- name: Check if JAVA_HOME already present
+  shell: "grep -q 'export JAVA_HOME=' {{ install_dir }}/bin/setenv"
+  register: java_home_present
+  failed_when: false
+  changed_when: false
+  tags:
+    - instana_setenv
+    - instana_agent
+
+- name: Append JAVA_HOME to setenv
+  lineinfile:
+    path: "{{ install_dir }}/bin/setenv"
+    line: "export JAVA_HOME={{ java_home_path }}"
+  when: java_home_present.rc != 0
+  tags:
+    - instana_setenv
+    - instana_agent

@@ -1,0 +1,21 @@
+---
+- name: Start Instana Agent
+  command: "{{ install_dir }}/bin/start"
+  tags:
+    - instana_start
+    - instana_agent
+
+- name: Wait for agent startup
+  pause:
+    seconds: 5
+  tags:
+    - instana_start
+    - instana_agent
+
+- name: Check Instana Agent status
+  command: "{{ install_dir }}/bin/status"
+  register: agent_status
+  changed_when: false
+  tags:
+    - instana_start
+    - instana_agent

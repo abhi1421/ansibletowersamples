@@ -1,0 +1,24 @@
+---
+- name: Ensure base directory exists
+  file:
+    path: "{{ base_dir }}"
+    state: directory
+  tags:
+    - instana_check
+    - instana_agent
+
+- name: Check if archive exists
+  stat:
+    path: "{{ base_dir }}/{{ archive_name }}"
+  register: instana_archive
+  tags:
+    - instana_check
+    - instana_agent
+
+- name: Fail if archive is missing
+  fail:
+    msg: "Instana archive {{ archive_name }} not found in {{ base_dir }}"
+  when: not instana_archive.stat.exists
+  tags:
+    - instana_check
+    - instana_agent

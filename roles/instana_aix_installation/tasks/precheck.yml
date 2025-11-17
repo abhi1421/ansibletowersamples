@@ -1,0 +1,27 @@
+---
+- name: Check if Instana installation directory exists
+  stat:
+    path: "{{ install_dir }}"
+  register: instana_installed
+  tags:
+    - instana_precheck
+    - instana_agent
+
+- name: Check Instana agent status
+  command: "{{ install_dir }}/bin/status"
+  register: instana_status
+  failed_when: false
+  changed_when: false
+  when: instana_installed.stat.exists
+  tags:
+    - instana_precheck
+    - instana_agent
+
+- name: Skip install — Instana already installed and running
+  meta: end_play
+  when:
+    - instana_installed.stat.exists
+    - instana_status.rc == 0
+  tags:
+    - instana_precheck
+    - instana_agent

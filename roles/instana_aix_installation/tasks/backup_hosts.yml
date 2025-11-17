@@ -1,0 +1,17 @@
+---
+- name: Generate timestamp suffix
+  command: date +"%Y%m%d%H%M%S"
+  register: timestamp
+  changed_when: false
+  tags:
+    - instana_backup
+    - instana_agent
+
+- name: Backup /etc/hosts
+  copy:
+    src: /etc/hosts
+    dest: "/etc/hosts_{{ timestamp.stdout }}"
+    remote_src: true
+  tags:
+    - instana_backup
+    - instana_agent
