@@ -1,0 +1,33 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for PATCHING_acs_cve_sync
+# --- General Role Configuration ---
+# This section defines common variables used across the role.
+
+# Directory on the download host (172.23.161.20)
+# This path MUST be writable by the 'ansible' user WITHOUT sudo privileges.
+# Typically, this would be within the 'ansible' user's home directory.
+acs_cve_download_dir: "/home/ansible/acs-cve-data"
+
+# Directory on the upload host (172.23.162.4)
+# where the CVE update bundle will be copied before being uploaded to ACS by the 'core' user.
+acs_cve_upload_dir: "/home/core/ocp416-hub/acs-cve-database-files"
+
+# --- StackRox ACS Specifics ---
+# These variables are specific to the StackRox Central instance and API.
+
+# The full address (hostname:port) of your Rox Central instance.
+# This is used by the 'roxctl' command to target the correct ACS cluster.
+rox_central_address: "central-stackrox.apps.ek3nphub.rbi1.rbi.org.in:443"
+
+# The absolute path to the ACS API token file on the upload host.
+# This file is crucial for authenticating the 'roxctl' upload command.
+# Ensure this file exists and has the correct permissions on the upload host.
+# If the token file name is dynamic (e.g., based on creation date),
+# you might need to add a task in tasks/main.yml to dynamically find the latest token file.
+acs_rox_api_token_file: "{{ acs_cve_upload_dir }}/acs-cev-token/token.txt"
+
+# --- File Naming Convention ---
+# Defines the base name for the downloaded and copied CVE bundle.
+# The date will be appended automatically.
+cve_bundle_base_name: "scanner-vuln-updates"
