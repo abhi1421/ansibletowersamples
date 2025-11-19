@@ -1,6 +1,6 @@
 ---
 - name: SNL / SAG backup & restart workflow
-  hosts: snl_hosts               # change to your target host/group
+  hosts: localhost               # change to your target host/group
   gather_facts: yes
   remote_user: "{{ ansible_user | default(omit) }}"
   become: true
