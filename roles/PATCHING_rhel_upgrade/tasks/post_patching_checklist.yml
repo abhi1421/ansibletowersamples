@@ -5,6 +5,15 @@
   ansible.builtin.debug:
     msg: "Starting Post-Patching Checklist..."
 
+- name: Capture post-upgrade OS version
+  ansible.builtin.command: cat /etc/redhat-release
+  register: post_upgrade_release
+
+- name: Capture post-upgrade kernel
+  ansible.builtin.set_fact:
+    post_upgrade_kernel: "{{ ansible_kernel }}"
+
+
 - name: Record ending timestamp for report
   ansible.builtin.set_fact:
     upgrade_end_time: "{{ ansible_date_time.iso8601_basic }}"

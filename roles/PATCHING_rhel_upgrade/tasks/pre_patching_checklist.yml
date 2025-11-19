@@ -5,6 +5,19 @@
   ansible.builtin.debug:
     msg: "Starting Pre-Patching Checklist..."
 
+- name: Capture pre-upgrade OS version (raw)
+  ansible.builtin.command: cat /etc/redhat-release
+  register: pre_upgrade_release_raw
+
+- name: Save pre-upgrade release
+  ansible.builtin.set_fact:
+    pre_upgrade_release: "{{ pre_upgrade_release_raw.stdout }}"
+
+- name: Capture pre-upgrade kernel
+  ansible.builtin.set_fact:
+    pre_upgrade_kernel: "{{ ansible_kernel }}"
+
+
 - name: Ensure report directory exists on target host
   ansible.builtin.file:
     path: "{{ report_output_dir }}"

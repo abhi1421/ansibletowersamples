@@ -71,11 +71,14 @@
             {% set _ = success_hosts.append(host) %}
             Hostname: {{ host }}
               Status: ✅ SUCCESS
-              RHEL Version Before: {{ hostvars[host].ansible_distribution_version | default('N/A') }}
-              RHEL Version After: {{ hostvars[host].post_reboot_release.stdout | default(hostvars[host].post_upgrade_release.stdout | default('N/A')) }}
-              Kernel Version: {{ hostvars[host].ansible_kernel | default('N/A') }}
+              RHEL Version Before: {{ hostvars[host].pre_upgrade_release | default('N/A') }}
+              RHEL Version After: {{ hostvars[host].post_upgrade_release.stdout | default('N/A') }}
+      
+              Kernel Before: {{ hostvars[host].pre_upgrade_kernel | default('N/A') }}
+              Kernel After: {{ hostvars[host].post_upgrade_kernel | default('N/A') }}
+      
               Upgrade Start: {{ hostvars[host].upgrade_start_time | default('N/A') }}
-              Upgrade End: {{ hostvars[host].upgrade_end_time | default('N/A') }}
+              Upgrade End:   {{ hostvars[host].upgrade_end_time | default('N/A') }
               ---
           {% else %}
             {% set _ = failed_hosts.append(host) %}
