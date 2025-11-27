@@ -90,6 +90,10 @@
       loop: "{{ reports.files }}"
       register: all_reports
 
+    - name: Debug the variable
+      debug:
+        var: all_reports
+
     - name: Create final combined report
       copy:
         dest: /tmp/final_sudo_audit_report.txt
