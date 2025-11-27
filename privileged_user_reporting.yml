@@ -62,24 +62,24 @@
       loop: "{{ sudo_entries | map('regex_replace','^%','') | list }}"
       ignore_errors: true
 
-- name: Build per-host report text
-  set_fact:
-    host_report: |
-      Host: {{ inventory_hostname }}
-      --------------------------------
-
-      SUDO ENTRIES:
-      {% for entry in sudo_entries %}
-      {{ entry }}
-
-        {% if entry.startswith('%') %}
-        (Group Entry)
-        {% else %}
-          {% for r in id_results.results if r.item == entry %}
-          {{ r.stdout }}
+    - name: Build per-host report text
+      set_fact:
+        host_report: |
+          Host: {{ inventory_hostname }}
+          --------------------------------
+    
+          SUDO ENTRIES:
+          {% for entry in sudo_entries %}
+          {{ entry }}
+    
+            {% if entry.startswith('%') %}
+            (Group Entry)
+            {% else %}
+              {% for r in id_results.results if r.item == entry %}
+              {{ r.stdout }}
+              {% endfor %}
+            {% endif %}
           {% endfor %}
-        {% endif %}
-      {% endfor %}
 
 
     - name: Save per-host report to control node
