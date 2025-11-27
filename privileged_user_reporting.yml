@@ -47,6 +47,14 @@
              | select('!=', None)
              | list | unique }}
 
+    - name: Debug sudoers lines
+      debug:
+        var: sudoers_lines
+
+    - name: Debug sudoers lines
+      debug:
+        var: sudo_entries
+
     - name: Get group membership for each sudo entry
       command: id "{{ item | regex_replace('^%','') }}"
       register: id_results
