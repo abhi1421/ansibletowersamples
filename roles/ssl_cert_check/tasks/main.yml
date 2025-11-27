@@ -58,22 +58,36 @@
   loop: "{{ ssl_cert_results.results }}"
   when: item.stdout is not defined or item.stdout == ""
 
-#- name: Send report via email
-#  mail:
-#    subject: "{{ ssl_check_email_subject }}"
-#    to: "{{ ssl_check_email_to }}"
-#    body: "{{ lookup('file', ssl_check_report_file) }}"
-#  delegate_to: localhost
 
-#- name: Send SSL cert expiry report via email
-#  mail:
-#    host: "{{ smtp_host }}"
-#    port: "{{ smtp_port }}"
-#    secure: "{{ smtp_secure }}"
-#    username: "{{ smtp_username }}"
-#    password: "{{ smtp_password }}"
-#    to: "{{ ssl_check_email_to }}"
-#    from: "{{ smtp_from }}"
-#    subject: "{{ ssl_check_email_subject }}"
-#    body: "{{ lookup('file', ssl_check_report_file) }}"
-#  delegate_to: localhost
+# ---------------------------------------------------------
+# Build Summary
+# ---------------------------------------------------------
+- name: Count successful certificate fetches
+  set_fact:
+    ssl_success_count: "{{ ssl_cert_results.results | selectattr('stdout', 'defined') | selectattr('stdout') | list | length }}"
+
+- name: Count failed certificate fetches
+  set_fact:
+    ssl_failed_count: "{{ ssl_cert_results.results | rejectattr('stdout', 'defined') | list | length }}"
+
+- name: Read report file from target (same content as you showed)
+  slurp:
+    src: "{{ ssl_check_report_file }}"
+  register: ssl_report_file
+
+# ---------------------------------------------------------
+# Combine summary + report content
+# ---------------------------------------------------------
+- name: Build final email body
+  set_fact:
+    ssl_email_body: |
+      SSL Certificate Expiry Summary
+      --------------------------------
+      Total Certificates Processed: {{ ssl_check_urls | length }}
+      Successful Fetches: {{ ssl_success_count }}
+      Failed Fetches: {{ ssl_failed_count }}
+
+      Detailed Report:
+      --------------------------------
+      {{ ssl_report_file.content | b64decode }}
+    insertafter: EOF
