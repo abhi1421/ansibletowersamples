@@ -1,0 +1,78 @@
+---
+# acs_cve_sync_refined/tasks/upload_tasks.yml
+
+- name: Set today's date for consistent file naming (re-set for this play's scope)
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the upload destination directory exists on the upload node (as core user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}"
+    state: directory
+    mode: '0755'
+    owner: core
+    group: core
+
+- name: Check if the file is present 
+  debug:
+    msg: The file /home/ansible/{{ cve_bundle_base_name }}-{{ today_date }}.zip is present. 
+
+- name: Copy files from tmp folder to {{ acs_cve_upload_dir }}
+  copy: 
+    src: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: "{{ acs_cve_upload_dir }}/"
+    remote_src: yes
+    mode: '0755'
+    force: yes
+  become: true
+
+- name: Show the files
+  debug:
+    msg:
+      - "File1 {{ rox_central_address }}"
+      - "File2 {{ acs_rox_api_token_file }}"
+      - "File3 {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+
+#- name: Upload CVE file to ACS Cluster using roxctl (as core user) manually
+#  shell: roxctl scanner upload-db -e central-stackrox.apps.ek3nphub.rbi1.rbi.org.in:443 --token-file /home/ansible/acs-cev-token --scanner-db-file /home/ansible/scanner-vuln-updates-2025-07-03.zip
+
+- name: Upload CVE file to ACS Cluster using roxctl (as core user)
+  ansible.builtin.shell: >
+    roxctl scanner upload-db
+    -e {{ rox_central_address }}
+    --token-file {{ acs_rox_api_token_file }}
+    --scanner-db-file {{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip --insecure-skip-tls-verify
+  register: roxctl_upload_result
+#  changed_when: "'Successfully stored scanner vulnerability definitions' in roxctl_upload_result.stdout"
+#  failed_when: roxctl_upload_result.rc != 0 or
+#              "'Successfully stored scanner vulnerability definitions' not in roxctl_upload_result.stdout"
+
+- name: Debug the result
+  debug:
+    var: roxctl_upload_result
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+    force: true
+  become: true
+  become_user: root
+  run_once: true
+
+- name: Cleanup CVE ZIP from Upload host
+  ansible.builtin.file:
+    path: "{{ acs_cve_upload_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+    force: true
+  become: true
+  run_once: true
+
+- name: Store minimal upload summary
+  ansible.builtin.set_stats:
+    data:
+      acs_upload_summary:
+        host: "{{ inventory_hostname }}"
+        status: "{{ roxctl_upload_result.stdout_lines }}"
+        timestamp: "{{ lookup('pipe','date +%Y-%m-%d_%H:%M:%S') }}"

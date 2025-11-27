@@ -1,0 +1,121 @@
+---
+# quay_cve_sync_refined/tasks/download_phase.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensures this fact is set only once for the play
+
+- name: Ensure the Clair CVE download directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Ensure the Clair mapping files subdirectory exists (as ansible user)
+  ansible.builtin.file:
+    path: "{{ quay_cve_download_dir }}/clair-mapping-files"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Delete existing Red Hat repository-to-cpe.json if it exists
+  file:
+    path: "{{ clair_repo2cpe_mapping_file }}"
+    state: absent
+  become: yes
+  become_user: ansible
+
+- name: Download Red Hat repository-to-cpe.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_repo2cpe_mapping_file }} {{ redhat_repo2cpe_url }}
+#  args:
+#    creates: "{{ clair_repo2cpe_mapping_file }}"
+  register: wget_repo2cpe_result
+  changed_when: wget_repo2cpe_result.rc == 0
+  failed_when: wget_repo2cpe_result.rc != 0 and "already exists" not in wget_repo2cpe_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Delete existing Red Hat container-name-repos-map.json if it exists
+  file:
+    path: "{{ clair_name2repos_mapping_file }}"
+    state: absent
+  become: yes
+  become_user: ansible      
+
+- name: Download Red Hat container-name-repos-map.json using wget (as ansible user)
+  ansible.builtin.command: >
+    wget -q -O {{ clair_name2repos_mapping_file }} {{ redhat_container_map_url }}
+#  args:
+#   creates: "{{ clair_name2repos_mapping_file }}"
+  register: wget_container_map_result
+  changed_when: wget_container_map_result.rc == 0
+  failed_when: wget_container_map_result.rc != 0 and "already exists" not in wget_container_map_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+      #- name: Create clair-config.yaml on the download host using template
+      #  ansible.builtin.template:
+    #    src: clair-config.yaml.j2 
+    #    dest: "{{ clair_config_file_path }}"
+#    mode: '0644'
+#    owner: ansible
+#    group: ansible
+
+
+- name: Delete existing  updates.gz if it exists
+  file:
+    path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+    state: absent
+  become: yes
+  become_user: ansible
+
+- name: Generate updates.gz using clairctl export-updaters (as ansible user)
+  # Ensure clairctl is installed and in the 'ansible' user's PATH on the download host.
+  ansible.builtin.command: >
+    clairctl --config {{ clair_config_file_path }} export-updaters {{ quay_cve_download_dir }}/{{ updates_gz_filename }}
+  args:
+    chdir: "{{ quay_cve_download_dir }}" # Run command from this directory
+    creates: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+  register: clairctl_export_result
+  changed_when: clairctl_export_result.rc == 0
+  failed_when: clairctl_export_result.rc != 0 and "already exists" not in clairctl_export_result.stderr
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Fetch Quay CVE files to Ansible control node
+  ansible.builtin.fetch:
+    src: "{{ item.src_path }}"
+    dest: /var/tmp/
+    flat: true
+  loop:
+    - { src_path: "{{ clair_repo2cpe_mapping_file }}" }
+    - { src_path: "{{ clair_name2repos_mapping_file }}" }
+    - { src_path: "{{ quay_cve_download_dir }}/{{ updates_gz_filename }}" }
+  loop_control:
+    label: "{{ item.src_path | basename }}" # Nicer output for loop
+  become: false # fetch always runs as the user executing the playbook on the control node
+
+- name: Build download summary
+  ansible.builtin.set_fact:
+    download_summary:
+      date: "{{ today_date }}"
+      host: "{{ inventory_hostname }}"
+      download_status: "{{ clairctl_export_result.rc | default('NA') }}"
+      download_file: " {{ quay_cve_download_dir }}/{{ updates_gz_filename }}"
+
+- name: Expose download summary to workflow
+  ansible.builtin.set_stats:
+    data:
+      download_summary: "{{ download_summary }}"
+

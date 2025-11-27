@@ -1,0 +1,73 @@
+---
+# acs_cve_sync_refined/tasks/download_tasks.yml
+
+- name: Set today's date for consistent file naming
+  ansible.builtin.set_fact:
+    today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+  run_once: true # Ensure this fact is set only once per play
+
+- name: Ensure the destination directory exists on the download node (as ansible user)
+  ansible.builtin.file:
+    path: "{{ acs_cve_download_dir }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Download the latest StackRox CVE update bundle using wget (as ansible user)
+  ansible.builtin.shell: >
+    wget -O {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip https://install.stackrox.io/scanner/scanner-vuln-updates.zip
+#  args:
+#    creates: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+#  async: 300
+#  poll: 10  
+  register: wget_download_result
+  changed_when: wget_download_result.rc == 0
+  failed_when: wget_download_result.rc != 0 
+  environment:
+    https_proxy: http://172.23.37.4:8080
+    NO_PROXY: dmz-quay.ek3np.rbi1.rbi.org.in
+    http_proxy: http://172.23.37.4:8080
+
+- name: Debug task to check if the file is downloaded
+  debug:
+    msg: "File path for fetch {{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+
+
+- name: Fetch CVE zip from download host to Ansible control node
+  ansible.builtin.fetch:
+    #    src: /home/ansible/acs-cve-data/scanner-vuln-updates-2025-07-03.zip
+    src: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    dest: /var/tmp/
+    flat: yes
+  register: fetch_result    
+  become: false # fetch always runs as the user executing the playbook on the control node
+
+- name: Debug fetched file
+  debug:
+    var: fetch_result
+
+- name: Check if /var/tmp/{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip exists on Ansible Controller
+  stat:
+    path: /var/tmp/{{ cve_bundle_base_name }}-{{ today_date }}.zip
+  register: controller_file_stat
+  delegate_to: localhost
+
+- name: Debug controller_file_stat
+  debug:
+    var: controller_file_stat
+
+- name: Cleanup CVE ZIP from download host
+  ansible.builtin.file:
+    path: "{{ acs_cve_download_dir }}/{{ cve_bundle_base_name }}-{{ today_date }}.zip"
+    state: absent
+    force: true
+  run_once: true
+
+- name: Store minimal download summary
+  ansible.builtin.set_stats:
+    data:
+      acs_download_summary:
+        host: "{{ inventory_hostname }}"
+        status: "{{ 'SUCCESS' if wget_download_result.rc == 0 else 'FAILED' }}"
+        timestamp: "{{ lookup('pipe','date +%Y-%m-%d_%H:%M:%S') }}"

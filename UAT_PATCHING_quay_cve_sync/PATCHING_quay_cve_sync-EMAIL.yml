@@ -1,0 +1,56 @@
+---
+- name: Send consolidated CVE Sync Report
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    mail_to: "security-team@bank.com"
+    mail_from: "ansible-aap@bank.com"
+    mail_subject: "QUAY CVE Sync Report (UAT Clair) - {{ lookup('pipe', 'date +%Y-%m-%d') }}"
+
+  tasks:
+
+    - name: Convert rc codes to human text
+      set_fact: 
+        download_status_readable: "{{ 'Success' if download_summary.download_status == 0 else 'Failed' }}"
+        upload_status_readable: "{{ 'Success' if upload_summary.upload_status == 0 else 'Failed' }}"
+
+    - name: Assemble full report
+      ansible.builtin.set_fact:
+        full_report: |
+          QUAY CVE Sync Summary (UAT Clair)
+          ===============================
+
+          DOWNLOAD PHASE
+          -------------------------------
+          Host: {{ download_summary.host | default('N/A') }}
+          Date: {{ download_summary.date | default('N/A') }}
+          Status (rc): {{ download_status_readable | default('N/A') }}
+          Message:
+          {% if download_status_readable == 'Success' %}
+          The CVE was downloaded successfully.
+          {% else %}
+          The CVE downloading encountered an error. Please check logs for details.
+          {% endif %}
+
+          UPLOAD PHASE
+          -------------------------------
+          Host: {{ upload_summary.host | default('N/A') }}
+          Date: {{ upload_summary.date | default('N/A') }}
+          Status (rc): {{ upload_status_readable | default('N/A') }}
+          Message: {{ upload_summary.upload_message | default('N/A') }}
+
+          -------------------------------
+          Job completed successfully.
+
+
+    - name: Send report email
+      ansible.builtin.mail:
+        host: 10.35.1.17
+        port: 25
+        to: 
+          - vijaymerugu@rbi.org.in
+          - ekuber3redhatsupport@rbi.org.in
+        from: ansible.alerts@rbi.org.in
+        subject: "{{ mail_subject }}"
+        body: "{{ full_report }}"

@@ -1,0 +1,32 @@
+---
+- name: Send ACS CVE Sync Summary Email
+  hosts: localhost
+  gather_facts: false
+  tasks:
+
+    - name: Build consolidated email body
+      ansible.builtin.set_fact:
+        email_body: |
+          ACS CVE Sync Summary (UAT Hub)
+          ============================
+          
+          DOWNLOAD PHASE
+          ---------------
+          Host: {{ acs_download_summary.host }}
+          Status: {{ acs_download_summary.status }}
+          Time: {{ acs_download_summary.timestamp }}
+
+          UPLOAD PHASE
+          -------------
+          Host: {{ acs_upload_summary.host }}
+          Status: {{ acs_upload_summary.status }}
+          Time: {{ acs_upload_summary.timestamp }}
+
+    - name: Email consolidated report
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: vijaymerugu@rbi.org.in
+        from: ansible.alerts@rbi.org.in
+        subject: "ACS CVE Sync Summary - {{ lookup('pipe','date +%Y-%m-%d') }}"
+        body: "{{ email_body }}"

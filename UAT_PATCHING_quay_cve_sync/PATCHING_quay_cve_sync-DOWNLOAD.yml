@@ -1,0 +1,46 @@
+---
+# run_quay_cve_sync.yml
+
+- name: Phase 1 Download Quay CVE Bundle on Download Host and Transfer to Controller
+  hosts: download_servers # Targets the group containing your download host
+  gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
+  become: false # IMPORTANT: No sudo for the 'ansible' user on the download host
+  tasks:
+    - name: Include download phase tasks from role
+      ansible.builtin.include_tasks: roles/PATCHING_quay_cve_sync/tasks/download_phase.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
+
+- name: PLAY2 - Copy Downloaded files to destination host
+  hosts: upload_servers
+  tasks:  
+    - name: Set today's date for consistent file naming
+      ansible.builtin.set_fact:
+        today_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+      run_once: true # Ensure this fact is set only once per play
+
+
+    - name: Copy Quay CVE files from Ansible control node to upload host
+      ansible.builtin.copy:
+        src: "{{ controller_temp_dir }}/{{ item.filename }}"
+        dest: "/var/tmp/{{ item.filename }}"
+#        dest: "{{ quay_cve_upload_dir }}/{{ item.filename }}"
+        mode: '0644'
+        force: yes
+      loop:
+        - { filename: "{{ repo2cpe_filename }}" }
+        - { filename: "{{ container_map_filename }}" }
+        - { filename: "{{ updates_gz_filename }}" }
+      loop_control:
+        label: "{{ item.filename }}"
+
+#- name: Phase 2 Upload Quay CVE Bundle to Upload Hosts and Update Clair DB
+#  hosts: upload_servers # Targets the group containing your upload hosts
+#  gather_facts: true # Gather facts for ansible_hostname and ansible_date_time.epoch
+#  become: true # Enable privilege escalation for the 'core' user
+#  become_user: core # Execute tasks as the 'core' user on the upload hosts
+#  tasks:
+#    - name: Include upload phase tasks from role
+#      ansible.builtin.include_tasks: upload_phase.yml
+      # Variables from defaults/main.yml in the role will be available here.
+
