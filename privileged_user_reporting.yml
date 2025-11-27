@@ -94,6 +94,16 @@
       debug:
         var: all_reports
 
+    - name: Build merged report content
+      set_fact:
+        merged_report: |
+          {% for entry in all_reports.results %}
+          Report from {{ entry.source }}:
+          {{ entry.content | b64decode }}
+    
+          {% endfor %}
+
+ 
     - name: Create final combined report
       copy:
         dest: /tmp/final_sudo_audit_report.txt
