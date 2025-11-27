@@ -91,3 +91,14 @@
       --------------------------------
       {{ ssl_report_file.content | b64decode }}
     insertafter: EOF
+
+
+- name: Send SSL Certificate Expiry Email
+  mail:
+    host: 
+    port: 
+    to: 
+    from:
+    subject: "SSL Certificate Expiry Summary"
+    body: "{{ ssl_email_body }}"
+  delegate_to: localhost
