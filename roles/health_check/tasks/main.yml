@@ -27,24 +27,7 @@
                (disk_usage.stdout|int > disk_usage_threshold|int) or
                (iowait.stdout|default(0)|float > iowait_threshold|float) }}"
 
-#- name: Install mailx
-#  package:
-#    name: mailx
-#    state: present
-
 - name: Generate report
   template:
     src: report.j2
     dest: /tmp/system_report_{{ inventory_hostname }}.txt
-
-- name: Send alert email using mailx
-  shell: |
-    cat /tmp/system_report_{{ inventory_hostname }}.txt | mail -s "⚠️ System Health Alert on {{ inventory_hostname }}" {{ alert_email }}
-  when: alert
-
-#- name: Send email if alert is true
-#  mail:
-#    to: "{{ alert_email }}"
-#    subject: "System Health Alert on {{ inventory_hostname }}"
-#    body: "{{ lookup('file', '/tmp/system_report_' + inventory_hostname + '.txt') }}"
-#  when: alert
