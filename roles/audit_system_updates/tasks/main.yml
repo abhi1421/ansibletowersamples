@@ -53,10 +53,11 @@
       {{ updates | to_nice_json }}
 
 - name: Generate final audit report
-  ansible.builtin.copy:
-    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
-    mode: '0644'
-    content: |
+  ansible.builtin.copy:  # Indented two spaces under the -name
+    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt" # Indented four spaces
+    mode: '0644'                                                              # Indented four spaces
+    content: |                                                                # Indented four spaces
+      # All template content starts here, consistently indented
       Package Name         | Installed Version  | Installed On         | Update Available | Update Version
       ---------------------|--------------------|----------------------|------------------|--------------------
       {# Parse the JSON string back into a dictionary for iteration #}
