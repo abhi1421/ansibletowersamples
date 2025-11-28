@@ -1,0 +1,25 @@
+======================================================================
+Host: {{ inventory_hostname }}
+======================================================================
+
+Package Name          | Installed Version   | Installed On         | Update Available | Update Version
+----------------------|---------------------|-----------------------|------------------|---------------------
+
+{% set installed = installed_pkgs_data | from_json %}
+{% set updates = available_updates_data | from_json %}
+
+{% for pkg, details in installed.items() | sort %}
+{% set inst_ver = details.version %}
+{% set inst_on = details.installed_on %}
+{% set upd_ver = updates[pkg] | default('N/A') %}
+{% set upd_avail = 'Yes' if upd_ver != 'N/A' else 'No' %}
+{{ '%-22s | %-19s | %-21s | %-16s | %s' |
+      format(
+        pkg | truncate(22, True, ''),
+        inst_ver | truncate(19, True, ''),
+        inst_on | truncate(21, True, ''),
+        upd_avail,
+        upd_ver | truncate(18, True, '')
+      )
+}}
+{% endfor %}
