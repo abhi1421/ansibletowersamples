@@ -37,7 +37,6 @@
   loop: "{{ available_updates_raw.stdout_lines }}"
   when: item is match('^\\S+\\.\\S+\\s+\\S+')
 
-
 - name: Build host report using template
   set_fact:
     host_report: "{{ lookup('template', 'host_report.j2') }}"
