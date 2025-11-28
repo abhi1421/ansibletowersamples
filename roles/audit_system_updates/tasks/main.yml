@@ -53,11 +53,14 @@
       {{ updates | to_nice_json }}
 
 - name: Generate final audit report
-  ansible.builtin.copy:  # Indented two spaces under the -name
-    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt" # Indented four spaces
-    mode: '0644'                                                              # Indented four spaces
-    content: |                                                                # Indented four spaces
-      # All template content starts here, consistently indented
+  # This line must be indented exactly two spaces beneath the '- name:' line
+  ansible.builtin.copy:
+    # These parameters must be indented exactly four spaces beneath the '- name:' line
+    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
+    mode: '0644'
+    content: |
+      # All template content lines start here, indented 6 spaces (relative to '- name:')
+      # This entire block is correct, the error is *before* this content.
       Package Name         | Installed Version  | Installed On         | Update Available | Update Version
       ---------------------|--------------------|----------------------|------------------|--------------------
       {# Parse the JSON string back into a dictionary for iteration #}
