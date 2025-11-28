@@ -5,8 +5,8 @@ Host: {{ inventory_hostname }}
 Package Name          | Installed Version   | Installed On         | Update Available | Update Version
 ----------------------|---------------------|-----------------------|------------------|---------------------
 
-{% set installed = installed_pkgs_data | from_json %}
-{% set updates = available_updates_data | from_json %}
+{% set installed = installed_pkgs_data %}
+{% set updates = available_updates_data %}
 
 {% for pkg, details in installed.items() | sort %}
 {% set inst_ver = details.version %}
@@ -23,3 +23,5 @@ Package Name          | Installed Version   | Installed On         | Update Avai
       )
 }}
 {% endfor %}
+{% set installed = installed_pkgs_data | from_json %}
+{% set updates = available_updates_data | from_json %}
