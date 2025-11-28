@@ -16,19 +16,11 @@
   changed_when: false
 
 - name: Process installed packages into a structured format
-  ansible.builtin.set_fact:
-    installed_pkgs_data: |
-      {% set pkgs = {} %}
-      {% for line in installed_packages_raw.stdout_lines %}
-        {% set parts = line.split('\t') %}
-        {% if parts | length == 3 %}
-          {% set pkg_name = parts[0] %}
-          {% set pkg_version = parts[1] %}
-          {% set install_time = parts[2] %}
-          {% set _ = pkgs.update({pkg_name: {'version': pkg_version, 'installed_on': install_time}}) %}
-        {% endif %}
-      {% endfor %}
-      {{ pkgs | to_nice_json }}
+  set_fact:
+    installed_pkgs_data: "{{ installed_pkgs_data | default({}) | combine({ item.split('\t')[0]: {'version': item.split('\t')[1], 'installed_on': item.split('\t')[2]} }) }}"
+  loop: "{{ installed_packages_raw.stdout_lines }}"
+  when: item.split('\t') | length == 3
+
 
 - name: Get list of available updates
   ansible.builtin.command: yum list updates -q
@@ -36,22 +28,14 @@
   changed_when: false
 
 - name: Process available updates into a structured format
-  ansible.builtin.set_fact:
-    available_updates_data: |
-      {% set updates = {} %}
-      {% for line in available_updates_raw.stdout_lines %}
-        {% if line is match('^\\S+\\.\\S+\\s+\\S+') %} # Matches lines like 'package.arch version'
-          {% set parts = line.split() %}
-          {% if parts | length >= 2 %}
-            {% set pkg_name_arch = parts[0] %}
-            {% set pkg_name = pkg_name_arch.split('.')[0] %} # Get package name without arch
-            {% set update_version = parts[1] %}
-            {% set _ = updates.update({pkg_name: update_version}) %}
-          {% endif %}
-        {% endif %}
-      {% endfor %}
-      {{ updates | to_nice_json }}
-
+  set_fact:
+    available_updates_data: "{{ available_updates_data | default({}) | combine({ pkg_name: pkg_version }) }}"
+  vars:
+    parts: "{{ item.split() }}"
+    pkg_name: "{{ parts[0].split('.')[0] }}"
+    pkg_version: "{{ parts[1] }}"
+  loop: "{{ available_updates_raw.stdout_lines }}"
+  when: item is match('^\\S+\\.\\S+\\s+\\S+')
 
 
 - name: Build host report using template
