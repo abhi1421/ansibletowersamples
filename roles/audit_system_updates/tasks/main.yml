@@ -52,25 +52,59 @@
       {% endfor %}
       {{ updates | to_nice_json }}
 
-- name: Generate final audit report
-  ansible.builtin.copy:
-    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
-    mode: '0644'
-    content: |
-      Package Name         | Installed Version  | Installed On         | Update Available | Update Version
-      ---------------------|--------------------|----------------------|------------------|--------------------
-      {% set installed_data = installed_pkgs_data | from_json %}
-      {% set updates_data = available_updates_data | from_json %}
-      {% for pkg_name, details in installed_data.items() | sort %}
-        {% set installed_version = details.version %}
-        {% set installed_on = details.installed_on %}
-        {% set update_version = updates_data[pkg_name] | default('N/A') %}
-        {% set update_available_status = 'Yes' if update_version != 'N/A' else 'No' %}
-        {{ '%-20s | %-18s | %-20s | %-16s | %s' | format(
-            pkg_name | truncate(20, True, ''),
-            installed_version | truncate(18, True, ''),
-            installed_on | truncate(20, True, ''),
-            update_available_status,
-            update_version | truncate(18, True, '')
-        ) }}
+
+
+- name: Build final report content per host
+  ansible.builtin.set_fact:
+    host_report: |
+      ======================================================================
+      Host: {{ inventory_hostname }}
+      ======================================================================
+
+      Package Name          | Installed Version   | Installed On         | Update Available | Update Version
+      ----------------------|---------------------|----------------------|------------------|---------------------
+
+      {% set installed = installed_pkgs_data | from_json %}
+      {% set updates = available_updates_data | from_json %}
+
+      {% for pkg, details in installed.items() | sort %}
+        {% set inst_ver = details.version %}
+        {% set inst_on = details.installed_on %}
+        {% set upd_ver = updates[pkg] | default('N/A') %}
+        {% set upd_avail = 'Yes' if upd_ver != 'N/A' else 'No' %}
+        {{ '%-22s | %-19s | %-20s | %-16s | %s' |
+           format(pkg | truncate(22, True, ''),
+                  inst_ver | truncate(19, True, ''),
+                  inst_on | truncate(20, True, ''),
+                  upd_avail,
+                  upd_ver | truncate(18, True, '')
+           )
+        }}
       {% endfor %}
+
+
+
+
+#- name: Generate final audit report
+#  ansible.builtin.copy:
+#    dest: "/var/tmp/system_update_audit/system_update_audit_{{ timestamp }}.txt"
+#    mode: '0644'
+#    content: |
+#      Package Name         | Installed Version  | Installed On         | Update Available | Update Version
+#      ---------------------|--------------------|----------------------|------------------|--------------------
+#      {% set installed_data = installed_pkgs_data | from_json %}
+#      {% set updates_data = available_updates_data | from_json %}
+#      {% for pkg_name, details in installed_data.items() | sort %}
+#        {% set installed_version = details.version %}
+#        {% set installed_on = details.installed_on %}
+#        {% set update_version = updates_data[pkg_name] | default('N/A') %}
+#        {% set update_available_status = 'Yes' if update_version != 'N/A' else 'No' %}
+#        {{ '%-20s | %-18s | %-20s | %-16s | %s' | format(
+#            pkg_name | truncate(20, True, ''),
+#            installed_version | truncate(18, True, ''),
+#            installed_on | truncate(20, True, ''),
+#            update_available_status,
+#            update_version | truncate(18, True, '')
+#        ) }}
+#      {% endfor %}
+#
