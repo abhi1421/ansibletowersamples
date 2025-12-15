@@ -4,4 +4,4 @@
   gather_facts: true
   become: yes
   roles:
-    - MONITORING_process_audit
+    - audit_processes

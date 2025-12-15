@@ -1,0 +1,17 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for MONITORING_process_audit
+- name: 01 - Manage Permanent Audit Rule State
+  ansible.builtin.include_tasks: 01_manage_rule.yml
+  tags:
+    - audit_rule_manage
+
+- name: 02 - Collect Daily Process Data
+  ansible.builtin.include_tasks: 02_collect_data.yml
+  tags:
+    - audit_collect_data
+
+- name: 03 - Remove Permanent Audit Rule (Cleanup)
+  ansible.builtin.include_tasks: 03_remove_rule.yml
+  tags:
+    - audit_rule_remove
