@@ -5,6 +5,8 @@
 process_audit_enable_rule: true   # Set to 'true' to ensure the permanent rule is present
 process_audit_collect_logs: true  # Set to 'true' to run log collection, comparison, and reporting
 process_audit_remove_rule: false   # Set to 'true' to remove the permanent rule (Cleanup)
+process_audit_always_report: false
+
 
 # --- Audit Configuration ---
 audit_rule_key: "process_exec"

@@ -1,4 +1,12 @@
 ---
+
+- name: "03.0 | Initialize aggregated_results"
+  ansible.builtin.set_fact:
+    aggregated_results: {}
+  run_once: true
+  delegate_to: localhost
+
+
 # This task list runs only once on the Control Node/AWX server.
 - name: "03.1 | Aggregate process findings from all hosts"
   ansible.builtin.set_fact:
@@ -38,4 +46,5 @@
   when:
     - process_audit_collect_logs | bool
     - aggregated_results is mapping
-    - aggregated_results | length > 0
+    - process_audit_always_report | bool
+      or aggregated_results | length > 0
