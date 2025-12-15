@@ -3,38 +3,10 @@
 # If 'process_audit_enable_rule' is false, this play is skipped, and the rule file is left alone.
 # Use '04_remove_rule.yml' to explicitly remove it.
 
-#- name: "Ensure process exec audit rule file exists"
-#  ansible.builtin.copy:
-#    dest: /etc/audit/rules.d/process_exec.rules
-#    content: |
-#      -a always,exit -F arch=b64 -S execve -k process_exec
-#      -a always,exit -F arch=b32 -S execve -k process_exec
-#    owner: root
-#    group: root
-#    mode: '0640'
-#  become: true
-#  register: audit_rule_file
-# notify: reload auditd
-
-- name: "Ensure process exec audit rule file exists (REFINED)"
+- name: "Ensure process exec audit rule file exists"
   ansible.builtin.copy:
     dest: /etc/audit/rules.d/process_exec.rules
     content: |
-      # 1. EXCLUSION RULES (Noise Reduction)
-      # Place these first. If an event matches a 'never' rule, it is discarded immediately.
-      # Exclude standard, noisy system binary directories
-      -a never,exit -F path=/usr/bin/ -S execve
-      -a never,exit -F path=/bin/ -S execve
-      -a never,exit -F path=/usr/sbin/ -S execve
-      -a never,exit -F path=/sbin/ -S execve
-      
-      # Exclude specific command names that are extremely chatty (e.g., cron-related scripts)
-      -a never,exit -F path=/usr/bin/date -S execve
-      -a never,exit -F path=/usr/bin/sleep -S execve
-      # Add any other paths/commands that you trust but generate high volume
-      
-      # 2. CAPTURE RULE (The core audit)
-      # Capture all execve events that WERE NOT filtered out by the rules above.
       -a always,exit -F arch=b64 -S execve -k process_exec
       -a always,exit -F arch=b32 -S execve -k process_exec
     owner: root
@@ -42,6 +14,34 @@
     mode: '0640'
   become: true
   register: audit_rule_file
+# notify: reload auditd
+
+#- name: "Ensure process exec audit rule file exists (REFINED)"
+#  ansible.builtin.copy:
+#    dest: /etc/audit/rules.d/process_exec.rules
+#    content: |
+#      # 1. EXCLUSION RULES (Noise Reduction)
+#      # Place these first. If an event matches a 'never' rule, it is discarded immediately.
+#      # Exclude standard, noisy system binary directories
+#      -a never,exit -F path=/usr/bin/ -S execve
+#      -a never,exit -F path=/bin/ -S execve
+#      -a never,exit -F path=/usr/sbin/ -S execve
+#      -a never,exit -F path=/sbin/ -S execve
+#      
+#      # Exclude specific command names that are extremely chatty (e.g., cron-related scripts)
+#      -a never,exit -F path=/usr/bin/date -S execve
+#      -a never,exit -F path=/usr/bin/sleep -S execve
+#      # Add any other paths/commands that you trust but generate high volume
+#      
+#      # 2. CAPTURE RULE (The core audit)
+#      # Capture all execve events that WERE NOT filtered out by the rules above.
+#      -a always,exit -F arch=b64 -S execve -k process_exec
+#      -a always,exit -F arch=b32 -S execve -k process_exec
+#    owner: root
+#    group: root
+#    mode: '0640'
+#  become: true
+#  register: audit_rule_file
 
 - name: Restart the service
   command: service auditd restart
