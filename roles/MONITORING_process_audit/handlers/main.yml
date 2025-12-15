@@ -2,7 +2,7 @@
 ---
 # handlers file for MONITORING_process_audit
 # handlers/main.yml
-- name: reload auditd # <-- THIS MUST MATCH THE NOTIFY STRING EXACTLY
-  ansible.builtin.service:
-    name: auditd
-    state: restarted
+- name: "Load audit rules without restarting auditd"
+  ansible.builtin.command: augenrules --load
+  become: true
+  changed_when: false
