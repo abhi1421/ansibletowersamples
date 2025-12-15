@@ -7,14 +7,14 @@
     | sort | uniq > /tmp/today.log
   changed_when: false
 
-#- name: Generate yesterday's executed commands snapshot
-#  shell: |
-#    ausearch -k process_exec --start yesterday --end yesterday \
-#    | grep exe= \
-#    | awk -F 'exe=' '{print $2}' \
-#    | awk '{print $1}' \
-#    | sort | uniq > /tmp/yesterday.log
-#  changed_when: false
+- name: Generate yesterday's executed commands snapshot
+  shell: |
+    ausearch -k process_exec --start yesterday --end yesterday \
+    | grep exe= \
+    | awk -F 'exe=' '{print $2}' \
+    | awk '{print $1}' \
+    | sort | uniq > /tmp/yesterday.log
+  changed_when: false
 
 - name: Identify newly executed commands today
   command: comm -13 /tmp/yesterday.log /tmp/today.log
