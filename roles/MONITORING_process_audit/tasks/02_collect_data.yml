@@ -14,10 +14,18 @@
 - name: "02.1b | Define log files using calculated date"
   ansible.builtin.set_fact:
     audit_log_dir: "/var/tmp"
+    
+    # Define yesterday_date from the shell output's stdout
+    yesterday_date: "{{ yesterday_date_result.stdout }}" 
+    
+    # Define today's path (uses ansible_date_time.date, which is always available)
     log_today_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ ansible_date_time.date }}.log"
-    yesterday_date: "{{ yesterday_date_result.stdout | default(omit) }}"
+    
+    # Define yesterday's path using the newly set yesterday_date fact
     log_yesterday_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ yesterday_date }}.log"
-  when: process_audit_collect_logs | bool
+    
+  # Only run if the date calculation task was successful (rc=0) and ran.
+  when: process_audit_collect_logs | bool and yesterday_date_result.rc == 0
 
 # --- STEP A: COLLECT TODAY'S DATA ---
 
