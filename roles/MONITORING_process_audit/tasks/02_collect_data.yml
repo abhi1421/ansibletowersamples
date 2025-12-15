@@ -1,87 +1,86 @@
 ---
 # This file is executed on every target host to collect and process audit logs.
 
-- name: "02.1 | Define dated log files"
+- name: "02.1 | Define log files and calculate yesterday's date"
   ansible.builtin.set_fact:
-    log_today: "/tmp/process_audit_today_{{ ansible_date_time.date }}.log"
-    log_yesterday: "/tmp/process_audit_yesterday_{{ ansible_date_time.date }}.log"
+    audit_log_dir: "/var/tmp"
+    # Calculate file names using hostname and date
+    log_today_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ ansible_date_time.date }}.log"
+    
+    # Calculate yesterday's date using built-in filters (ISO8601 -> timestamp -> subtract 24h -> datetime -> strftime)
+    yesterday_timestamp: "{{ ansible_date_time.iso8601_basic_short | to_datetime('%Y%m%dT%H%M%S', utc=True) | int - 86400 }}"
+    yesterday_date: "{{ yesterday_timestamp | timestamp_to_datetime | ansible.builtin.strftime('%Y-%m-%d') }}"
+    log_yesterday_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ yesterday_date }}.log"
   when: process_audit_collect_logs | bool
   tags:
     - audit_collect
 
-# COLLECT TODAY's PROCESSES
+# --- STEP A: COLLECT TODAY'S DATA ---
+
 - name: "02.2 | Collect today's process execution logs"
   ansible.builtin.shell:
     cmd: "ausearch -k {{ audit_rule_key }} --start today | grep exe="
   register: today_logs
-  # Tell Ansible to only fail if the return code (rc) is 2 or higher, allowing rc=1 (no matches)
-  failed_when: today_logs.rc > 1 
+  failed_when: today_logs.rc > 1 # Allow rc=1 (no matches)
   when: process_audit_collect_logs | bool
 
-- name: "02.3 | Save today's logs to file"
+- name: "02.3 | Save today's logs to file for persistence"
   ansible.builtin.copy:
     content: "{{ today_logs.stdout }}"
-    dest: "{{ log_today }}"
+    dest: "{{ log_today_path }}"
     mode: '0600'
   when: process_audit_collect_logs | bool
 
-# COLLECT YESTERDAY's PROCESSES
-- name: "02.4 | Collect yesterday's process execution logs (Treated as optional for first run)"
+# --- STEP B: CHECK FOR YESTERDAY'S DATA ---
+
+- name: "02.4 | STAT: Check if yesterday's log file exists"
+  ansible.builtin.stat:
+    path: "{{ log_yesterday_path }}"
+  register: yesterday_log_status
+  when: process_audit_collect_logs | bool
+
+# --- STEP C: COMPARE (Handles First-Run and Nth-Run) ---
+
+- name: "02.5 | Set comparison source path"
+  ansible.builtin.set_fact:
+    # If yesterday's log file exists (stat.exists is True), use it. Otherwise, use /dev/null for first-run comparison.
+    comparison_source_path: >
+      {% if yesterday_log_status.stat.exists | default(false) %}
+        {{ log_yesterday_path }}
+      {% else %}
+        /dev/null
+      {% endif %}
+  when: process_audit_collect_logs | bool
+
+- name: "02.6 | Compare today vs. previous logs to find new processes"
   ansible.builtin.shell:
-    cmd: "ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday | grep exe="
-  register: yesterday_logs
-  # Allow rc=1 (no matches) and ignore errors higher than 1 (rc=2, which means command error)
-  failed_when: yesterday_logs.rc > 1 
-  ignore_errors: true 
-  when: process_audit_collect_logs | bool
-
-- name: "02.5 | Save yesterday's logs to file"
-  ansible.builtin.copy:
-    # Use default('') to ensure an empty file is created if yesterday's search failed or returned nothing.
-    content: "{{ yesterday_logs.stdout | default('') }}"
-    dest: "{{ log_yesterday }}"
-    mode: '0600'
-  when: process_audit_collect_logs | bool
-
-# COMPARE LOGS ON THE TARGET HOST
-- name: "02.6 | Compare logs and find processes new today on host"
-  ansible.builtin.command:
-    # comm -13 compares two sorted files. If the yesterday file is empty, all lines from the today file are unique.
-    # This handles the first-run scenario gracefully.
-    cmd: "comm -13 <(sort {{ log_yesterday }}) <(sort {{ log_today }})"
+    cmd: "comm -13 <(sort {{ comparison_source_path }}) <(sort {{ log_today_path }})"
     args:
-      executable: /bin/bash # Required for command substitution (<(...))
+      executable: /bin/bash # Required for process substitution (<(...))
   register: new_processes_result
+  failed_when: new_processes_result.rc != 0
   when:
     - process_audit_collect_logs | bool
-    # Only compare if we successfully collected some logs today
+    # Only run comparison if today's log has content.
     - today_logs.stdout is defined and today_logs.stdout | length > 0
 
-# Extract and set a fact containing the cleaned-up list of new processes
+# --- STEP D: SET FACT AND CLEANUP ---
+
 - name: "02.7 | Set fact for unique new executable paths"
   ansible.builtin.set_fact:
-    unique_new_processes: "{{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\\s]+).*', '\\1') | unique | list }}"
-  when:
-    # 1. Ensure the top-level collection boolean is true
-    - process_audit_collect_logs | bool
-    # 2. ENSURE Task 02.6 was NOT skipped. If it was skipped, this task should skip too.
-    - not new_processes_result.skipped is defined or not new_processes_result.skipped
-    # 3. Only set the fact if there was actual output (i.e., new processes found)
-    - new_processes_result.stdout | default('') | length > 0
-
-
-- name: "02.7a | DEBUG: Show unique new processes found on this host"
-  ansible.builtin.debug:
-    msg: "Found {{ unique_new_processes | default([]) | length }} new processes: {{ unique_new_processes | default([]) }}"
+    # If Task 02.6 ran and had output, clean and set the list; otherwise, set an empty list ([]).
+    unique_new_processes: |
+      {% if new_processes_result is defined and not new_processes_result.skipped and new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
+        {{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\\s]+).*', '\\1') | unique | list }}
+      {% else %}
+        []
+      {% endif %}
   when: process_audit_collect_logs | bool
 
-  
-- name: "02.8 | Clean up temporary log files (Idempotency and Disk Space)"
+- name: "02.8 | Clean up old log file (Yesterday's file is now obsolete)"
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ log_yesterday_path }}"
     state: absent
-  loop:
-    - "{{ log_today }}"
-    - "{{ log_yesterday }}"
-  when: process_audit_collect_logs | bool
+  # Only attempt cleanup if the previous date was successfully calculated
+  when: process_audit_collect_logs | bool and yesterday_date is defined
   ignore_errors: true

@@ -10,4 +10,4 @@ process_audit_remove_rule: false   # Set to 'true' to remove the permanent rule 
 audit_rule_key: "process_exec"
 audit_rule_name: "/etc/audit/rules.d/99-process-exec.conf"
 audit_rule_content: "-a always,exit -F arch=b64 -S execve -k {{ audit_rule_key }}\n-a always,exit -F arch=b32 -S execve -k {{ audit_rule_key }}\n"
-# ... (Reporting configuration variables remain the same)
+audit_log_dir: "/var/tmp"
