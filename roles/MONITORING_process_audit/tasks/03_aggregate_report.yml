@@ -2,7 +2,7 @@
 # This task list runs only once on the Control Node/AWX server.
 - name: "03.1 | Aggregate process findings from all hosts"
   ansible.builtin.set_fact:
-    # Build a dictionary keyed by hostname containing the unique_new_processes list
+    # Use to_json to format the output, and from_json to force Ansible to treat it as a dictionary object
     aggregated_results: |
       {% set results = {} %}
       {% for host in ansible_play_hosts %}
@@ -10,10 +10,15 @@
           {% set _ = results.update({host: hostvars[host].unique_new_processes}) %}
         {% endif %}
       {% endfor %}
-      {{ results }}
+      {{ results | to_json }} # <--- CHANGE: Ensure output is valid JSON
   run_once: true
   delegate_to: localhost
-  when: process_audit_collect_logs | bool
+
+- name: "03.1b | Convert aggregated_results back to dictionary" # <--- NEW TASK
+  ansible.builtin.set_fact:
+    aggregated_results: "{{ aggregated_results | from_json }}"
+  run_once: true
+  delegate_to: localhost
 
 #- name: "03.2 | Generate and send daily CONSOLIDATED audit report"
 #  community.general.mail:
