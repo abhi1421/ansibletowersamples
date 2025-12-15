@@ -1,53 +1,35 @@
-- name: Extract today's executed commands
+- name: Generate today's executed commands snapshot
   shell: |
-    ausearch -k {{ audit_rule_key }} --start today \
+    ausearch -k process_exec --start today \
     | grep exe= \
     | awk -F 'exe=' '{print $2}' \
     | awk '{print $1}' \
-    | sort | uniq
-  register: today_exec
+    | sort | uniq > /tmp/today.log
   changed_when: false
 
-- name: Debug today_exec
-  debug:
-    var: today_exec
-
-
-- name: Extract yesterday's executed commands
+- name: Generate yesterday's executed commands snapshot
   shell: |
-    ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday \
+    ausearch -k process_exec --start yesterday --end yesterday \
     | grep exe= \
     | awk -F 'exe=' '{print $2}' \
     | awk '{print $1}' \
-    | sort | uniq
-  register: yesterday_exec
+    | sort | uniq > /tmp/yesterday.log
   changed_when: false
 
-- name: Debug yesterday_exec
-  debug:
-    var: yesterday_exec
+- name: Identify newly executed commands today
+  command: comm -13 /tmp/yesterday.log /tmp/today.log
+  register: new_today_exec
+  changed_when: false
 
 
-#- name: Identify newly executed processes today (safe comparison)
-#  shell: |
-#    printf "%s\n" {{ yesterday_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/yesterday_exec_{{ inventory_hostname }}.log
-#    printf "%s\n" {{ today_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/today_exec_{{ inventory_hostname }}.log
-#    comm -13 /tmp/yesterday_exec_{{ inventory_hostname }}.log /tmp/today_exec_{{ inventory_hostname }}.log
-#  args:
-#    executable: /bin/bash
-#  register: new_today_exec
-#  changed_when: false
-
-
-
-- name: Store per-host audit data as fact
+- name: Store host audit data
   set_fact:
     process_exec_host_report:
       host: "{{ inventory_hostname }}"
-      date: "{{ ansible_date_time.date }}"
-      yesterday_count: "{{ yesterday_exec.stdout_lines | length }}"
-      today_count: "{{ today_exec.stdout_lines | length }}"
+      today_count: "{{ lookup('file', '/tmp/today.log').splitlines() | length }}"
+      yesterday_count: "{{ lookup('file', '/tmp/yesterday.log').splitlines() | length }}"
       new_commands: "{{ new_today_exec.stdout_lines | default([]) }}"
+
 
 - name: Collect audit facts from all hosts
   set_fact:
