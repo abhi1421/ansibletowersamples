@@ -1,6 +1,6 @@
 - name: Extract today's executed commands
   shell: |
-    ausearch -k {{ audit_key }} --start today \
+    ausearch -k {{ audit_rule_key }} --start today \
     | grep exe= \
     | awk -F 'exe=' '{print $2}' \
     | awk '{print $1}' \
@@ -11,7 +11,7 @@
 
 - name: Extract yesterday's executed commands
   shell: |
-    ausearch -k {{ audit_key }} --start yesterday --end yesterday \
+    ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday \
     | grep exe= \
     | awk -F 'exe=' '{print $2}' \
     | awk '{print $1}' \
