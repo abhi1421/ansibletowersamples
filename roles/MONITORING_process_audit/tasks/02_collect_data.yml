@@ -1,16 +1,23 @@
 ---
 # This file is executed on every target host to collect and process audit logs.
 
-- name: "02.1 | Define log files and calculate yesterday's date"
-  ansible.builtin.set_fact:
-    audit_log_dir: "/var/tmp"
-    log_today_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ ansible_date_time.date }}.log"
-    yesterday_timestamp: "{{ ansible_date_time.iso8601_basic_short | to_datetime('%Y%m%dT%H%M%S') | int - 86400 }}"
-    yesterday_date: "{{ yesterday_timestamp | timestamp_to_datetime | ansible.builtin.strftime('%Y-%m-%d') }}"
-    log_yesterday_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ yesterday_date }}.log"
+# 1. Calculate yesterday's date using the 'date' command, which is reliable across Linux distros.
+- name: "02.1 | Calculate yesterday's date string"
+  ansible.builtin.shell:
+    # Use the date command to get the date exactly 24 hours ago (YYYY-MM-DD)
+    cmd: "date -d '1 day ago' +%Y-%m-%d"
+  register: yesterday_date_result
   when: process_audit_collect_logs | bool
   tags:
     - audit_collect
+
+- name: "02.1b | Define log files using calculated date"
+  ansible.builtin.set_fact:
+    audit_log_dir: "/var/tmp"
+    log_today_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ ansible_date_time.date }}.log"
+    yesterday_date: "{{ yesterday_date_result.stdout | default(omit) }}"
+    log_yesterday_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ yesterday_date }}.log"
+  when: process_audit_collect_logs | bool
 
 # --- STEP A: COLLECT TODAY'S DATA ---
 
@@ -34,20 +41,20 @@
   ansible.builtin.stat:
     path: "{{ log_yesterday_path }}"
   register: yesterday_log_status
-  when: process_audit_collect_logs | bool
+  when: process_audit_collect_logs | bool and yesterday_date is defined
 
 # --- STEP C: COMPARE (Handles First-Run and Nth-Run) ---
 
 - name: "02.5 | Set comparison source path"
   ansible.builtin.set_fact:
-    # If yesterday's log file exists (stat.exists is True), use it. Otherwise, use /dev/null for first-run comparison.
+    # If yesterday's log file exists, use it. Otherwise, use /dev/null for first-run comparison.
     comparison_source_path: >
       {% if yesterday_log_status.stat.exists | default(false) %}
         {{ log_yesterday_path }}
       {% else %}
         /dev/null
       {% endif %}
-  when: process_audit_collect_logs | bool
+  when: process_audit_collect_logs | bool and yesterday_log_status is defined
 
 - name: "02.6 | Compare today vs. previous logs to find new processes"
   ansible.builtin.shell:
@@ -78,6 +85,6 @@
   ansible.builtin.file:
     path: "{{ log_yesterday_path }}"
     state: absent
-  # Only attempt cleanup if the previous date was successfully calculated
+  # Only attempt cleanup if we successfully determined yesterday's date
   when: process_audit_collect_logs | bool and yesterday_date is defined
   ignore_errors: true
