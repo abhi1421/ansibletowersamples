@@ -30,3 +30,13 @@
 #    # Only send if at least one host reported new processes
 #    - aggregated_results is defined
 #    - aggregated_results | length > 0
+
+- name: "03.3 | DEBUG: Print Consolidated Report Template Output"
+  ansible.builtin.debug:
+    msg: "{{ lookup('ansible.builtin.template', 'consolidated_report.j2') }}"
+  delegate_to: localhost
+  run_once: true
+  when:
+    - process_audit_collect_logs | bool
+    - aggregated_results is defined
+    - aggregated_results | length > 0

@@ -68,7 +68,14 @@
     - not new_processes_result.skipped is defined or not new_processes_result.skipped
     # 3. Only set the fact if there was actual output (i.e., new processes found)
     - new_processes_result.stdout | default('') | length > 0
-    
+
+
+- name: "02.7a | DEBUG: Show unique new processes found on this host"
+  ansible.builtin.debug:
+    msg: "Found {{ unique_new_processes | default([]) | length }} new processes: {{ unique_new_processes | default([]) }}"
+  when: process_audit_collect_logs | bool
+
+  
 - name: "02.8 | Clean up temporary log files (Idempotency and Disk Space)"
   ansible.builtin.file:
     path: "{{ item }}"
