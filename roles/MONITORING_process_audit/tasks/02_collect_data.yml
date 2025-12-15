@@ -77,18 +77,17 @@
 - name: "02.7 | Set fact for unique new executable paths"
   ansible.builtin.set_fact:
     unique_new_processes: >-
+      {% set results = [] %}
       {% if new_processes_result is defined and new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
-        {{ new_processes_result.stdout.splitlines() 
-           | map('regex_search', 'exe=([^\s]+)', '\\1') 
-           | select('defined') 
-           | reject('equalto','') 
-           | unique 
-           | list }}
-      {% else %}
-        []
+        {% for line in new_processes_result.stdout.splitlines() %}
+          {% set m = line | regex_search('exe=([^\s]+)', '\\1') %}
+          {% if m is defined and m != '' %}
+            {% set _ = results.append(m) %}
+          {% endif %}
+        {% endfor %}
       {% endif %}
+      {{ results | unique | list }}
   when: process_audit_collect_logs | bool
-
 
 
 - name: "02.8 | Clean up old log file (Yesterday's file is now obsolete)"
