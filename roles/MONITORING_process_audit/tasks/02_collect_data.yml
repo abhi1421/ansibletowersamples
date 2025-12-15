@@ -11,7 +11,8 @@
 
 # COLLECT TODAY's PROCESSES
 - name: "02.2 | Collect today's process execution logs"
-  ansible.builtin.command:
+  # **CHANGE:** Use shell module to interpret the pipe (|)
+  ansible.builtin.shell:
     cmd: "ausearch -k {{ audit_rule_key }} --start today | grep exe="
   register: today_logs
   when: process_audit_collect_logs | bool
@@ -25,11 +26,10 @@
 
 # COLLECT YESTERDAY's PROCESSES
 - name: "02.4 | Collect yesterday's process execution logs (Treated as optional for first run)"
-  ansible.builtin.command:
+  # **CHANGE:** Use shell module to interpret the pipe (|)
+  ansible.builtin.shell:
     cmd: "ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday | grep exe="
   register: yesterday_logs
-  # Ignore errors here. If the machine was off or auditd wasn't running yesterday, 
-  # we want to proceed and treat all of today's processes as new.
   ignore_errors: true 
   when: process_audit_collect_logs | bool
 
