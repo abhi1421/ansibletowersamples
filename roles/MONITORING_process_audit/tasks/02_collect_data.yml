@@ -62,7 +62,8 @@
   when: process_audit_collect_logs | bool and yesterday_log_status is defined
 
 - name: "02.6 | Compare today vs. previous logs to find new processes"
-  ansible.builtin.shell: "comm -13 <(sort {{ comparison_source_path }}) <(sort {{ log_today_path }}) | grep 'exe='"
+  ansible.builtin.shell: |
+    comm -13 <(sort {{ comparison_source_path }}) <(sort {{ log_today_path }}) | grep -E 'exe='
   args:
     executable: /bin/bash
   register: new_processes_result
@@ -71,6 +72,7 @@
   when:
     - process_audit_collect_logs | bool
     - today_logs.stdout is defined and today_logs.stdout | length > 0
+
 
 # --- STEP D: SET FACT AND CLEANUP ---
 
@@ -88,7 +90,6 @@
       {% endif %}
       {{ results | unique | list }}
   when: process_audit_collect_logs | bool
-
 
 
 - name: "02.8 | Clean up old log file (Yesterday's file is now obsolete)"
