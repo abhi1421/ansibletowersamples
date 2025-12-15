@@ -4,11 +4,8 @@
 - name: "02.1 | Define log files and calculate yesterday's date"
   ansible.builtin.set_fact:
     audit_log_dir: "/var/tmp"
-    # Calculate file names using hostname and date
     log_today_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ ansible_date_time.date }}.log"
-    
-    # Calculate yesterday's date using built-in filters (ISO8601 -> timestamp -> subtract 24h -> datetime -> strftime)
-    yesterday_timestamp: "{{ ansible_date_time.iso8601_basic_short | to_datetime('%Y%m%dT%H%M%S', utc=True) | int - 86400 }}"
+    yesterday_timestamp: "{{ ansible_date_time.iso8601_basic_short | to_datetime('%Y%m%dT%H%M%S') | int - 86400 }}"
     yesterday_date: "{{ yesterday_timestamp | timestamp_to_datetime | ansible.builtin.strftime('%Y-%m-%d') }}"
     log_yesterday_path: "{{ audit_log_dir }}/process_audit_{{ inventory_hostname }}_{{ yesterday_date }}.log"
   when: process_audit_collect_logs | bool
