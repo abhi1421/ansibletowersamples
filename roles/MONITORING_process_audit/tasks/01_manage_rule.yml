@@ -1,0 +1,16 @@
+---
+# This play ensures the rule file is PRESENT ONLY IF 'process_audit_enable_rule' is true.
+# If 'process_audit_enable_rule' is false, this play is skipped, and the rule file is left alone.
+# Use '04_remove_rule.yml' to explicitly remove it.
+
+- name: "01.1 | ENSURE: Permanent audit rule is present (Idempotent)"
+  ansible.builtin.copy:
+    content: "{{ audit_rule_content }}"
+    dest: "{{ audit_rule_name }}"
+    owner: root
+    group: root
+    mode: '0640'
+  when: process_audit_enable_rule | bool
+  notify: reload auditd
+  tags:
+    - audit_rule_manage

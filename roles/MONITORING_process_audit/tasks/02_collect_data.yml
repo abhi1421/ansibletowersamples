@@ -1,0 +1,76 @@
+---
+# This file is executed on every target host to collect and process audit logs.
+
+- name: "02.1 | Define dated log files"
+  ansible.builtin.set_fact:
+    log_today: "/tmp/process_audit_today_{{ ansible_date_time.date }}.log"
+    log_yesterday: "/tmp/process_audit_yesterday_{{ ansible_date_time.date }}.log"
+  when: process_audit_collect_logs | bool
+  tags:
+    - audit_collect
+
+# COLLECT TODAY's PROCESSES
+- name: "02.2 | Collect today's process execution logs"
+  ansible.builtin.command:
+    cmd: "ausearch -k {{ audit_rule_key }} --start today | grep exe="
+  register: today_logs
+  when: process_audit_collect_logs | bool
+
+- name: "02.3 | Save today's logs to file"
+  ansible.builtin.copy:
+    content: "{{ today_logs.stdout }}"
+    dest: "{{ log_today }}"
+    mode: '0600'
+  when: process_audit_collect_logs | bool
+
+# COLLECT YESTERDAY's PROCESSES
+- name: "02.4 | Collect yesterday's process execution logs (Treated as optional for first run)"
+  ansible.builtin.command:
+    cmd: "ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday | grep exe="
+  register: yesterday_logs
+  # Ignore errors here. If the machine was off or auditd wasn't running yesterday, 
+  # we want to proceed and treat all of today's processes as new.
+  ignore_errors: true 
+  when: process_audit_collect_logs | bool
+
+- name: "02.5 | Save yesterday's logs to file"
+  ansible.builtin.copy:
+    # Use default('') to ensure an empty file is created if yesterday's search failed or returned nothing.
+    content: "{{ yesterday_logs.stdout | default('') }}"
+    dest: "{{ log_yesterday }}"
+    mode: '0600'
+  when: process_audit_collect_logs | bool
+
+# COMPARE LOGS ON THE TARGET HOST
+- name: "02.6 | Compare logs and find processes new today on host"
+  ansible.builtin.command:
+    # comm -13 compares two sorted files. If the yesterday file is empty, all lines from the today file are unique.
+    # This handles the first-run scenario gracefully.
+    cmd: "comm -13 <(sort {{ log_yesterday }}) <(sort {{ log_today }})"
+    args:
+      executable: /bin/bash # Required for command substitution (<(...))
+  register: new_processes_result
+  when:
+    - process_audit_collect_logs | bool
+    # Only compare if we successfully collected some logs today
+    - today_logs.stdout is defined and today_logs.stdout | length > 0
+
+# Extract and set a fact containing the cleaned-up list of new processes
+- name: "02.7 | Set fact for unique new executable paths"
+  ansible.builtin.set_fact:
+    # This regex is the Ansible equivalent of using '| awk -F 'exe=' '{print $2}' | awk '{print $1}' | uniq'
+    unique_new_processes: "{{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\s]+).*', '\\1') | unique | list }}"
+  when:
+    - process_audit_collect_logs | bool
+    - new_processes_result is defined
+    - new_processes_result.stdout | length > 0
+    
+- name: "02.8 | Clean up temporary log files (Idempotency and Disk Space)"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ log_today }}"
+    - "{{ log_yesterday }}"
+  when: process_audit_collect_logs | bool
+  ignore_errors: true

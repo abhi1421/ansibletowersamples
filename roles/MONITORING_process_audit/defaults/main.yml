@@ -1,0 +1,13 @@
+#SPDX-License-Identifier: MIT-0
+# defaults file for MONITORING_process_audit
+---
+# --- Execution Controls (Use as AAP/AWX Extra Vars) ---
+process_audit_enable_rule: false   # Set to 'true' to ensure the permanent rule is present
+process_audit_collect_logs: false  # Set to 'true' to run log collection, comparison, and reporting
+process_audit_remove_rule: false   # Set to 'true' to remove the permanent rule (Cleanup)
+
+# --- Audit Configuration ---
+audit_rule_key: "process_exec"
+audit_rule_name: "/etc/audit/rules.d/99-process-exec.conf"
+audit_rule_content: "-a always,exit -F arch=b64 -S execve -k {{ audit_rule_key }}\n-a always,exit -F arch=b32 -S execve -k {{ audit_rule_key }}\n"
+# ... (Reporting configuration variables remain the same)

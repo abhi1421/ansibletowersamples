@@ -1,0 +1,32 @@
+---
+# This task list runs only once on the Control Node/AWX server.
+- name: "03.1 | Aggregate process findings from all hosts"
+  ansible.builtin.set_fact:
+    # Build a dictionary keyed by hostname containing the unique_new_processes list
+    aggregated_results: |
+      {% set results = {} %}
+      {% for host in ansible_play_hosts %}
+        {% if hostvars[host].unique_new_processes is defined and hostvars[host].unique_new_processes | length > 0 %}
+          {% set _ = results.update({host: hostvars[host].unique_new_processes}) %}
+        {% endif %}
+      {% endfor %}
+      {{ results }}
+  run_once: true
+  delegate_to: localhost
+  when: process_audit_collect_logs | bool
+
+#- name: "03.2 | Generate and send daily CONSOLIDATED audit report"
+#  community.general.mail:
+#    host: "{{ report_smtp_server }}"
+#    port: 25
+#    subject: "CONSOLIDATED PROCESS AUDIT | {{ ansible_date_time.date }}"
+#    to: vijaymerugu@rbi.org.in
+#    from: "{{ report_sender }}"
+#    body: "{{ lookup('ansible.builtin.template', 'consolidated_report.j2') }}"
+#  delegate_to: localhost
+#  run_once: true
+#  when:
+#    - process_audit_collect_logs | bool
+#    # Only send if at least one host reported new processes
+#    - aggregated_results is defined
+#    - aggregated_results | length > 0
