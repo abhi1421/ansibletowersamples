@@ -20,10 +20,11 @@
   changed_when: false
 
 
-- name: Identify newly executed processes today
+- name: Identify newly executed processes today (safe comparison)
   shell: |
-    comm -13 <(printf "%s\n" {{ yesterday_exec.stdout_lines | join(' ') }}) \
-    <(printf "%s\n" {{ today_exec.stdout_lines | join(' ') }})
+    printf "%s\n" {{ yesterday_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/yesterday_exec_{{ inventory_hostname }}.log
+    printf "%s\n" {{ today_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/today_exec_{{ inventory_hostname }}.log
+    comm -13 /tmp/yesterday_exec_{{ inventory_hostname }}.log /tmp/today_exec_{{ inventory_hostname }}.log
   args:
     executable: /bin/bash
   register: new_today_exec
