@@ -6,6 +6,12 @@
   run_once: true
   delegate_to: localhost
 
+- name: "03.0b | Capture list of scanned hosts"
+  ansible.builtin.set_fact:
+    scanned_hosts: "{{ ansible_play_hosts }}"
+  run_once: true
+  delegate_to: localhost
+
 
 # This task list runs only once on the Control Node/AWX server.
 - name: "03.1 | Aggregate process findings from all hosts"

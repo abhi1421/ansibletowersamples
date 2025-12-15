@@ -13,6 +13,12 @@ executed on {{ ansible_date_time.date }}.
 No new process executions were detected on any monitored host
 during this audit window.
 
+### 🔍 Systems Checked ({{ scanned_hosts | length }})
+
+{% for host in scanned_hosts %}
+- {{ host }}
+{% endfor %}
+
 This confirms that no previously unseen executables were launched
 since the last audit cycle.
 
