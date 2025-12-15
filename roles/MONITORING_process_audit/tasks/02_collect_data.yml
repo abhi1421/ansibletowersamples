@@ -58,8 +58,9 @@
 # Extract and set a fact containing the cleaned-up list of new processes
 - name: "02.7 | Set fact for unique new executable paths"
   ansible.builtin.set_fact:
-    # This regex is the Ansible equivalent of using '| awk -F 'exe=' '{print $2}' | awk '{print $1}' | uniq'
-    unique_new_processes: "{{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\s]+).*', '\\1') | unique | list }}"
+    # Use triple-slashes for the replacement (\1) to guarantee the regex engine sees the escape sequence.
+    # The capture group [^\\s] ensures the regex engine correctly sees the non-whitespace character class.
+    unique_new_processes: "{{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\\s]+).*', '\\1') | unique | list }}"
   when:
     - process_audit_collect_logs | bool
     - new_processes_result is defined
