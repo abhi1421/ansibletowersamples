@@ -21,15 +21,23 @@
   register: new_today_exec
   changed_when: false
 
+- name: Count today's executed commands
+  command: wc -l /tmp/today.log
+  register: today_count
+  changed_when: false
+
+- name: Count yesterday's executed commands
+  command: wc -l /tmp/yesterday.log
+  register: yesterday_count
+  changed_when: false
 
 - name: Store host audit data
   set_fact:
     process_exec_host_report:
       host: "{{ inventory_hostname }}"
-      today_count: "{{ lookup('file', '/tmp/today.log').splitlines() | length }}"
-      yesterday_count: "{{ lookup('file', '/tmp/yesterday.log').splitlines() | length }}"
+      today_count: "{{ today_count.stdout.split()[0] | int }}"
+      yesterday_count: "{{ yesterday_count.stdout.split()[0] | int }}"
       new_commands: "{{ new_today_exec.stdout_lines | default([]) }}"
-
 
 - name: Collect audit facts from all hosts
   set_fact:
