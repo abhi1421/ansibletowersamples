@@ -60,13 +60,14 @@
 # Extract and set a fact containing the cleaned-up list of new processes
 - name: "02.7 | Set fact for unique new executable paths"
   ansible.builtin.set_fact:
-    # Use triple-slashes for the replacement (\1) to guarantee the regex engine sees the escape sequence.
-    # The capture group [^\\s] ensures the regex engine correctly sees the non-whitespace character class.
     unique_new_processes: "{{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\\s]+).*', '\\1') | unique | list }}"
   when:
+    # 1. Ensure the top-level collection boolean is true
     - process_audit_collect_logs | bool
-    - new_processes_result is defined
-    - new_processes_result.stdout | length > 0
+    # 2. ENSURE Task 02.6 was NOT skipped. If it was skipped, this task should skip too.
+    - not new_processes_result.skipped is defined or not new_processes_result.skipped
+    # 3. Only set the fact if there was actual output (i.e., new processes found)
+    - new_processes_result.stdout | default('') | length > 0
     
 - name: "02.8 | Clean up temporary log files (Idempotency and Disk Space)"
   ansible.builtin.file:
