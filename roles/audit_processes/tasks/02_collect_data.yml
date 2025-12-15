@@ -39,27 +39,27 @@
       yesterday_count: "{{ yesterday_count.stdout.split()[0] | int }}"
       new_commands: "{{ new_today_exec.stdout_lines | default([]) }}"
 
-- name: Collect audit facts from all hosts
-  set_fact:
-    consolidated_audit_report: |
-      Process Execution Audit – Consolidated Report
-      =============================================
-      Date: {{ lookup('pipe', 'date +%F') }}
-      
-      
-      {% for host in groups['all'] %}
-      Host: {{ host }}
-      -----------------------------
-      Commands executed yesterday: {{ hostvars[host].process_exec_host_report.yesterday_count }}
-      Commands executed today: {{ hostvars[host].process_exec_host_report.today_count }}
-      
-      
-      Newly executed commands today:
-      {% if hostvars[host].process_exec_host_report.new_commands | length > 0 %}
-      {% for cmd in hostvars[host].process_exec_host_report.new_commands %}
-      - {{ cmd }}
-      {% endfor %}
-      {% else %}
-      No changes detected
-      {% endif %} 
-      {% endfor %}
+#- name: Collect audit facts from all hosts
+#  set_fact:
+#    consolidated_audit_report: |
+#      Process Execution Audit – Consolidated Report
+#      =============================================
+#      Date: {{ lookup('pipe', 'date +%F') }}
+#      
+#      
+#      {% for host in groups['all'] %}
+#      Host: {{ host }}
+#      -----------------------------
+#      Commands executed yesterday: {{ hostvars[host].process_exec_host_report.yesterday_count }}
+#      Commands executed today: {{ hostvars[host].process_exec_host_report.today_count }}
+#      
+#      
+#      Newly executed commands today:
+#      {% if hostvars[host].process_exec_host_report.new_commands | length > 0 %}
+#      {% for cmd in hostvars[host].process_exec_host_report.new_commands %}
+#      - {{ cmd }}
+#      {% endfor %}
+#      {% else %}
+#      No changes detected
+#      {% endif %} 
+#      {% endfor %}
