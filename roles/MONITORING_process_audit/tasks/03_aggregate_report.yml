@@ -2,17 +2,16 @@
 # This task list runs only once on the Control Node/AWX server.
 - name: "03.1 | Aggregate process findings from all hosts"
   ansible.builtin.set_fact:
-    aggregated_results: >-
-      {% set results = {} %}
-      {% for host in ansible_play_hosts %}
-        {% if hostvars[host].unique_new_processes is defined
-              and hostvars[host].unique_new_processes | length > 0 %}
-          {% set _ = results.update({ host: hostvars[host].unique_new_processes }) %}
-        {% endif %}
-      {% endfor %}
-      {{ results }}
+    aggregated_results: "{{ aggregated_results | default({}) | combine({
+      item: hostvars[item].unique_new_processes
+    }) }}"
+  loop: "{{ ansible_play_hosts }}"
+  when:
+    - hostvars[item].unique_new_processes is defined
+    - hostvars[item].unique_new_processes | length > 0
   run_once: true
   delegate_to: localhost
+
 
 
 #- name: "03.2 | Generate and send daily CONSOLIDATED audit report"
@@ -38,5 +37,5 @@
   run_once: true
   when:
     - process_audit_collect_logs | bool
-    - aggregated_results is defined
+    - aggregated_results is mapping
     - aggregated_results | length > 0
