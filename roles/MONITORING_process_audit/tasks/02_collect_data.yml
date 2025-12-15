@@ -62,15 +62,15 @@
   when: process_audit_collect_logs | bool and yesterday_log_status is defined
 
 - name: "02.6 | Compare today vs. previous logs to find new processes"
-  ansible.builtin.shell:
-    cmd: "comm -13 <(sort {{ comparison_source_path }}) <(sort {{ log_today_path }})"
-    executable: /bin/bash  # required for process substitution
+  ansible.builtin.shell: "comm -13 <(sort {{ comparison_source_path }}) <(sort {{ log_today_path }}) | grep 'exe='"
+  args:
+    executable: /bin/bash
   register: new_processes_result
-  failed_when: new_processes_result.rc != 0
+  changed_when: false
+  failed_when: false
   when:
     - process_audit_collect_logs | bool
     - today_logs.stdout is defined and today_logs.stdout | length > 0
-
 
 # --- STEP D: SET FACT AND CLEANUP ---
 
@@ -78,7 +78,7 @@
   ansible.builtin.set_fact:
     unique_new_processes: >-
       {% set results = [] %}
-      {% if new_processes_result is defined and new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
+      {% if new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
         {% for line in new_processes_result.stdout.splitlines() %}
           {% set m = line | regex_search('exe=([^\s]+)', '\\1') %}
           {% if m is defined and m != '' %}
@@ -88,6 +88,7 @@
       {% endif %}
       {{ results | unique | list }}
   when: process_audit_collect_logs | bool
+
 
 
 - name: "02.8 | Clean up old log file (Yesterday's file is now obsolete)"
