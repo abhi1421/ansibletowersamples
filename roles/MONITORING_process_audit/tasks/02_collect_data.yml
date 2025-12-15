@@ -76,18 +76,12 @@
 
 - name: "02.7 | Set fact for unique new executable paths"
   ansible.builtin.set_fact:
-    unique_new_processes: "{{ (
-      new_processes_result.stdout.splitlines()
-      | map('regex_replace', '.*exe=([^\\s]+).*', '\\1')
-      | reject('equalto', '')
-      | unique
-      | list
-    ) if (
-      new_processes_result is defined and
-      not new_processes_result.skipped and
-      new_processes_result.stdout is defined and
-      new_processes_result.stdout | length > 0
-    ) else [] }}"
+    unique_new_processes: |
+      {% if new_processes_result is defined and new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
+        {{ new_processes_result.stdout.splitlines() | map('regex_replace', '.*exe=([^\\s]+).*', '\\1') | unique | list }}
+      {% else %}
+        []
+      {% endif %}
   when: process_audit_collect_logs | bool
 
 
