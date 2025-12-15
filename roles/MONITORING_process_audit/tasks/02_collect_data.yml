@@ -11,10 +11,11 @@
 
 # COLLECT TODAY's PROCESSES
 - name: "02.2 | Collect today's process execution logs"
-  # **CHANGE:** Use shell module to interpret the pipe (|)
   ansible.builtin.shell:
     cmd: "ausearch -k {{ audit_rule_key }} --start today | grep exe="
   register: today_logs
+  # Tell Ansible to only fail if the return code (rc) is 2 or higher, allowing rc=1 (no matches)
+  failed_when: today_logs.rc > 1 
   when: process_audit_collect_logs | bool
 
 - name: "02.3 | Save today's logs to file"
@@ -26,10 +27,11 @@
 
 # COLLECT YESTERDAY's PROCESSES
 - name: "02.4 | Collect yesterday's process execution logs (Treated as optional for first run)"
-  # **CHANGE:** Use shell module to interpret the pipe (|)
   ansible.builtin.shell:
     cmd: "ausearch -k {{ audit_rule_key }} --start yesterday --end yesterday | grep exe="
   register: yesterday_logs
+  # Allow rc=1 (no matches) and ignore errors higher than 1 (rc=2, which means command error)
+  failed_when: yesterday_logs.rc > 1 
   ignore_errors: true 
   when: process_audit_collect_logs | bool
 
