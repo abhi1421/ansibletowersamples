@@ -1,7 +1,7 @@
 ---
 - name: MONITORING_process_audit role execution
   hosts: all
-  gather_facts: false
+  gather_facts: true
   become: yes
   roles:
     - MONITORING_process_audit
