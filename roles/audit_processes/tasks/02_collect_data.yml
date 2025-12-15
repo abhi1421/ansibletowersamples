@@ -8,6 +8,10 @@
   register: today_exec
   changed_when: false
 
+- name: Debug today_exec
+  debug:
+    var: today_exec
+
 
 - name: Extract yesterday's executed commands
   shell: |
@@ -19,16 +23,22 @@
   register: yesterday_exec
   changed_when: false
 
+- name: Debug yesterday_exec
+  debug:
+    var: yesterday_exec
 
-- name: Identify newly executed processes today (safe comparison)
-  shell: |
-    printf "%s\n" {{ yesterday_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/yesterday_exec_{{ inventory_hostname }}.log
-    printf "%s\n" {{ today_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/today_exec_{{ inventory_hostname }}.log
-    comm -13 /tmp/yesterday_exec_{{ inventory_hostname }}.log /tmp/today_exec_{{ inventory_hostname }}.log
-  args:
-    executable: /bin/bash
-  register: new_today_exec
-  changed_when: false
+
+#- name: Identify newly executed processes today (safe comparison)
+#  shell: |
+#    printf "%s\n" {{ yesterday_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/yesterday_exec_{{ inventory_hostname }}.log
+#    printf "%s\n" {{ today_exec.stdout_lines | default([]) | join(' ') }} | sort > /tmp/today_exec_{{ inventory_hostname }}.log
+#    comm -13 /tmp/yesterday_exec_{{ inventory_hostname }}.log /tmp/today_exec_{{ inventory_hostname }}.log
+#  args:
+#    executable: /bin/bash
+#  register: new_today_exec
+#  changed_when: false
+
+
 
 - name: Store per-host audit data as fact
   set_fact:
