@@ -76,20 +76,16 @@
 
 # --- STEP D: SET FACT AND CLEANUP ---
 
-- name: "02.7 | Set fact for unique new executable paths"
+- name: "02.7 | Set fact for unique new executable paths (CLEANED)"
   ansible.builtin.set_fact:
-    unique_new_processes: >-
-      {% set results = [] %}
-      {% if new_processes_result.stdout is defined and new_processes_result.stdout | length > 0 %}
-        {% for line in new_processes_result.stdout.splitlines() %}
-          {% set m = line | regex_search('exe=([^\s]+)', '\\1') %}
-          {% if m is defined and m != '' %}
-            {% set _ = results.append(m) %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
-      {{ results | unique | list }}
-  when: process_audit_collect_logs | bool
+    # 1. Take the multi-line string (stdout)
+    # 2. Extract only the content of the 'exe=' field using regex_findall
+    # 3. Apply the unique filter
+    # 4. Ensure it's returned as a clean list
+    unique_new_processes: "{{ new_processes_result.stdout | default('') | regex_findall('exe=(\\S+)') | unique | list }}"
+  when:
+    - process_audit_collect_logs | bool
+    - new_processes_result.stdout is defined and new_processes_result.stdout | length > 0
 
 
 - name: "02.8 | Clean up old log file (Yesterday's file is now obsolete)"
