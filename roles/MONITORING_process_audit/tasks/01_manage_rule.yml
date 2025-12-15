@@ -13,4 +13,10 @@
     group: root
     mode: '0640'
   become: true
-  notify: reload auditd
+# notify: reload auditd
+
+- name: Restart the service
+  command: service auditd restart
+
+- name: Verify the audit rules
+  command: sudo auditctl -l
