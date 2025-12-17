@@ -42,6 +42,25 @@
     - report_generation
 
 
+- name: Construct the consolidated email body
+  ansible.builtin.set_fact:
+    email_summary_body: |
+      OS Hardening Verification Summary
+      Execution Date: {{ ansible_date_time.date }}
+      -----------------------------------------
+      {% for host in ansible_play_hosts %}
+      Host: {{ host }}
+      - Compliant:     {{ hostvars[host]['comp_count'] | default(0) }}
+      - Non-Compliant: {{ hostvars[host]['non_comp_count'] | default(0) }}
+      - Manual Check:  {{ hostvars[host]['manual_count'] | default(0) }}
+      -----------------------------------------
+      {% endfor %}
+      
+      Detailed Markdown reports are available on the Ansible Controller.
+  delegate_to: localhost
+  run_once: true
+
+
 ## NEW ADDITION
 - name: Define report filename
   ansible.builtin.set_fact:
