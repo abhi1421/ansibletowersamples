@@ -49,16 +49,18 @@
       Execution Date: {{ ansible_date_time.date }}
       -----------------------------------------
       {% for host in ansible_play_hosts %}
-      Host: {{ host }}
-      - Compliant:     {{ hostvars[host]['comp_count'] | default(0) }}
-      - Non-Compliant: {{ hostvars[host]['non_comp_count'] | default(0) }}
-      - Manual Check:  {{ hostvars[host]['manual_count'] | default(0) }}
+      Host: {{ host }} ({{ hostvars[host]['ansible_default_ipv4']['address'] | default('N/A') }})
+      - Compliant:     {{ hostvars[host]['compliance_report_results'] | selectattr('status', 'equalto', 'COMPLIANT') | list | length }}
+      - Non-Compliant: {{ hostvars[host]['compliance_report_results'] | selectattr('status', 'equalto', 'NON_COMPLIANT') | list | length }}
+      - Manual Check:  {{ hostvars[host]['compliance_report_results'] | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }}
       -----------------------------------------
       {% endfor %}
       
       Detailed Markdown reports are available on the Ansible Controller.
   delegate_to: localhost
   run_once: true
+  tags:
+    - report_generation
 
 
 ## NEW ADDITION
