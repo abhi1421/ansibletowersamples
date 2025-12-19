@@ -37,3 +37,15 @@
   # This task includes a separate file for verifying filesystem mount options and permissions.
   tags:
     - filesystem_config # Category tag
+
+- name: Include system updates checks
+  ansible.builtin.include_tasks: enforce_system_updates.yml
+  # This task includes a separate file for verifying update mechanisms and GPG key settings.
+  tags:
+    - system_updates # Category tag
+
+- name: Include secure boot settings checks
+  ansible.builtin.include_tasks: enforce_secure_boot_settings.yml 
+  # This task includes a separate file for verifying GRUB and X Window system settings.
+  tags:
+    - secure_boot_settings # Category tag

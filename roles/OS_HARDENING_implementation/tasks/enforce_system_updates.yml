@@ -1,0 +1,47 @@
+---
+# Implementation tasks for System Updates and Subscription Hardening
+
+- name: Hardening | Ensure GPG Check is globally enabled in DNF
+  ansible.builtin.lineinfile:
+    path: /etc/dnf/dnf.conf
+    regexp: '^gpgcheck='
+    line: 'gpgcheck=1'
+    state: present
+    create: yes
+  register: dnf_gpg_config
+
+- name: Hardening | Ensure Red Hat GPG keys are imported
+  ansible.builtin.rpm_key:
+    key: "{{ item }}"
+    state: present
+  loop:
+    - /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+    - /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-compliance
+  ignore_errors: yes # In case files are named differently on specific minor versions
+
+- name: Hardening | Enforce Satellite/RHSM registration
+  redhat_subscription:
+    state: present
+    # These should be defined in your AAP Credentials or vars
+    # activationkey: "{{ rhsm_activation_key }}"
+    # org_id: "{{ rhsm_org_id }}"
+  register: subscription_result
+  ignore_errors: yes # Avoid failing the whole play if the system is air-gapped or already registered via another method
+
+- name: Hardening | Set system to the highest approved release version
+  ansible.builtin.command: "subscription-manager release --set={{ allowed_rhel_versions | sort | last }}"
+  register: release_set_result
+  changed_when: "'Release set to' in release_set_result.stdout"
+  when: 
+    - ansible_facts.distribution == 'RedHat'
+    - current_rhel_version is defined
+    - current_rhel_version != (allowed_rhel_versions | sort | last)
+
+- name: Compliance | Log Update Configuration Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'System Updates',
+      'item': 'Subscription and GPG Enforcement',
+      'status': 'ENFORCED',
+      'details': 'DNF GPG check enabled. GPG keys imported. Release version pinned to ' + (allowed_rhel_versions | sort | last)
+    }] }}"

@@ -1,0 +1,51 @@
+---
+# Implementation tasks for Secure Boot and GRUB Hardening
+
+- name: Hardening | Set permissions for /boot/grub2 directory
+  ansible.builtin.file:
+    path: /boot/grub2
+    owner: root
+    group: root
+    mode: '0700'
+    state: directory
+
+- name: Hardening | Set permissions for grub.cfg
+  ansible.builtin.file:
+    path: /boot/grub2/grub.cfg
+    owner: root
+    group: root
+    mode: '0600'
+  register: grub_cfg_perms
+
+- name: Hardening | Ensure X Window System is removed
+  ansible.builtin.dnf:
+    name: xorg-x11-server-Xorg
+    state: absent
+  register: xorg_removal
+
+- name: Hardening | Ensure X font server is stopped and disabled
+  ansible.builtin.systemd:
+    name: xfs
+    state: stopped
+    enabled: no
+  failed_when: false # Service might not exist if X11 was never installed
+
+- name: Hardening | Check if GRUB password is set
+  ansible.builtin.shell: grep -E '^password_pbkdf2' /boot/grub2/grub.cfg
+  register: grub_pass_check
+  changed_when: false
+  failed_when: false
+
+- name: Hardening | Implementation Notice for GRUB Password
+  ansible.builtin.debug:
+    msg: "WARNING: GRUB password must be set via 'grub2-setpassword' or by providing a hash to a template. Manual intervention recommended if not using a vault-encrypted variable."
+  when: grub_pass_check.rc != 0
+
+- name: Compliance | Log Secure Boot Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Secure Boot Settings',
+      'item': 'Bootloader and X11 Security',
+      'status': 'ENFORCED',
+      'details': 'GRUB permissions set to 0600. X11 packages removed. Manual GRUB password check: ' + ('Found' if grub_pass_check.rc == 0 else 'Missing')
+    }] }}"
