@@ -1,0 +1,6 @@
+---
+- name: HARDENING_rhel_implement
+  hosts: all
+  become: true # Use sudo for privileged operations
+  roles:
+    - OS_HARDENING_implementation

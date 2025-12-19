@@ -1,0 +1,39 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for OS_HARDENING_implementation
+
+- name: Initialize compliance report structure
+  ansible.builtin.set_fact:
+    # Initialize an empty list to store results of all compliance checks.
+    # Each check will append a dictionary containing its status and details.
+    compliance_report_results: []
+  # Ensure this fact is reset at the beginning of each run.
+
+- name: Gather system facts for verification
+  ansible.builtin.setup:
+    gather_subset:
+      - network
+      - hardware
+      - virtual
+      - distribution
+      - os_family
+      - pkg_mgr
+      - mounts
+      - service_mgr
+  # This task gathers various facts about the target system,
+  # which are often necessary for performing compliance checks.
+  # We specify a subset to optimize fact gathering.
+  tags:
+    - facts_gathering # Tag for fact gathering, useful if you want to skip it for some reason
+
+- name: Include preparation and installation checks
+  ansible.builtin.include_tasks: enforce_preparation_installation.yml
+  # This task includes a separate file for verifying BIOS/firmware and boot order settings.
+  tags:
+    - preparation_installation # Category tag
+
+- name: Include filesystem configuration checks
+  ansible.builtin.include_tasks: enforce_filesystem_config.yml
+  # This task includes a separate file for verifying filesystem mount options and permissions.
+  tags:
+    - filesystem_config # Category tag

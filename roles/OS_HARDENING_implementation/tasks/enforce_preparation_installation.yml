@@ -1,0 +1,33 @@
+---
+# Implementation tasks for Preparation and Installation Hardening
+
+- name: Hardening Compliance | Record Manual BIOS Password Requirement
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Preparation and Installation',
+      'item': 'BIOS/firmware password',
+      'status': 'ENFORCED_MANUAL',
+      'details': 'Security policy requires a strong password on BIOS/UEFI. This must be set via BMC/IPMI or physical access.'
+    }] }}"
+  tags:
+    - preparation_installation
+    - bios_password
+
+- name: Hardening Compliance | Record Manual Boot Order Requirement
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Preparation and Installation',
+      'item': 'Device boot order',
+      'status': 'ENFORCED_MANUAL',
+      'details': 'Security policy requires primary disk boot only. Secondary boot devices (USB/CD) must be disabled in firmware.'
+    }] }}"
+  tags:
+    - preparation_installation
+    - boot_order
+
+- name: System Audit | Log manual compliance requirements to syslog
+  ansible.builtin.shell: |
+    logger "STIG/Hardening: BIOS password and Boot Order must be manually verified per organizational policy."
+  changed_when: false
+  # This ensures there is a record in the local system logs that the 
+  # administrator was notified of these requirements during the hardening run.

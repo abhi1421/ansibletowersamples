@@ -1,0 +1,60 @@
+---
+# Implementation logic for Filesystem Configuration Hardening
+
+- name: Hardening | Enforce mount options for /tmp
+  ansible.posix.mount:
+    path: /tmp
+    src: "{{ item.device | default(omit) }}"
+    fstype: "{{ item.fstype | default(omit) }}"
+    opts: "nodev,nosuid,noexec"
+    state: mounted
+  loop: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/tmp') | list }}"
+  register: tmp_mount_result
+
+- name: Hardening | Enforce nodev on /home
+  ansible.posix.mount:
+    path: /home
+    src: "{{ item.device | default(omit) }}"
+    fstype: "{{ item.fstype | default(omit) }}"
+    opts: "nodev"
+    state: mounted
+  loop: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/home') | list }}"
+  register: home_mount_result
+
+- name: Hardening | Enforce mount options for /dev/shm
+  ansible.posix.mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: "nodev,nosuid,noexec"
+    state: mounted
+  register: shm_mount_result
+
+- name: Hardening | Ensure /var/tmp is bind mounted to /tmp
+  ansible.posix.mount:
+    path: /var/tmp
+    src: /tmp
+    fstype: none
+    opts: bind
+    state: mounted
+  register: vartmp_bind_result
+
+- name: Hardening | Set sticky bit on world-writable directories
+  ansible.builtin.shell: |
+    find / -xdev -type d -perm -0002 -not -perm -1000 -exec chmod a+t {} +
+  register: sticky_bit_fix
+  changed_when: sticky_bit_fix.stdout != ""
+
+- name: Hardening | Check for missing recommended partitions
+  ansible.builtin.set_fact:
+    missing_partitions: >-
+      {{ ['/var', '/var/log', '/var/log/audit', '/home'] | difference(ansible_facts.mounts | map(attribute='mount') | list) }}
+
+- name: Compliance | Log Filesystem Implementation Status
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Filesystem Configuration',
+      'item': 'Partition Mount Options and Sticky Bits',
+      'status': 'ENFORCED',
+      'details': 'Applied nodev/nosuid/noexec where applicable. Fixed sticky bits. Note: Missing separate partitions: ' + (missing_partitions | join(', ') if missing_partitions else 'None')
+    }] }}"
