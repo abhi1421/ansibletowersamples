@@ -1,0 +1,52 @@
+---
+# Implementation Role: Generate Final Enforcement Report
+
+- name: Prepare Implementation Report Content
+  ansible.builtin.set_fact:
+    impl_report_content: |
+      # Hardening Implementation Report: {{ ansible_hostname }}
+      ## Status: ENFORCED
+      ## Date: {{ ansible_date_time.iso8601 }}
+
+      This host has undergone automated hardening enforcement. Below is the summary of actions taken.
+
+      ### Execution Summary:
+      - **Actions Applied:** {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED') | list | length }}
+      - **Manual Actions Logged:** {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED_MANUAL') | list | length }}
+
+      ### Detailed Enforcement Log:
+
+      {% for category in compliance_report_results | map(attribute='category') | unique | sort %}
+      #### {{ category }}
+
+      | Security Item | Status | Action Details |
+      |---|---|---|
+      {% for item in compliance_report_results | selectattr('category', 'equalto', category) %}
+      | {{ item.item }} | **{{ item.status }}** | {{ item.details }} |
+      {% endfor %}
+
+      {% endfor %}
+
+- name: Define Report Filename
+  ansible.builtin.set_fact:
+    impl_report_filename: "/tmp/hardening_enforcement_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.md"
+
+- name: Save Implementation Report to Target
+  ansible.builtin.copy:
+    content: "{{ impl_report_content }}"
+    dest: "{{ impl_report_filename }}"
+    mode: '0600'
+    owner: root
+
+- name: Fetch Enforcement Report to Shared Storage
+  ansible.builtin.fetch:
+    src: "{{ impl_report_filename }}"
+    dest: "/mnt/host_share/implementation_logs/"
+    flat: yes
+
+- name: Implementation Summary (Console Output)
+  ansible.builtin.debug:
+    msg: 
+      - "HARDENING COMPLETE for {{ ansible_hostname }}"
+      - "Total Enforcement Actions: {{ compliance_report_results | length }}"
+      - "Report saved to: {{ impl_report_filename }}"

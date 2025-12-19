@@ -1,0 +1,36 @@
+---
+# Implementation tasks for Device Security (USB Hardening)
+
+- name: Hardening | Prevent usb-storage module from loading
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/usb-storage.conf
+    content: |
+      # USB mass storage is disabled per security hardening policy
+      blacklist usb-storage
+      install usb-storage /bin/true
+    owner: root
+    group: root
+    mode: '0644'
+  register: usb_modprobe_config
+
+- name: Hardening | Unload usb-storage module if currently loaded
+  ansible.builtin.shell: |
+    modprobe -r usb-storage
+  register: unload_usb_result
+  failed_when: false
+  changed_when: unload_usb_result.rc == 0
+  # We try to unload it; if it's not loaded or in use, we move on.
+
+- name: Hardening | Ensure modprobe configuration is updated
+  ansible.builtin.command: depmod -ae
+  when: usb_modprobe_config.changed
+  changed_when: false
+
+- name: Compliance | Log Device Security Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Device Security',
+      'item': 'Disable USB Mass Storage',
+      'status': 'ENFORCED',
+      'details': 'USB storage module blacklisted and set to /bin/true to prevent manual loading.'
+    }] }}"
