@@ -85,3 +85,16 @@
   # This task includes a separate file for verifying system account and directory permissions.
   tags:
     - files_permissions # Category tag
+
+- name: Include PAM configuration checks
+  ansible.builtin.include_tasks: enforce_pam_config.yml
+  # This task includes a separate file for verifying PAM password policies and root login restrictions.
+  tags:
+    - pam_config # Category tag
+
+- name: Include warning banners checks
+  ansible.builtin.include_tasks: enforce_warning_banners.yml 
+  # This task includes a separate file for verifying the presence of warning banners.
+  tags:
+    - warning_banners # Category tag
+

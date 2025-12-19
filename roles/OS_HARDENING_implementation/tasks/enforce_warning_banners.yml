@@ -1,0 +1,51 @@
+---
+# Implementation tasks for Warning Banners Hardening
+
+- name: Hardening | Define the University Warning Banner text
+  ansible.builtin.set_fact:
+    university_banner_text: |
+      ******************************************************************************
+      * UNIVERSITY WARNING BANNER                            *
+      * *
+      * This system is for authorized use only. User activities are monitored and  *
+      * recorded. Unauthorized access is prohibited and subject to prosecution.    *
+      ******************************************************************************
+
+- name: Hardening | Enforce warning banner for local and network logins
+  ansible.builtin.copy:
+    dest: "{{ item }}"
+    content: "{{ university_banner_text }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - /etc/issue
+    - /etc/issue.net
+
+- name: Hardening | Enforce SSH Banner configuration
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '(?i)^#?Banner'
+    line: 'Banner /etc/issue.net'
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  register: ssh_banner_config
+
+- name: Hardening | Restart SSH if banner was configured
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: ssh_banner_config.changed
+
+- name: Hardening | Notice regarding GUI banners
+  ansible.builtin.debug:
+    msg: "GUI Warning Banner skipped as X11 packages were removed in previous hardening steps."
+
+- name: Compliance | Log Warning Banner Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Warning Banners',
+      'item': 'Legal Notice and Login Banners',
+      'status': 'ENFORCED',
+      'details': 'Applied University Warning Banner to /etc/issue and /etc/issue.net. Linked banner to SSHD.'
+    }] }}"
