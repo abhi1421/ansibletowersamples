@@ -61,3 +61,15 @@
   # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
   tags:
     - os_hardening # Category tag
+
+- name: Include network security and firewall configuration checks
+  ansible.builtin.include_tasks: enforce_network_security_firewall.yml 
+  # This task includes a separate file for verifying network kernel parameters and firewall rules.
+  tags:
+    - network_security_firewall # Category tag
+
+- name: Include remote administration via SSH checks
+  ansible.builtin.include_tasks: enforce_remote_admin_ssh.yml 
+  # This task includes a separate file for verifying SSH server configuration.
+  tags:
+    - remote_admin_ssh # Category tag

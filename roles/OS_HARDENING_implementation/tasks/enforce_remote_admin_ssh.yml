@@ -1,0 +1,33 @@
+---
+# Implementation tasks for SSH Hardening
+
+- name: Hardening | Enforce SSH security settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  loop:
+    - { regexp: '(?i)^#?Protocol', line: 'Protocol 2' }
+    - { regexp: '(?i)^#?LogLevel', line: 'LogLevel INFO' }
+    - { regexp: '(?i)^#?PermitRootLogin', line: 'PermitRootLogin no' }
+    - { regexp: '(?i)^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
+    - { regexp: '(?i)^#?X11Forwarding', line: 'X11Forwarding no' }
+    - { regexp: '(?i)^#?MaxAuthTries', line: 'MaxAuthTries 4' }
+  register: sshd_config_changes
+
+- name: Hardening | Ensure SSH service is restarted if config changed
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  when: sshd_config_changes.changed
+
+- name: Compliance | Log SSH Implementation Status
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'SSHD Configuration Enforcement',
+      'status': 'ENFORCED',
+      'details': 'Protocol 2, Root Login Disabled, Empty Passwords Disabled, LogLevel INFO applied.'
+    }] }}"

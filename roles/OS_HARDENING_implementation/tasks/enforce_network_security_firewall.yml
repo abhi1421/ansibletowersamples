@@ -1,0 +1,56 @@
+---
+# Implementation tasks for Network Security and Firewall
+
+- name: Hardening | Define network kernel parameters
+  ansible.builtin.set_fact:
+    network_params:
+      - { name: 'net.ipv4.ip_forward', value: '0' }
+      - { name: 'net.ipv4.conf.all.send_redirects', value: '0' }
+      - { name: 'net.ipv4.conf.default.send_redirects', value: '0' }
+      - { name: 'net.ipv4.conf.all.accept_source_route', value: '0' }
+      - { name: 'net.ipv4.conf.default.accept_source_route', value: '0' }
+      - { name: 'net.ipv4.conf.all.accept_redirects', value: '0' }
+      - { name: 'net.ipv4.conf.default.accept_redirects', value: '0' }
+      - { name: 'net.ipv4.icmp_echo_ignore_broadcasts', value: '1' }
+      - { name: 'net.ipv4.icmp_ignore_bogus_error_responses', value: '1' }
+      - { name: 'net.ipv4.tcp_syncookies', value: '1' }
+
+- name: Hardening | Apply Network Kernel Parameters
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop: "{{ network_params }}"
+
+- name: Hardening | Ensure firewalld package is installed
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Hardening | Ensure firewalld is started and enabled
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: Hardening | Enforce default firewall zone policy (Drop)
+  ansible.builtin.command: firewall-cmd --set-default-zone=drop
+  register: fw_zone_result
+  changed_when: "'already set' not in fw_zone_result.stderr"
+
+- name: Hardening | Ensure SSH is allowed in firewall (Required for Ansible)
+  ansible.posix.firewalld:
+    service: ssh
+    state: enabled
+    permanent: yes
+    immediate: yes
+
+- name: Compliance | Log Network Implementation Status
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Network Security and Firewall Configuration',
+      'item': 'Kernel Parameters and Firewall Enforcement',
+      'status': 'ENFORCED',
+      'details': 'Applied ' + (network_params | length | string) + ' sysctl parameters. Firewall enabled with default DROP policy.'
+    }] }}"
