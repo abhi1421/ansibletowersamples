@@ -1,0 +1,65 @@
+---
+# Implementation tasks for System Integrity and Intrusion Detection
+
+- name: Hardening | Ensure AIDE is installed
+  ansible.builtin.dnf:
+    name: aide
+    state: present
+
+- name: Hardening | Check if AIDE database exists
+  ansible.builtin.stat:
+    path: /var/lib/aide/aide.db.gz
+  register: aide_db_exists
+
+- name: Hardening | Initialize AIDE database if not present
+  ansible.builtin.command: /usr/sbin/aide --init
+  when: not aide_db_exists.stat.exists
+  register: aide_init
+  changed_when: aide_init.rc == 0
+
+- name: Hardening | Move AIDE init database to production
+  ansible.builtin.copy:
+    src: /var/lib/aide/aide.db.new.gz
+    dest: /var/lib/aide/aide.db.gz
+    remote_src: yes
+    force: no
+  when: aide_init.changed
+
+- name: Hardening | Enforce SELinux Enforcing mode
+  ansible.builtin.selinux:
+    policy: targeted
+    state: enforcing
+  register: selinux_enforcement
+
+- name: Hardening | Ensure Time Synchronization (chrony)
+  ansible.builtin.dnf:
+    name: chrony
+    state: present
+
+- name: Hardening | Ensure chronyd is started and enabled
+  ansible.builtin.systemd:
+    name: chronyd
+    state: started
+    enabled: yes
+
+- name: Hardening | Ensure Logging and Auditing are active
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - auditd
+    - rsyslog
+
+- name: Hardening | Implementation Notice for OSSEC
+  ansible.builtin.debug:
+    msg: "NOTICE: OSSEC HIDS requires a manager/server configuration. Ensure the agent is manually pointed to your OSSEC manager if not already configured."
+
+- name: Compliance | Log Integrity Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'System Integrity and Intrusion Detection',
+      'item': 'AIDE, SELinux, and Logging Enforcement',
+      'status': 'ENFORCED',
+      'details': 'AIDE initialized, SELinux set to Enforcing, Chrony/Auditd/Rsyslog enabled.'
+    }] }}"

@@ -73,3 +73,15 @@
   # This task includes a separate file for verifying SSH server configuration.
   tags:
     - remote_admin_ssh # Category tag
+
+- name: Include system integrity and intrusion detection checks
+  ansible.builtin.include_tasks: enforce_system_integrity_intrusion.yml
+  # This task includes a separate file for verifying AIDE, SELinux, OSsec, NTP, and auditd settings.
+  tags:
+    - system_integrity_intrusion # Category tag
+
+- name: Include files/directory permissions/access checks
+  ansible.builtin.include_tasks: enforce_files_directory_permissions.yml
+  # This task includes a separate file for verifying system account and directory permissions.
+  tags:
+    - files_permissions # Category tag

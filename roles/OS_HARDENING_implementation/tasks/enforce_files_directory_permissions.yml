@@ -1,0 +1,61 @@
+---
+# Implementation tasks for File and Directory Permissions Hardening
+
+- name: Hardening | Enforce permissions and ownership for /etc/passwd
+  ansible.builtin.file:
+    path: /etc/passwd
+    owner: root
+    group: root
+    mode: '0644'
+    state: file
+
+- name: Hardening | Enforce permissions and ownership for /etc/shadow
+  ansible.builtin.file:
+    path: /etc/shadow
+    owner: root
+    group: root
+    mode: '0000'
+    state: file
+  # Note: Some environments prefer 0400, but 0000 is the strictest standard.
+
+- name: Hardening | Enforce permissions and ownership for /etc/group
+  ansible.builtin.file:
+    path: /etc/group
+    owner: root
+    group: root
+    mode: '0644'
+    state: file
+
+- name: Hardening | Enforce permissions and ownership for /etc/gshadow
+  ansible.builtin.file:
+    path: /etc/gshadow
+    owner: root
+    group: root
+    mode: '0000'
+    state: file
+
+- name: Hardening | Run account and group integrity checks
+  ansible.builtin.command: "{{ item }}"
+  register: integrity_cmd_results
+  changed_when: false
+  failed_when: false
+  loop:
+    - pwck -r
+    - grpck -r
+  # The -r flag runs these in read-only mode to report inconsistencies 
+  # in /etc/passwd and /etc/group without manual prompts.
+
+- name: Hardening | Notice for manual account review
+  ansible.builtin.debug:
+    msg: 
+      - "ACTION REQUIRED: Manually review /etc/sudoers and /etc/sudoers.d/ for unauthorized privilege escalation."
+      - "ACTION REQUIRED: Verify no legacy or unused accounts exist in /etc/passwd."
+
+- name: Compliance | Log File Permissions Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Files/Directory Permissions/Access',
+      'item': 'System Identity File Security',
+      'status': 'ENFORCED',
+      'details': 'Enforced 0644 on passwd/group and 0000 on shadow/gshadow. Integrity tools (pwck/grpck) executed.'
+    }] }}"
