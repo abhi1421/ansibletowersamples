@@ -49,3 +49,15 @@
   # This task includes a separate file for verifying GRUB and X Window system settings.
   tags:
     - secure_boot_settings # Category tag
+
+- name: Include process hardening checks
+  ansible.builtin.include_tasks: enforce_process_hardening.yml
+  # This task includes a separate file for verifying core dump and memory randomization settings.
+  tags:
+    - process_hardening # Category tag
+
+- name: Include OS hardening checks
+  ansible.builtin.include_tasks: enforce_os_hardening.yml
+  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
+  tags:
+    - os_hardening # Category tag

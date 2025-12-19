@@ -1,0 +1,36 @@
+---
+# Implementation tasks for Process Hardening (Kernel Parameters)
+
+- name: Hardening | Restrict suid core dumps (fs.suid_dumpable)
+  ansible.builtin.sysctl:
+    name: fs.suid_dumpable
+    value: '0'
+    state: present
+    reload: yes
+  register: suid_dump_result
+
+- name: Hardening | Enable ASLR (kernel.randomize_va_space)
+  ansible.builtin.sysctl:
+    name: kernel.randomize_va_space
+    value: '2'
+    state: present
+    reload: yes
+  register: aslr_result
+
+- name: Hardening | Restrict core dumps in limits.conf
+  ansible.builtin.lineinfile:
+    path: /etc/security/limits.conf
+    line: "* hard core 0"
+    insertafter: EOF
+    state: present
+  # This adds a secondary layer of protection by setting the 
+  # process limit for core dumps to 0 for all users.
+
+- name: Compliance | Log Process Hardening Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'Process Hardening',
+      'item': 'Kernel Process Protections',
+      'status': 'ENFORCED',
+      'details': 'fs.suid_dumpable set to 0, kernel.randomize_va_space set to 2 (ASLR), and core limits set to 0.'
+    }] }}"

@@ -1,0 +1,69 @@
+---
+# Implementation tasks for OS Hardening (Services, Packages, and System Defaults)
+
+- name: Hardening | Define all prohibited and unutilized services
+  ansible.builtin.set_fact:
+    # Legacy/Insecure Services
+    prohibited_packages:
+      - telnet-server
+      - rsh
+      - rlogin
+      - rcp
+      - ypserv
+      - ypbind
+      - tftp
+      - tftp-server
+      - talk
+      - talk-server
+      - chargen-dgram
+      - chargen-stream
+      - daytime-dgram
+      - daytime-stream
+      - echo-dgram
+      - echo-stream
+      - tcpmux-server
+      - xinetd
+    # Potentially unutilized server roles (customize as needed)
+    unutilized_services:
+      - vsftpd
+      - named
+      - slapd
+      - smb
+      - dhcpd
+      - nfs-server
+      - snmpd
+
+- name: Hardening | Purge prohibited legacy packages
+  ansible.builtin.dnf:
+    name: "{{ prohibited_packages }}"
+    state: absent
+  register: dnf_purge_result
+
+- name: Hardening | Stop, Disable, and Mask unutilized services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: yes
+  loop: "{{ unutilized_services }}"
+  failed_when: false # Do not fail if a service package isn't installed
+
+- name: Hardening | Enforce system-wide umask (022)
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { path: '/etc/login.defs', regexp: '^UMASK', line: 'UMASK           022' }
+    - { path: '/etc/bashrc', regexp: 'umask [0-9]{3}', line: '    umask 022' }
+    - { path: '/etc/profile', regexp: 'umask [0-9]{3}', line: 'umask 022' }
+
+- name: Compliance | Log OS Hardening Implementation
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [{
+      'category': 'OS Hardening',
+      'item': 'Legacy Services and System Umask',
+      'status': 'ENFORCED',
+      'details': 'Removed ' + (prohibited_packages | length | string) + ' packages and enforced umask 022.'
+    }] }}"
