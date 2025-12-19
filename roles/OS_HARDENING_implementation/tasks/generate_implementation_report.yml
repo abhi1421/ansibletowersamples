@@ -41,8 +41,22 @@
 - name: Fetch Enforcement Report to Shared Storage
   ansible.builtin.fetch:
     src: "{{ impl_report_filename }}"
-    dest: "/mnt/host_share/implementation_logs/"
+    dest: "/var/tmp/implementation_logs/"
     flat: yes
+
+- name: Hardening | Capture Implementation Summary as Fact
+  ansible.builtin.set_fact:
+    hardening_summary_output:
+      - "HARDENING COMPLETE for {{ ansible_hostname }}"
+      - "Total Enforcement Actions: {{ compliance_report_results | length }}"
+      - "Status Summary:"
+      - "  - Enforced: {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED') | list | length }}"
+      - "  - Manual Requirements: {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED_MANUAL') | list | length }}"
+      - "Report saved to: {{ impl_report_filename }}"
+
+- name: Implementation Summary (Console Output)
+  ansible.builtin.debug:
+    msg: "{{ hardening_summary_output }}"
 
 - name: Implementation Summary (Console Output)
   ansible.builtin.debug:
