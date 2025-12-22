@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for MONITORING_satellite_patch_audit
+satellite_url: "https://satellite01.customer.intra"
+satellite_username: "vijaymerugu "
+satellite_password: ""
+org_name: "NGRTGS"
+validate_certs: false

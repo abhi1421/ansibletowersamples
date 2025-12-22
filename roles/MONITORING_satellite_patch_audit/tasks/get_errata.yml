@@ -1,0 +1,23 @@
+- name: Fetch errata for each host
+  uri:
+    url: "{{ satellite_url }}/katello/api/hosts/{{ item.id }}/errata"
+    method: GET
+    user: "{{ satellite_username }}"
+    password: "{{ satellite_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ validate_certs }}"
+    return_content: true
+  loop: "{{ org_hosts.json.results }}"
+    loop_control:
+  label: "{{ item.name }}"
+  register: host_errata
+
+
+- name: Build consolidated patch data
+  set_fact:
+    patch_report: "{{ patch_report + [ {
+      'hostname': item.item.name,
+      'critical': (item.json.results | selectattr('severity','equalto','Critical') | list | length),
+      'important': (item.json.results | selectattr('severity','equalto','Important') | list | length)
+    } ] }}"
+  loop: "{{ host_errata.results }}"

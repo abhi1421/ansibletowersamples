@@ -1,0 +1,15 @@
+- name: Fetch hosts registered under the organization
+  uri:
+    url: "{{ satellite_url }}/api/hosts?organization_id={{ org_id }}&per_page=250"
+    method: GET
+    user: "{{ satellite_username }}"
+    password: "{{ satellite_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ validate_certs }}"
+    return_content: true
+  register: org_hosts
+
+
+- name: Initialize patch report structure
+  set_fact:
+    patch_report: []
