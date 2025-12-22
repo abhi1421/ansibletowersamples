@@ -1,0 +1,20 @@
+- name: Build consolidated report as text fact
+  set_fact:
+    consolidated_report: |
+      Satellite Patch Audit Report
+      Organization: {{ org_name }}
+      Generated on: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+      
+      
+      Total Systems: {{ patch_report | length }}
+      
+      
+      Hostname Critical Important
+      ---------------------------------------------------
+      {% for host in patch_report %}
+      {{ '%-28s' | format(host.hostname) }} {{ '%-10s' | format(host.critical) }} {{ host.important }}
+      {% endfor %}
+
+- name: Display consolidated report
+  debug:
+    msg: "{{ consolidated_report }}"
