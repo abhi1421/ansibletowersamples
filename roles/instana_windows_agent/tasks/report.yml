@@ -1,0 +1,9 @@
+- name: Build consolidated execution report
+  set_fact:
+    instana_report:
+      host: "{{ ansible_hostname }}"
+      installation_skipped: "{{ instana_installed }}"
+      installation_performed: "{{ not instana_installed }}"
+      service_state: "{{ instana_validation.service_state }}"
+      endpoint: "{{ instana_agent_endpoint }}"
+      timestamp: "{{ ansible_date_time.iso8601 }}"

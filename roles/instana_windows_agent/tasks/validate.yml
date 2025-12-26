@@ -1,0 +1,12 @@
+- name: Check Instana service status
+  ansible.windows.win_service:
+    name: instana-agent
+  register: instana_service
+
+- name: Set validation facts
+  set_fact:
+    instana_validation:
+      installed: "{{ instana_installed or instana_service.exists }}"
+      service_state: "{{ instana_service.state | default('unknown') }}"
+      endpoint: "{{ instana_agent_endpoint }}"
+      hostname: "{{ ansible_hostname }}"

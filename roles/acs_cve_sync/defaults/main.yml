@@ -1,6 +1,0 @@
----
-# acs_cve_sync/defaults/main.yml
-
-acs_cve_dest_dir: "/home/ansible/acs-cve-data"
-acs_cve_upload_dir: "/home/core/ocp416-hub/acs-cve-database-files"
-rox_central_address: "central-stackrox.apps.ek3nphub.rbi1.rbi.org.in:443"

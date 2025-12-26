@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for instana_windows_agent
+- import_tasks: precheck.yml
+- import_tasks: install.yml
+  when: not instana_installed
+- import_tasks: validate.yml
+- import_tasks: report.yml

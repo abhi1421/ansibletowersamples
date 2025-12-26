@@ -1,0 +1,24 @@
+- name: Add Instana host entries
+  ansible.windows.win_lineinfile:
+    path: C:\Windows\System32\drivers\etc\hosts
+    line: "{{ item.ip }} {{ item.hostname }}"
+    state: present
+  loop: "{{ instana_hosts_entries }}"
+
+- name: Copy Instana installer
+  ansible.windows.win_copy:
+    src: "{{ instana_installer }}"
+    dest: "C:\\Temp\\{{ instana_installer }}"
+  when: not instana_installed
+
+- name: Install Instana Agent (silent)
+  ansible.windows.win_package:
+    path: "C:\\Temp\\{{ instana_installer }}"
+    arguments: >
+      INSTANA_AGENT_ENDPOINT={{ instana_agent_endpoint }}
+      INSTANA_AGENT_ENDPOINT_PORT={{ instana_agent_port }}
+      INSTANA_AGENT_KEY={{ instana_agent_key }}
+      INSTANA_DOWNLOAD_KEY={{ instana_download_key }}
+      /quiet
+    state: present
+  when: not instana_installed

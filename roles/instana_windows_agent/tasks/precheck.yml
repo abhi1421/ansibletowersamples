@@ -1,0 +1,8 @@
+- name: Check if Instana Agent is already installed
+  ansible.windows.win_stat:
+    path: "{{ instana_install_path }}"
+  register: instana_path
+
+- name: Set installation flag
+  set_fact:
+    instana_installed: "{{ instana_path.stat.exists | default(false) }}"

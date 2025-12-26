@@ -1,0 +1,18 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for instana_windows_agent
+instana_installer: instana-agent-windows-64bit-j9-offline.exe
+instana_install_path: "C:\\Program Files\\Instana\\agent"
+
+instana_agent_endpoint: "agent-acceptor.instanapoc.rbi1.rbi.org.in"
+instana_agent_port: "443"
+instana_agent_key: "qvRFSyR2euGlcYdfjsbnMv"
+instana_download_key: "8Q5NYGutQveLtKVLyIPhLQ"
+
+instana_hosts_entries:
+  - { ip: "10.29.7.39", hostname: "instanapilot.rbi1.rbi.org.in" }
+  - { ip: "10.29.7.39", hostname: "ingress.instanapilot.rbi.org.in" }
+  - { ip: "10.29.7.39", hostname: "otlp-http.instanapilot.rbi.org.in" }
+  - { ip: "10.29.7.39", hostname: "otlp-grpc.instanapilot.rbi.org.in" }
+  - { ip: "10.29.7.39", hostname: "agent-acceptor.instanapilot.rbi.org.in" }
+  - { ip: "10.29.7.39", hostname: "pilot-rbi.instanapilot.rbi.org.in" }
