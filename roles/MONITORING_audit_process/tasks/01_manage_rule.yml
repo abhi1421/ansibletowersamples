@@ -1,5 +1,12 @@
 ---
-- name: Ensure audit rule exists
+- name: Check if audit rule already loaded
+  command: auditctl -l
+  register: auditctl_output
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Ensure audit rule file exists
   copy:
     dest: "{{ audit_rule_name }}"
     content: |
@@ -8,10 +15,12 @@
     owner: root
     group: root
     mode: '0640'
-  register: audit_rule_file
+  register: rule_file
   become: true
 
-- name: Reload audit rules if changed
+- name: Load audit rules only if not already loaded
   command: augenrules --load
   become: true
-  when: audit_rule_file.changed
+  when:
+    - "'-k process_exec' not in auditctl_output.stdout"
+    - rule_file.changed

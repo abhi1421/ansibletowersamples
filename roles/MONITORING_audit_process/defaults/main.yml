@@ -11,4 +11,4 @@ process_audit_remove_rule: false
 process_audit_dir: "/var/log/process_audit"
 
 # Audit rule file
-audit_rule_name: "/etc/audit/rules.d/99-process-exec.rules"
+audit_rule_name: "/etc/audit/rules.d/process.rules"
