@@ -8,7 +8,7 @@
 
 - name: Ensure audit rule file exists
   copy:
-    dest: "{{ audit_rule_name }}"
+    dest: /etc/audit/rules.d/process.rules
     content: |
       -a always,exit -F arch=b64 -S execve -k process_exec
       -a always,exit -F arch=b32 -S execve -k process_exec
@@ -19,8 +19,8 @@
   become: true
 
 - name: Load audit rules only if not already loaded
-  command: augenrules --load
-  become: true
+  command: sudo augenrules --load
+#  become: true
   when:
     - "'-k process_exec' not in auditctl_output.stdout"
     - rule_file.changed
