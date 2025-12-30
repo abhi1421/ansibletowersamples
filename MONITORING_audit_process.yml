@@ -1,0 +1,6 @@
+- name: MONITORING_audit_process
+  hosts: all
+  gather_facts: true
+  become: yes
+  roles:
+    - MONITORING_audit_process

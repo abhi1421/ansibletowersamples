@@ -1,0 +1,17 @@
+---
+- name: Ensure audit rule exists
+  copy:
+    dest: "{{ audit_rule_name }}"
+    content: |
+      -a always,exit -F arch=b64 -S execve -k process_exec
+      -a always,exit -F arch=b32 -S execve -k process_exec
+    owner: root
+    group: root
+    mode: '0640'
+  register: audit_rule_file
+  become: true
+
+- name: Reload audit rules if changed
+  command: augenrules --load
+  become: true
+  when: audit_rule_file.changed

@@ -1,0 +1,59 @@
+---
+- name: Set date variables
+  set_fact:
+    audit_today: "{{ lookup('pipe', 'date +%F') }}"
+    audit_yesterday: "{{ lookup('pipe', 'date -d yesterday +%F') }}"
+
+- name: Ensure audit storage directory exists
+  file:
+    path: "{{ process_audit_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Collect today's executed commands
+  shell: |
+    ausearch -k process_exec --start today \
+    | grep exe= \
+    | awk -F 'exe=' '{print $2}' \
+    | awk '{print $1}' \
+    | sort -u > {{ process_audit_dir }}/{{ audit_today }}.log
+  changed_when: false
+
+- name: Check if yesterday's file exists
+  stat:
+    path: "{{ process_audit_dir }}/{{ audit_yesterday }}.log"
+  register: yesterday_file
+
+- name: Compare today with yesterday
+  command: >
+    comm -13 {{ process_audit_dir }}/{{ audit_yesterday }}.log
+    {{ process_audit_dir }}/{{ audit_today }}.log
+  when: yesterday_file.stat.exists
+  register: new_execs
+  changed_when: false
+
+- name: Build consolidated audit report
+  set_fact:
+    process_exec_report: |
+      ================================
+      Process Execution Audit Report
+      ================================
+      Host       : {{ inventory_hostname }}
+      Date       : {{ audit_today }}
+
+      {% if yesterday_file.stat.exists %}
+      New commands executed since yesterday:
+      {% if new_execs.stdout_lines | length > 0 %}
+      {% for cmd in new_execs.stdout_lines %}
+      - {{ cmd }}
+      {% endfor %}
+      {% else %}
+      No new commands detected.
+      {% endif %}
+      {% else %}
+      First execution detected.
+      Baseline file created at:
+      {{ process_audit_dir }}/{{ audit_today }}.log
+      {% endif %}

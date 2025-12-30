@@ -1,0 +1,10 @@
+---
+- name: Remove audit rule file
+  file:
+    path: "{{ audit_rule_name }}"
+    state: absent
+  become: true
+
+- name: Reload audit rules after removal
+  command: augenrules --load
+  become: true

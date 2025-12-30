@@ -1,0 +1,13 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for MONITORING_audit_process
+- name: Ensure audit rule exists
+  include_tasks: 01_manage_rule.yml
+  when: process_audit_enable_rule | bool
+
+- name: Collect and compare audit data
+  include_tasks: 02_collect_data.yml
+
+- name: Optional cleanup of audit rule
+  include_tasks: 03_remove_rule.yml
+  when: process_audit_remove_rule | bool

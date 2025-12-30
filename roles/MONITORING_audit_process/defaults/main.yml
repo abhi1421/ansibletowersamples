@@ -1,0 +1,14 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for MONITORING_audit_process
+# Enable or disable audit rule creation
+process_audit_enable_rule: true
+
+# Enable cleanup (manual use only)
+process_audit_remove_rule: false
+
+# Directory to store daily audit snapshots
+process_audit_dir: "/var/log/process_audit"
+
+# Audit rule file
+audit_rule_name: "/etc/audit/rules.d/99-process-exec.rules"
