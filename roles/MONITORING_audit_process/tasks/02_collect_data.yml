@@ -57,3 +57,17 @@
       Baseline file created at:
       {{ process_audit_dir }}/{{ audit_today }}.log
       {% endif %}
+
+- name: Register the above tasks output to a variable
+  set_fact:
+    consolidated_report: |
+      ===== Process Execution Audit Report =====
+      Date: {{ lookup('pipe', 'date +%F') }}
+
+      {% for host in ansible_play_hosts_all %}
+      ----------------------------------------
+      Host: {{ host }}
+      {{ hostvars[host].process_exec_report | default('No data collected') }}
+      {% endfor %}
+  delegate_to: localhost
+  run_once: true
