@@ -8,8 +8,8 @@
     validate_certs: "{{ validate_certs }}"
     return_content: true
   loop: "{{ org_hosts.json.results }}"
-    loop_control:
-  label: "{{ item.name }}"
+  loop_control:
+    label: "{{ item.name }}"
   register: host_errata
 
 
