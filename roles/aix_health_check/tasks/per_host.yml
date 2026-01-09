@@ -1,0 +1,63 @@
+# =====================================================
+# roles/aix_health_check/tasks/per_host.yml
+# =====================================================
+- name: Collect uptime
+  shell: uptime
+  register: uptime_out
+
+- name: Collect disk usage
+  shell: df -g
+  register: disk_out
+
+- name: Collect NTP status
+  shell: lssrc -s xntpd
+  register: ntp_out
+
+- name: Collect paging space
+  shell: lsps -s
+  register: paging_out
+
+- name: Collect cluster status
+  shell: lssrc -ls clstrmgrES | grep -i state || true
+  register: cluster_out
+
+- name: Collect OS level
+  shell: oslevel -s
+  register: oslevel_out
+
+- name: Collect IOCP status
+  shell: lsdev -c iocp
+  register: iocp_out
+
+- name: Collect maxuproc
+  shell: lsattr -El sys0 | grep maxuproc
+  register: maxuproc_out
+
+- name: Collect CPU and memory utilization
+  shell: |
+    cpu=$(vmstat 1 1 | tail -1 | awk '{print $16}')
+    mem=$(vmstat -v | grep "percentage of memory used for computational pages" | awk '{print int($1)}')
+    echo "$cpu,$mem"
+  register: perf_out
+
+- name: Collect ERRPT (last 20 entries)
+  shell: errpt | head -20
+  register: errpt_out
+
+- name: Build per-host health structure
+  set_fact:
+    aix_health:
+      host: "{{ inventory_hostname }}"
+      ip: "{{ ansible_host | default(inventory_hostname) }}"
+      uptime: "{{ uptime_out.stdout }}"
+      oslevel: "{{ oslevel_out.stdout }}"
+      cpu_idle: "{{ perf_out.stdout.split(',')[0] }}"
+      mem_comp: "{{ perf_out.stdout.split(',')[1] }}"
+      paging: "{{ paging_out.stdout }}"
+      ntp: "{{ ntp_out.stdout }}"
+      cluster: "{{ cluster_out.stdout | default('Not Configured') }}"
+      iocp: "{{ iocp_out.stdout }}"
+      maxuproc: "{{ maxuproc_out.stdout }}"
+      disk: "{{ disk_out.stdout }}"
+      disk_alerts: "{{ disk_out.stdout_lines | select('search','%') | list }}"
+      errors: "{{ errpt_out.stdout }}"

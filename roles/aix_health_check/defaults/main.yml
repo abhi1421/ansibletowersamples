@@ -1,0 +1,10 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for aix_health_check
+# =====================================================
+# roles/aix_health_check/defaults/main.yml
+# =====================================================
+output_dir: /tmp/aix_health_check
+excel_report: aix_health_check.xlsx
+mail_subject: "Daily AIX Health Check Report"
+aix_group_name: aix

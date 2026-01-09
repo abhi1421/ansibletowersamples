@@ -1,0 +1,61 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for aix_health_check
+
+# =====================================================
+# roles/aix_health_check/tasks/main.yml
+# =====================================================
+- name: Ensure output directory exists on control node
+  file:
+    path: "{{ output_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true
+
+- name: Run per-host AIX health checks
+  include_tasks: per_host.yml
+
+- name: Aggregate health data from all AIX hosts
+  run_once: true
+  delegate_to: localhost
+  set_fact:
+    aix_report: >-
+      {{
+        groups[aix_group_name]
+        | map('extract', hostvars, 'aix_health')
+        | list
+      }}
+
+- name: Generate Excel report
+  run_once: true
+  delegate_to: localhost
+  command: >
+    python3 {{ role_path }}/scripts/generate_excel.py
+    '{{ aix_report | to_json }}'
+    '{{ output_dir }}/{{ excel_report }}'
+
+- name: Build consolidated mail body
+  run_once: true
+  set_fact:
+    mail_body: |
+      AIX Daily Health Check Report
+      ============================
+      Date: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+
+      {% for h in aix_report %}
+      Host        : {{ h.host }}
+      IP          : {{ h.ip }}
+      OS Level    : {{ h.oslevel }}
+      Uptime      : {{ h.uptime }}
+      CPU Idle %  : {{ h.cpu_idle }}
+      Mem Comp %  : {{ h.mem_comp }}
+      Paging      : {{ h.paging }}
+      NTP Status  : {{ h.ntp }}
+      Cluster     : {{ h.cluster }}
+      IOCP        : {{ h.iocp }}
+      maxuproc    : {{ h.maxuproc }}
+      Disk Alerts : {{ h.disk_alerts | default('None') }}
+      Errors      : {{ h.errors | default('None') }}
+      -------------------------------
+      {% endfor %}
