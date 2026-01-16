@@ -306,7 +306,6 @@
           IP Address    : {{ ansible_facts.default_ipv4.address }}
           OS            : {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
           Kernel        : {{ ansible_facts.kernel }}
-          Uptime        : {{ ansible_facts.uptime }}
           Execution Time: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
     
           Backup Summary
