@@ -1,0 +1,356 @@
+---
+- name: SNL / SAG backup & restart workflow
+  hosts: all              # change to your target host/group
+  gather_facts: yes
+  remote_user: "{{ ansible_user | default(omit) }}"
+  become: true
+  vars:
+    # Change this to the date/dir suffix you want; override at runtime in AAP extra_vars.
+    backup_date: "{{ lookup('pipe', 'date +%d%m%Y') }}"
+    backup_root: "/tmp/backup/{{ backup_date }}"
+    sag_backup_dir: "{{ backup_root }}/sagbackup1"
+    snl_backup_dir: "{{ backup_root }}/snl1"
+    sag_bin_dir: "/Alliance/Gateway/bin"
+    swiftnet_bin_dir: "/opt/swift/SNL/Swiftnet/bin"
+    snl_data_dir: "/opt/swift/SNL/Swiftnet/data/pki"
+    secrets_src: "/etc/opt/secrets_backup"
+    perl_backup_script: "/opt/swift/SNL/Swiftnet/SNL_BackUp.pl"
+    # Who to run the commands as. AAP should provide this user or run as this user.
+    run_as_user: "swnet"
+    sag_status_retries: 20
+    sag_status_delay: 6
+
+  pre_tasks:
+    - name: Ensure we're running commands as swnet
+      debug:
+        msg: "Commands will be executed as user '{{ run_as_user }}' (use AAP connection/privileges accordingly)."
+
+  tasks:
+    - name: Ensure backup directories exist (root of backups)
+      ansible.builtin.file:
+        path: "{{ sag_backup_dir }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ run_as_user }}"
+        group: "{{ run_as_user }}"
+      become_user: root
+
+    - name: Ensure snl backup dir exists
+      ansible.builtin.file:
+        path: "{{ snl_backup_dir }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ run_as_user }}"
+        group: "{{ run_as_user }}"
+      become_user: root
+
+    - name: Check current SAG status (raw)
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "status"
+      register: sag_status_raw
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Print current SAG status (short)
+      ansible.builtin.debug:
+        msg: "{{ sag_status_raw.stdout_lines | default([]) }}"
+
+    - name: Issue sag_system stop
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "stop"
+      register: sag_stop
+      changed_when: "'launched successfully' in (sag_stop.stdout | lower) or sag_stop.rc == 0"
+      become_user: "{{ run_as_user }}"
+
+    - name: Wait until SAG reports 'stopped'
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "status"
+      register: sag_status_stop_check
+      retries: "{{ sag_status_retries }}"
+      delay: "{{ sag_status_delay }}"
+      until: >
+        (sag_status_stop_check.stdout is defined)
+        and
+        ("<Sag:PcState>stopped</Sag:PcState>" in sag_status_stop_check.stdout or
+         "'stopped'" in sag_status_stop_check.stdout.lower() or
+         "pcstate>stopped" in sag_status_stop_check.stdout.lower())
+      become_user: "{{ run_as_user }}"
+
+    - name: Create final sag backup directory
+      ansible.builtin.file:
+        path: "{{ sag_backup_dir }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ run_as_user }}"
+        group: "{{ run_as_user }}"
+      become_user: root
+
+    - name: Run sag_system backup into backup dir
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "backup"
+          - "{{ sag_backup_dir }}/sag"
+      register: sag_backup_cmd
+      become_user: "{{ run_as_user }}"
+      changed_when: "'finished successfully' in (sag_backup_cmd.stdout | lower) or sag_backup_cmd.rc == 0"
+
+    - name: List sag backup directory contents
+      ansible.builtin.command:
+        argv:
+          - ls
+          - -lrt
+          - "{{ sag_backup_dir }}/"
+      register: sag_backup_ls
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show sag backup ls
+      ansible.builtin.debug:
+        msg: "{{ sag_backup_ls.stdout_lines | default([]) }}"
+
+    - name: Report disk usage of sag backup (MB)
+      ansible.builtin.command:
+        argv:
+          - du
+          - -sm
+          - "{{ sag_backup_dir }}/"
+      register: sag_backup_du
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show sag backup size
+      ansible.builtin.debug:
+        msg: "{{ sag_backup_du.stdout }}"
+
+    - name: Initialize SWIFTNet environment (swiftnet init)
+      ansible.builtin.command:
+        argv:
+          - "{{ swiftnet_bin_dir }}/swiftnet"
+          - "init"
+      register: swiftnet_init
+      become_user: "{{ run_as_user }}"
+
+    - name: Check swiftnet status (raw)
+      ansible.builtin.command:
+        argv:
+          - "{{ swiftnet_bin_dir }}/swiftnet"
+          - "status"
+      register: swiftnet_status_before
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show swiftnet status
+      ansible.builtin.debug:
+        msg: "{{ swiftnet_status_before.stdout_lines | default([]) }}"
+
+    - name: Run SNL Perl backup utility (non-interactive style)
+      ansible.builtin.command:
+        argv:
+          - perl
+          - "{{ perl_backup_script }}"
+          - "{{ snl_backup_dir }}"
+      register: perl_backup
+      become_user: "{{ run_as_user }}"
+      # if this script is interactive on your system you may need to adapt it or pass flags that make it non-interactive
+
+    - name: Show result of SNL_BackUp.pl
+      ansible.builtin.debug:
+        msg: "{{ perl_backup.stdout_lines | default([]) }}"
+
+    - name: List snl backup dir after perl script
+      ansible.builtin.command:
+        argv:
+          - ls
+          - -lrt
+          - "{{ snl_backup_dir }}"
+      register: snl_backup_ls
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show snl backup ls
+      ansible.builtin.debug:
+        msg: "{{ snl_backup_ls.stdout_lines | default([]) }}"
+
+    - name: Report disk usage of snl backup dir (MB)
+      ansible.builtin.command:
+        argv:
+          - du
+          - -sm
+          - "{{ snl_backup_dir }}"
+      register: snl_backup_du
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show snl backup size
+      ansible.builtin.debug:
+        msg: "{{ snl_backup_du.stdout }}"
+
+    - name: Ensure pkidata destination exists
+      ansible.builtin.file:
+        path: "{{ snl_backup_dir }}/pkidata"
+        state: directory
+        owner: "{{ run_as_user }}"
+        group: "{{ run_as_user }}"
+        mode: "0700"
+      become_user: root
+
+    - name: Copy PKI data (preserve attributes) using cp -a
+      ansible.builtin.command:
+        cmd: cp -a "{{ snl_data_dir }}/" "{{ snl_backup_dir }}/pkidata/"
+      register: cp_pkidata
+      become_user: "{{ run_as_user }}"
+      changed_when: cp_pkidata.rc == 0
+
+    - name: Ensure secrets destination exists
+      ansible.builtin.file:
+        path: "{{ snl_backup_dir }}/secrets"
+        state: directory
+        owner: "{{ run_as_user }}"
+        group: "{{ run_as_user }}"
+        mode: "0700"
+      become_user: root
+
+    - name: Copy secrets backup (preserve attributes)
+      ansible.builtin.command:
+        cmd: cp -a "{{ secrets_src }}/" "{{ snl_backup_dir }}/secrets/"
+      register: cp_secrets
+      become_user: "{{ run_as_user }}"
+      changed_when: cp_secrets.rc == 0
+
+    - name: Verify pkidata listing
+      ansible.builtin.command:
+        argv:
+          - ls
+          - -lrt
+          - "{{ snl_backup_dir }}/pkidata"
+      register: pkidata_ls
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Show pkidata listing
+      ansible.builtin.debug:
+        msg: "{{ pkidata_ls.stdout_lines | default([]) }}"
+
+    - name: Double-check SAG is stopped before starting it again (status)
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "status"
+      register: sag_status_double_check
+      changed_when: false
+      become_user: "{{ run_as_user }}"
+
+    - name: Start sag_system
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "start"
+      register: sag_start
+      become_user: "{{ run_as_user }}"
+
+    - name: Wait until SAG reports 'started'
+      ansible.builtin.command:
+        argv:
+          - "{{ sag_bin_dir }}/sag_system"
+          - "--"
+          - "status"
+      register: sag_status_start_check
+      retries: "{{ sag_status_retries }}"
+      delay: "{{ sag_status_delay }}"
+      until: >
+        (sag_status_start_check.stdout is defined)
+        and
+        ("<Sag:PcState>started</Sag:PcState>" in sag_status_start_check.stdout or
+         "'started'" in sag_status_start_check.stdout.lower() or
+         "pcstate>started" in sag_status_start_check.stdout.lower())
+      become_user: "{{ run_as_user }}"
+
+    - name: Final SAG status (print)
+      ansible.builtin.debug:
+        msg: "{{ sag_status_start_check.stdout_lines | default([]) }}"
+
+  post_tasks:
+    - name: Summary - show important outputs
+      ansible.builtin.debug:
+        msg:
+          - "sag_backup_ls: {{ sag_backup_ls.stdout | default('N/A') }}"
+          - "sag_backup_du: {{ sag_backup_du.stdout | default('N/A') }}"
+          - "snl_backup_ls: {{ snl_backup_ls.stdout | default('N/A') }}"
+          - "snl_backup_du: {{ snl_backup_du.stdout | default('N/A') }}"
+          - "final_sag_status: {{ sag_status_start_check.stdout | default('N/A') }}"
+
+
+
+- name: Build consolidated report for email
+  ansible.builtin.set_fact:
+    backup_report: |
+      SNL / SAG Backup Report
+      ================================
+      Host Information
+      ----------------
+      Hostname      : {{ ansible_facts.hostname }}
+      FQDN          : {{ ansible_facts.fqdn }}
+      IP Address    : {{ ansible_facts.default_ipv4.address }}
+      OS            : {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+      Kernel        : {{ ansible_facts.kernel }}
+      Uptime        : {{ ansible_facts.uptime }}
+      Execution Time: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+
+      Backup Summary
+      --------------
+      Backup Root Directory : {{ backup_root }}
+
+      SAG Backup
+        Directory : {{ sag_backup_dir }}
+        Size      : {{ sag_backup_du.stdout | default('N/A') }}
+        Contents  :
+        {% for line in sag_backup_ls.stdout_lines | default([]) %}
+          - {{ line }}
+        {% endfor %}
+
+      SNL Backup
+        Directory : {{ snl_backup_dir }}
+        Size      : {{ snl_backup_du.stdout | default('N/A') }}
+        Contents  :
+        {% for line in snl_backup_ls.stdout_lines | default([]) %}
+          - {{ line }}
+        {% endfor %}
+
+      PKI Data Copied To:
+        {{ snl_backup_dir }}/pkidata
+        {% for line in pkidata_ls.stdout_lines | default([]) %}
+          - {{ line }}
+        {% endfor %}
+
+      SAG Final Status
+      ----------------
+        {% for line in sag_status_start_check.stdout_lines | default([]) %}
+        {{ line }}
+        {% endfor %}
+
+      Overall Result: SUCCESS
+      (Review AAP job log for more details)
+
+
+#- name: Send backup report email
+#  ansible.builtin.mail:
+#    host: "{{ smtp_server }}"
+#    port: "{{ smtp_port | default(25) }}"
+#    to: "{{ email_recipients }}"
+#    from: "aap-automation@bank.com"
+#    subject: "SNL / SAG Backup Report - {{ inventory_hostname }}"
+#    body: "{{ backup_report }}"
+
