@@ -314,7 +314,7 @@
     
           SAG Backup
             Directory : {{ sag_backup_dir }}
-            Size      : {{ sag_backup_du.stdout | default('N/A') }}
+            Size      : {{ sag_backup_du.stdout.split()[0] }} MB
             Contents  :
             {% for line in sag_backup_ls.stdout_lines | default([]) %}
               - {{ line }}
@@ -322,7 +322,7 @@
     
           SNL Backup
             Directory : {{ snl_backup_dir }}
-            Size      : {{ snl_backup_du.stdout | default('N/A') }}
+            Size      : {{ snl_backup_du.stdout.split()[0] }} MB
             Contents  :
             {% for line in snl_backup_ls.stdout_lines | default([]) %}
               - {{ line }}
