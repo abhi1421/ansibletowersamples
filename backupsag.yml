@@ -294,55 +294,55 @@
 
 
 
-- name: Build consolidated report for email
-  ansible.builtin.set_fact:
-    backup_report: |
-      SNL / SAG Backup Report
-      ================================
-      Host Information
-      ----------------
-      Hostname      : {{ ansible_facts.hostname }}
-      FQDN          : {{ ansible_facts.fqdn }}
-      IP Address    : {{ ansible_facts.default_ipv4.address }}
-      OS            : {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
-      Kernel        : {{ ansible_facts.kernel }}
-      Uptime        : {{ ansible_facts.uptime }}
-      Execution Time: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
-
-      Backup Summary
-      --------------
-      Backup Root Directory : {{ backup_root }}
-
-      SAG Backup
-        Directory : {{ sag_backup_dir }}
-        Size      : {{ sag_backup_du.stdout | default('N/A') }}
-        Contents  :
-        {% for line in sag_backup_ls.stdout_lines | default([]) %}
-          - {{ line }}
-        {% endfor %}
-
-      SNL Backup
-        Directory : {{ snl_backup_dir }}
-        Size      : {{ snl_backup_du.stdout | default('N/A') }}
-        Contents  :
-        {% for line in snl_backup_ls.stdout_lines | default([]) %}
-          - {{ line }}
-        {% endfor %}
-
-      PKI Data Copied To:
-        {{ snl_backup_dir }}/pkidata
-        {% for line in pkidata_ls.stdout_lines | default([]) %}
-          - {{ line }}
-        {% endfor %}
-
-      SAG Final Status
-      ----------------
-        {% for line in sag_status_start_check.stdout_lines | default([]) %}
-        {{ line }}
-        {% endfor %}
-
-      Overall Result: SUCCESS
-      (Review AAP job log for more details)
+    - name: Build consolidated report for email
+      ansible.builtin.set_fact:
+        backup_report: |
+          SNL / SAG Backup Report
+          ================================
+          Host Information
+          ----------------
+          Hostname      : {{ ansible_facts.hostname }}
+          FQDN          : {{ ansible_facts.fqdn }}
+          IP Address    : {{ ansible_facts.default_ipv4.address }}
+          OS            : {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+          Kernel        : {{ ansible_facts.kernel }}
+          Uptime        : {{ ansible_facts.uptime }}
+          Execution Time: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+    
+          Backup Summary
+          --------------
+          Backup Root Directory : {{ backup_root }}
+    
+          SAG Backup
+            Directory : {{ sag_backup_dir }}
+            Size      : {{ sag_backup_du.stdout | default('N/A') }}
+            Contents  :
+            {% for line in sag_backup_ls.stdout_lines | default([]) %}
+              - {{ line }}
+            {% endfor %}
+    
+          SNL Backup
+            Directory : {{ snl_backup_dir }}
+            Size      : {{ snl_backup_du.stdout | default('N/A') }}
+            Contents  :
+            {% for line in snl_backup_ls.stdout_lines | default([]) %}
+              - {{ line }}
+            {% endfor %}
+    
+          PKI Data Copied To:
+            {{ snl_backup_dir }}/pkidata
+            {% for line in pkidata_ls.stdout_lines | default([]) %}
+              - {{ line }}
+            {% endfor %}
+    
+          SAG Final Status
+          ----------------
+            {% for line in sag_status_start_check.stdout_lines | default([]) %}
+            {{ line }}
+            {% endfor %}
+    
+          Overall Result: SUCCESS
+          (Review AAP job log for more details)
 
 
 #- name: Send backup report email
