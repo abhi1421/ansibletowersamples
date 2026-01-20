@@ -1,0 +1,9 @@
+---
+- name: Test variable precendence
+  hosts: all
+  var:
+    my_var: "In the playbook"
+  tasks:
+    - name: Task to test var precendence
+      debug:
+        var: my_var
