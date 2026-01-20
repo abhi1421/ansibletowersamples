@@ -1,0 +1,63 @@
+---
+- name: Instana Failover - Zone Switch Execution
+  hosts: instana_agents
+  become: yes
+  vars:
+    switch_from: "ODC"
+    switch_to: "PDC"
+  roles:
+    - instana_failover
+
+# ------------------------------------------------------------------------------
+# Consolidated reporting from controller
+# ------------------------------------------------------------------------------
+- name: Gather and email consolidated failover report
+  hosts: localhost
+  gather_facts: no
+  vars:
+    email_recipient: "ops-team@bank.internal"
+    email_sender: "aap@bank.internal"
+  tasks:
+    - name: Fetch all individual host reports
+      fetch:
+        src: "/tmp/instana_failover_report_{{ inventory_hostname }}.txt"
+        dest: "/tmp/instana_reports/"
+        flat: yes
+      loop: "{{ groups['instana_agents'] }}"
+      loop_control:
+        loop_var: inventory_hostname
+      ignore_errors: yes
+
+    - name: Consolidate reports into one summary
+      shell: "cat /tmp/instana_reports/*.txt > /tmp/instana_failover_summary.txt"
+      ignore_errors: yes
+
+    - name: Add failed/unreachable summary
+      copy:
+        dest: /tmp/instana_failover_summary.txt
+        content: |
+          ------------------------------------------------------------
+          PLAY RECAP SUMMARY
+          ------------------------------------------------------------
+          {% for host in play_hosts %}
+          {{ host }}:
+            ok={{ hostvars[host].ansible_facts['ok'] | default('N/A') }}
+            changed={{ hostvars[host].ansible_facts['changed'] | default('N/A') }}
+          {% endfor %}
+          ------------------------------------------------------------
+          {% for host in ansible_play_hosts_all %}
+          {% if host not in play_hosts %}
+          {{ host }}: UNREACHABLE or FAILED
+          {% endif %}
+          {% endfor %}
+        mode: '0644'
+        append: yes
+
+    - name: Email consolidated summary
+      mail:
+        host: localhost
+        port: 25
+        to: "{{ email_recipient }}"
+        from: "{{ email_sender }}"
+        subject: "Instana Failover Summary Report ({{ switch_from }} → {{ switch_to }})"
+        body: "{{ lookup('file', '/tmp/instana_failover_summary.txt') }}"

@@ -1,3 +1,130 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for instana_failover_switch
+- name: Validate inputs
+  fail:
+    msg: "Both switch_from and switch_to vars must be provided."
+  when: switch_from is not defined or switch_to is not defined
+
+- name: Read current environment file
+  slurp:
+    src: "{{ instana_env_file }}"
+  register: env_file
+  ignore_errors: yes
+
+- name: Decode current file content
+  set_fact:
+    current_env: "{{ env_file['content'] | b64decode if env_file['content'] is defined else '' }}"
+
+- name: Detect current zone based on URL
+  set_fact:
+    current_zone: >-
+      {% if zones['ODC'].url in current_env %}
+        ODC
+      {% elif zones['PDC'].url in current_env %}
+        PDC
+      {% else %}
+        UNKNOWN
+      {% endif %}
+
+- name: Check if instana-agent service is active
+  command: systemctl is-active instana-agent
+  register: instana_status
+  ignore_errors: yes
+
+- name: Get current reporting endpoint (from systemd)
+  command: systemctl show instana-agent
+  register: instana_show
+  ignore_errors: yes
+
+- name: Extract environment entries
+  set_fact:
+    service_env: "{{ instana_show.stdout_lines | select('search', 'INSTANA_') | list | join(', ') }}"
+  when: instana_show.stdout_lines is defined
+
+# -------------------------------------------------------------------
+# If already in switch_to zone — skip actions, just report
+# -------------------------------------------------------------------
+- name: Skip actions if already in target zone
+  when: current_zone == switch_to
+  block:
+    - name: Debug - Already in zone
+      debug:
+        msg: "System already in {{ switch_to }} zone. No action performed."
+
+    - name: Write no-change report
+      copy:
+        dest: "/tmp/instana_failover_report_{{ inventory_hostname }}.txt"
+        content: |
+          Hostname: {{ inventory_hostname }}
+          Current Zone: {{ current_zone }}
+          Target Zone: {{ switch_to }}
+          Service Status: {{ instana_status.stdout | default('unknown') }}
+          Reporting Endpoint: {{ service_env | default('N/A') }}
+          Result: NO CHANGE REQUIRED
+    - meta: end_play
+
+# -------------------------------------------------------------------
+# Perform actual switch
+# -------------------------------------------------------------------
+- name: Stop instana-agent service if active
+  service:
+    name: instana-agent
+    state: stopped
+  when: instana_status.stdout == "active"
+
+- name: Remove old Environment entries
+  lineinfile:
+    path: "{{ instana_env_file }}"
+    regexp: '^Environment='
+    state: absent
+  ignore_errors: yes
+
+- name: Write new environment for target zone
+  blockinfile:
+    path: "{{ instana_env_file }}"
+    block: |
+      Environment="INSTANA_AGENT_KEY={{ zones[switch_to].key }}"
+      Environment="INSTANA_AGENT_ENDPOINT={{ zones[switch_to].url }}"
+    marker: "# --- Instana {{ switch_to }} Environment ---"
+
+- name: Update shell visibility
+  copy:
+    dest: "{{ instana_profile_env }}"
+    content: |
+      export INSTANA_AGENT_KEY={{ zones[switch_to].key }}
+      export INSTANA_AGENT_ENDPOINT={{ zones[switch_to].url }}
+    mode: '0644'
+
+- name: Reload systemd and restart agent
+  block:
+    - command: systemctl daemon-reload
+    - service:
+        name: instana-agent
+        state: restarted
+
+- name: Verify service restart
+  command: systemctl is-active instana-agent
+  register: post_status
+  ignore_errors: yes
+
+- name: Capture post-change environment
+  command: systemctl show instana-agent
+  register: post_env
+  ignore_errors: yes
+
+- name: Extract applied variables
+  set_fact:
+    new_service_env: "{{ post_env.stdout_lines | select('search', 'INSTANA_') | list | join(', ') }}"
+  when: post_env.stdout_lines is defined
+
+- name: Write success report
+  copy:
+    dest: "/tmp/instana_failover_report_{{ inventory_hostname }}.txt"
+    content: |
+      Hostname: {{ inventory_hostname }}
+      Previous Zone: {{ switch_from }}
+      New Zone: {{ switch_to }}
+      Service Status After Change: {{ post_status.stdout | default('unknown') }}
+      Applied Environment: {{ new_service_env | default('N/A') }}
+      Result: ZONE SWITCH SUCCESSFUL

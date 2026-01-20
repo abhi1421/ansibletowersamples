@@ -10,3 +10,17 @@ zones:
     url: "https://pdc.instana.bank.internal"
 
 instana_env_file: "/etc/systemd/system/instana-agent.service.d/10-environment.conf"
+
+
+---
+instana_env_file: /etc/systemd/system/instana-agent.service.d/10-environment.conf
+instana_profile_env: /etc/profile.d/instana_env.sh
+
+# Define your zone keys and URLs (example only)
+zones:
+  ODC:
+    key: "ODC_INSTANA_KEY_XXXX"
+    url: "https://odc.instana.bank.internal"
+  PDC:
+    key: "PDC_INSTANA_KEY_YYYY"
+    url: "https://pdc.instana.bank.internal"
