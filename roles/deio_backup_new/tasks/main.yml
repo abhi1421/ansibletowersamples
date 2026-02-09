@@ -21,6 +21,7 @@
     is_yesterday_holiday: "{{ yesterday_date in holiday_list }}"
 
 
+
 # -------------------------------
 # Compute action flags based on FINAL rules
 # -------------------------------
@@ -28,13 +29,11 @@
   ansible.builtin.set_fact:
 
     skip_backup: >-
-      {% if today_day == "Sunday" %}
+      {% if yesterday_day == "Saturday" %}
         true
       {% elif yesterday_day == "Sunday" %}
         true
       {% elif is_yesterday_holiday %}
-        true
-      {% elif today_day == "Monday" %}
         true
       {% else %}
         false
@@ -50,7 +49,6 @@
       {% else %}
         false
       {% endif %}
-
 
 # -------------------------------
 # Compute action flags (weekday + holiday)
