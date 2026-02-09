@@ -17,6 +17,14 @@
       run_once: true
       delegate_to: localhost
 
+    - name: Push data to workflow for consolidation
+      ansible.builtin.set_stats:
+        data:
+          all_health_reports: "{{ all_health_reports }}"
+      run_once: true
+      delegate_to: localhost
+
+
 #    - name: Send report via email
 #      community.general.mail:
 #        host: 10.35.1.17
