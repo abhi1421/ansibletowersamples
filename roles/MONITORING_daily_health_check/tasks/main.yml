@@ -1,0 +1,44 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for MONITORING_daily_health_check
+- name: Gather system facts
+  setup:
+
+- name: Check CPU load
+  shell: uptime | awk -F'load average:' '{ print $2 }' | cut -d',' -f1 | xargs
+  register: cpu_load
+
+- name: Check memory usage
+  shell: free | awk '/Mem:/ { printf("%.0f", $3/$2 * 100) }'
+  register: mem_usage
+
+- name: Check disk usage
+  shell: df -h / | awk 'NR==2 {print $5}' | tr -d '%'
+  register: disk_usage
+
+- name: Check I/O wait
+  shell: iostat -c 1 2 | awk '/^ / {print $4}' | tail -1
+  register: iowait
+  ignore_errors: yes
+
+- name: Set alert condition
+  set_fact:
+    alert: "{{ (cpu_load.stdout|float > cpu_load_threshold|float) or
+               (mem_usage.stdout|int > memory_usage_threshold|int) or
+               (disk_usage.stdout|int > disk_usage_threshold|int) or
+               (iowait.stdout|default(0)|float > iowait_threshold|float) }}"
+
+- name: Store health metrics for consolidation
+  ansible.builtin.set_fact:
+    health_metrics:
+      system_hostname: "{{ inventory_hostname }}" # Store hostname for the report
+      cpu_load: "{{ cpu_load.stdout | trim }}"
+      mem_usage: "{{ mem_usage.stdout | int }}"
+      disk_usage: "{{ disk_usage.stdout | int }}"
+      iowait: "{{ iowait.stdout | default('N/A') }}"
+      alert: "{{ alert }}" # Use the previously calculated alert boolean
+      thresholds:
+        cpu: "{{ cpu_load_threshold }}"
+        mem: "{{ memory_usage_threshold }}"
+        disk: "{{ disk_usage_threshold }}"
+        io: "{{ iowait_threshold }}"

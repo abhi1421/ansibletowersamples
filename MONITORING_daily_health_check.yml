@@ -1,0 +1,46 @@
+---
+- name: Daily health check ansible role
+  hosts: all
+  gather_facts: true
+  become: true # Use sudo for privileged operations
+  roles:
+    - MONITORING_daily_health_check
+
+- name:
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Gather all host metrics on controller
+      ansible.builtin.set_fact:
+        # Pulls the 'health_metrics' dictionary from all hosts that ran the playbook
+        all_health_reports: "{{ ansible_play_hosts_all | map('extract', hostvars, 'health_metrics') | select('defined') | list }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Send report via email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "System Health Report: Consolidated Status"
+        body: |
+          System Health Consolidated Report
+          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+
+          ===============================================================
+          {% for report in all_health_reports %}
+          SERVER: {{ report.system_hostname | upper }}
+          STATUS: {% if report.alert %}🔴 ALERT (Thresholds Exceeded){% else %}🟢 OK{% endif %}
+
+          ---------------------------------------------------------------
+          Thresholds: CPU > {{ report.thresholds.cpu }}, Mem > {{ report.thresholds.mem }}%, Disk > {{ report.thresholds.disk }}% IO > {{ report.thresholds.io}}%
+          ---------------------------------------------------------------
+          CPU Load        : {{ report.cpu_load | float | round(2) }}
+          Memory Usage    : {{ report.mem_usage }}%
+          Disk Usage      : {{ report.disk_usage }}%
+          I/O Wait        : {{ report.iowait }}%
+          ===============================================================
+          {% endfor %}
+      run_once: true
+      delegate_to: localhost
