@@ -19,14 +19,10 @@
           COMBINED MONITORING REPORT
           Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}            
           ============================================================
-    
           DAILY HEALTH CHECK – CRITICAL ALERTS
-    
           {% if critical_health | length > 0 %}
-    
           Hostname           CPU Load   Memory%   Disk%   I/O Wait
           ---------------------------------------------------------
-    
           {% for report in critical_health %}
           {{ "%-18s %-10s %-9s %-7s %-8s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage, report.iowait | default('N/A')) }}
           {% endfor %}
