@@ -57,6 +57,11 @@
           <hr>
           <p><i>This is an auto-generated consolidated monitoring summary.</i></p>
 
+- name: Display formatted email body
+  debug:
+    msg: "{{ combined_email_body }}"
+
+
 #    - name: Send consolidated report email
 #      community.general.mail:
 #        host: 10.35.1.17
