@@ -17,28 +17,27 @@
       set_fact:
         combined_email_body: |
           COMBINED MONITORING REPORT
-          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
-
+          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}            
           ============================================================
-
+    
           DAILY HEALTH CHECK – CRITICAL ALERTS
-
+    
           {% if critical_health | length > 0 %}
-
-          | Hostname | CPU Load | Memory Usage (%) | Disk Usage (%) | I/O Wait |
-          |----------|----------|------------------|----------------|----------|
+    
+          Hostname           CPU Load   Memory%   Disk%   I/O Wait
+          ---------------------------------------------------------
+    
           {% for report in critical_health %}
-          | {{ report.system_hostname }} | {{ report.cpu_load }} | {{ report.mem_usage }} | {{ report.disk_usage }} | {{ report.iowait }} |
+          {{ "%-18s %-10s %-9s %-7s %-8s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage, report.iowait | default('N/A')) }}
           {% endfor %}
-
+    
           {% else %}
-
+    
           No Critical Health Alerts Detected
-
+    
           {% endif %}
-
           ============================================================
-
+    
           This is an auto-generated consolidated monitoring summary.
 
     - name: Display formatted email body
