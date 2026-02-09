@@ -13,49 +13,33 @@
       set_fact:
         critical_health: "{{ health_data | selectattr('alert','equalto', true) | list }}"
 
-    - name: Build email body as variable
+    - name: Build Markdown formatted email body
       set_fact:
         combined_email_body: |
-          <h2>Combined Monitoring Report</h2>
-          <p>Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}</p>
+          COMBINED MONITORING REPORT
+          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
 
-          <hr>
+          ============================================================
 
-          <h3>DAILY HEALTH CHECK – CRITICAL ALERTS</h3>
+          DAILY HEALTH CHECK – CRITICAL ALERTS
 
           {% if critical_health | length > 0 %}
 
-          <table border="1" cellpadding="5" cellspacing="0">
-          <tr style="background-color:#f2f2f2">
-            <th>Hostname</th>
-            <th>CPU Load</th>
-            <th>Memory Usage (%)</th>
-            <th>Disk Usage (%)</th>
-            <th>I/O Wait</th>
-            <th>Status</th>
-          </tr>
-
+          | Hostname | CPU Load | Memory Usage (%) | Disk Usage (%) | I/O Wait |
+          |----------|----------|------------------|----------------|----------|
           {% for report in critical_health %}
-          <tr>
-            <td>{{ report.system_hostname }}</td>
-            <td>{{ report.cpu_load }}</td>
-            <td>{{ report.mem_usage }}</td>
-            <td>{{ report.disk_usage }}</td>
-            <td>{{ report.iowait }}</td>
-            <td style="color:red"><b>CRITICAL</b></td>
-          </tr>
+          | {{ report.system_hostname }} | {{ report.cpu_load }} | {{ report.mem_usage }} | {{ report.disk_usage }} | {{ report.iowait }} |
           {% endfor %}
-
-          </table>
 
           {% else %}
 
-          <p style="color:green"><b>No Critical Health Alerts Detected</b></p>
+          No Critical Health Alerts Detected
 
           {% endif %}
 
-          <hr>
-          <p><i>This is an auto-generated consolidated monitoring summary.</i></p>
+          ============================================================
+
+          This is an auto-generated consolidated monitoring summary.
 
     - name: Display formatted email body
       debug:
