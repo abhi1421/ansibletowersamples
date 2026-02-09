@@ -21,10 +21,10 @@
           ============================================================
           DAILY HEALTH CHECK – CRITICAL ALERTS
           {% if critical_health | length > 0 %}
-          Hostname           CPU Load   Memory%   Disk%   I/O Wait
-          ---------------------------------------------------------
+          Hostname           CPU Load   Memory%   Disk%
+          ----------------------------------------------
           {% for report in critical_health %}
-          {{ "%-18s %-10s %-9s %-7s %-8s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage, report.iowait | default('N/A')) }}
+          {{ "%-18s %-10s %-9s %-7s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage | default('N/A')) }}
           {% endfor %}
     
           {% else %}
