@@ -3,7 +3,7 @@
   hosts: all
   vars:
     target_user: ansible
-    new_password: ansible
+    new_password: redhat
 
   tasks:
 
@@ -23,7 +23,7 @@
     - debug:
         msg: "Password expires in {{ days_remaining.stdout }} days"
 
-    - name: Reset password as it expires within 7-10 dayschage -l {{ target_user }} | grep 'Password expires' | awk -F': ' '{print $2}'
+    - name: Reset password as it expires within 7-10 days
       user:
         name: "{{ target_user }}"
         password: "{{ 'new_password' | password_hash('sha512') }}"
