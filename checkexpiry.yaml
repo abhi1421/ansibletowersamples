@@ -1,0 +1,37 @@
+---
+- name: Reset password if nearing expiry
+  hosts: all
+  vars:
+    target_user: ansible
+    new_password: ansible
+
+  tasks:
+
+    - name: Get password expiry information
+      shell: "chage -l {{ target_user }} | grep 'Password expires' | awk -F': ' '{print $2}'"
+      register: expiry_date
+      changed_when: false
+
+    - name: Calculate days remaining until password expiry
+      shell: |
+        expiry=$(date -d "{{ expiry_date.stdout }}" +%s)
+        today=$(date +%s)
+        echo $(( (expiry - today) / 86400 ))
+      register: days_remaining
+      changed_when: false
+
+    - debug:
+        msg: "Password expires in {{ days_remaining.stdout }} days"
+
+    - name: Reset password as it expires within 7-10 dayschage -l {{ target_user }} | grep 'Password expires' | awk -F': ' '{print $2}'
+      user:
+        name: "{{ target_user }}"
+        password: "{{ 'new_password' | password_hash('sha512') }}"
+        update_password: always
+      when:
+        - days_remaining.stdout | int >= 7
+        - days_remaining.stdout | int <= 10
+
+    - name: Continue with further tasks
+      debug:
+        msg: "Proceeding with rest of playbook"
