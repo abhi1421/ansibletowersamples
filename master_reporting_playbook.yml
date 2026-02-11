@@ -32,11 +32,12 @@
 
     - name: Initialize password expiry data from workflow
       set_fact:
-        password_data: "{{ password_expiry_metrics | default([]) }}"
+        password_data: "{{ password_expiry_metrics | default([]) if (password_expiry_metrics is defined and password_expiry_metrics is iterable) else [] }}"
     
     - name: Filter hosts with expiring users
       set_fact:
-        critical_password: "{{ password_data | selectattr('has_expiring_users','equalto', true) | list }}"
+        critical_passwords: "{{ password_data | selectattr('has_expiring_users','defined') | selectattr('has_expiring_users','equalto', true) | list }}"
+
 
 
 
