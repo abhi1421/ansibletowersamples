@@ -80,7 +80,15 @@
       new_commands: "{{ new_execs.stdout_lines | default([]) }}"
       has_new_commands: "{{ (new_execs.stdout_lines | default([]) | length) > 0 }}"
 
-- name: Push process audit metrics to workflow
+- name: Aggregate process audit metrics on controller
+  set_fact:
+    all_process_audit: "{{ ansible_play_hosts_all | map('extract', hostvars, 'process_audit_metrics') | select('defined') | list }}"
+  run_once: true
+  delegate_to: localhost
+
+- name: Push aggregated process audit metrics to workflow
   set_stats:
     data:
-      process_audit_metrics: "{{ process_audit_metrics }}"
+      all_process_audit: "{{ all_process_audit }}"
+  run_once: true
+  delegate_to: localhost
