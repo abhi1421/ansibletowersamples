@@ -4,7 +4,9 @@
   gather_facts: true
 
   tasks:
-
+##################################
+#Daily health check section
+##################################
     - name: Initialize variables from workflow
       set_fact:
         health_data: "{{ all_health_reports | default([]) }}"
@@ -12,6 +14,22 @@
     - name: Filter only critical health alerts
       set_fact:
         critical_health: "{{ health_data | selectattr('alert','equalto', true) | list }}"
+
+##################################
+#Process Audit section
+##################################
+    - name: Initialize process audit data from workflow
+      set_fact:
+        audit_data: "{{ process_audit_metrics | default([]) }}"
+  
+    - name: Filter hosts with new commands
+      set_fact:
+        critical_audit: "{{ audit_data | selectattr('has_new_commands','equalto', true) | list }}"
+
+
+##################################
+## MAIN EMAIL SECTION
+##################################
 
     - name: Build Markdown formatted email body
       set_fact:
@@ -33,8 +51,30 @@
     
           {% endif %}
           ============================================================
-    
-          This is an auto-generated consolidated monitoring summary.
+          ============================================================
+
+          PROCESS AUDIT NEW COMMANDS
+          {% if critical_audit | length > 0 %}
+          Hostname           New Commands
+          -----------------------------------------------------------
+          {% for item in critical_audit %}
+          {% if item.new_commands | length > 0 %}
+          {{ "%-18s %-s" | format(item.system_hostname, item.new_commands[0]) }}
+          {% for cmd in item.new_commands[1:] %}
+          {{ "%-18s %-s" | format(" ", cmd) }}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+
+          {% else %}
+
+          No new commands detected
+
+          {% endif %}
+          ============================================================
+
+
+
 
     - name: Display formatted email body
       debug:

@@ -71,3 +71,16 @@
       {% endfor %}
   delegate_to: localhost
   run_once: true
+
+- name: Store process audit metrics for combined reporting
+  set_fact:
+    process_audit_metrics:
+      system_hostname: "{{ inventory_hostname }}"
+      audit_date: "{{ audit_today }}"
+      new_commands: "{{ new_execs.stdout_lines | default([]) }}"
+      has_new_commands: "{{ (new_execs.stdout_lines | default([]) | length) > 0 }}"
+
+- name: Push process audit metrics to workflow
+  set_stats:
+    data:
+      process_audit_metrics: "{{ process_audit_metrics }}"
