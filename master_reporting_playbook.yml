@@ -26,6 +26,19 @@
       set_fact:
         critical_audit: "{{ audit_data | selectattr('has_new_commands','equalto', true) | list }}"
 
+##################################
+# Password Expiry section
+##################################
+
+    - name: Initialize password expiry data from workflow
+      set_fact:
+        password_data: "{{ password_expiry_metrics | default([]) }}"
+    
+    - name: Filter hosts with expiring users
+      set_fact:
+        critical_password: "{{ password_data | selectattr('has_expiring_users','equalto', true) | list }}"
+
+
 
 ##################################
 ## MAIN EMAIL SECTION
@@ -44,15 +57,11 @@
           {% for report in critical_health %}
           {{ "%-18s %-10s %-9s %-7s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage | default('N/A')) }}
           {% endfor %}
-    
           {% else %}
-    
           No Critical Health Alerts Detected
-    
           {% endif %}
           ============================================================
           ============================================================
-
           PROCESS AUDIT NEW COMMANDS
           {% if critical_audit | length > 0 %}
           Hostname           New Commands
@@ -67,6 +76,20 @@
           {% endfor %}
           {% else %}
           No new commands detected
+          {% endif %}
+          ============================================================
+          ============================================================
+          PASSWORD EXPIRY ALERTS       
+          {% if critical_password | length > 0 %}        
+          Hostname           User              Days Left
+          -----------------------------------------------------------
+          {% for host in critical_password %}
+          {% for user in host.expiring_users %}
+          {{ "%-18s %-17s %-10s" | format(host.system_hostname, user.user, user.password_days_left) }}
+          {% endfor %}
+          {% endfor %}
+          {% else %}
+          No expiring passwords detected
           {% endif %}
           ============================================================
 
