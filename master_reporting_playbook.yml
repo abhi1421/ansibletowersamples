@@ -36,7 +36,7 @@
     
     - name: Filter hosts with expiring users
       set_fact:
-        critical_passwords: "{{ password_data | selectattr('has_expiring_users','defined') | selectattr('has_expiring_users','equalto', true) | list }}"
+        critical_password: "{{ password_data | selectattr('has_expiring_users','defined') | selectattr('has_expiring_users','equalto', true) | list }}"
 
 
 
