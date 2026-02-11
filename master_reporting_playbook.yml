@@ -20,7 +20,7 @@
 ##################################
     - name: Initialize process audit data from workflow
       set_fact:
-        audit_data: "{{ process_audit_metrics | default([]) }}"
+        audit_data: "{{ all_process_audit | default([]) }}"
   
     - name: Filter hosts with new commands
       set_fact:
@@ -65,11 +65,8 @@
           {% endfor %}
           {% endif %}
           {% endfor %}
-
           {% else %}
-
           No new commands detected
-
           {% endif %}
           ============================================================
 
