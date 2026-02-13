@@ -1,12 +1,12 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for MONITORING_daily_health_check
-#cpu_load_threshold: 2.0        # Average load
-#memory_usage_threshold: 80     # %
-#disk_usage_threshold: 80       # %
-#iowait_threshold: 10           # %
+cpu_load_threshold: 2.0        # Average load
+memory_usage_threshold: 80     # %
+disk_usage_threshold: 80       # %
+iowait_threshold: 10           # %
 
-cpu_load_threshold: 0.1        # Average load
-memory_usage_threshold: 10     # %
-disk_usage_threshold: 10       # %
-iowait_threshold: 0.1           # %
+#cpu_load_threshold: 0.1        # Average load
+#memory_usage_threshold: 10     # %
+#disk_usage_threshold: 10       # %
+#iowait_threshold: 0.1           # %
