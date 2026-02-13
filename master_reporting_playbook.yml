@@ -44,57 +44,144 @@
 ##################################
 ## MAIN EMAIL SECTION
 ##################################
+#
+#    - name: Build Markdown formatted email body
+#      set_fact:
+#        combined_email_body: |
+#          COMBINED MONITORING REPORT
+#          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}            
+#          ============================================================
+#          DAILY HEALTH CHECK – CRITICAL ALERTS
+#          {% if critical_health | length > 0 %}
+#          Hostname           CPU Load   Memory%   Disk%
+#          ----------------------------------------------
+#          {% for report in critical_health %}
+#          {{ "%-18s %-10s %-9s %-7s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage | default('N/A')) }}
+#          {% endfor %}
+#          {% else %}
+#          No Critical Health Alerts Detected
+#          {% endif %}
+#          ============================================================
+#          ============================================================
+#          PROCESS AUDIT NEW COMMANDS
+#          {% if critical_audit | length > 0 %}
+#          Hostname           New Commands
+#          -----------------------------------------------------------
+#          {% for item in critical_audit %}
+#          {% if item.new_commands | length > 0 %}
+#          {{ "%-18s %-s" | format(item.system_hostname, item.new_commands[0]) }}
+#          {% for cmd in item.new_commands[1:] %}
+#          {{ "%-18s %-s" | format(" ", cmd) }}
+#          {% endfor %}
+#          {% endif %}
+#          {% endfor %}
+#          {% else %}
+#          No new commands detected
+#          {% endif %}
+#          ============================================================
+#          ============================================================
+#          PASSWORD EXPIRY ALERTS       
+#          {% if critical_password | length > 0 %}        
+#          Hostname           User              Days Left
+#          -----------------------------------------------------------
+#          {% for host in critical_password %}
+#          {% for user in host.expiring_users %}
+#          {{ "%-18s %-17s %-10s" | format(host.system_hostname, user.user, user.password_days_left) }}
+#          {% endfor %}
+#          {% endfor %}
+#          {% else %}
+#          No expiring passwords detected
+#          {% endif %}
+#          ============================================================
 
-    - name: Build Markdown formatted email body
-      set_fact:
-        combined_email_body: |
-          COMBINED MONITORING REPORT
-          Generated: {{ ansible_date_time.date }} {{ ansible_date_time.time }}            
-          ============================================================
-          DAILY HEALTH CHECK – CRITICAL ALERTS
-          {% if critical_health | length > 0 %}
-          Hostname           CPU Load   Memory%   Disk%
-          ----------------------------------------------
-          {% for report in critical_health %}
-          {{ "%-18s %-10s %-9s %-7s" | format(report.system_hostname, report.cpu_load, report.mem_usage, report.disk_usage | default('N/A')) }}
+
+- name: Build HTML formatted email body
+  set_fact:
+    combined_email_body: |
+      <html>
+      <body style="font-family: Arial, sans-serif; font-size: 13px;">
+
+      <h2>Combined Monitoring Report</h2>
+      <p><strong>Generated:</strong> {{ ansible_date_time.date }} {{ ansible_date_time.time }}</p>
+
+      <hr>
+
+      <h3>Daily Health Check – Critical Alerts</h3>
+      {% if critical_health | length > 0 %}
+      <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+          <th>Hostname</th>
+          <th>CPU Load</th>
+          <th>Memory %</th>
+          <th>Disk %</th>
+        </tr>
+        {% for report in critical_health %}
+        <tr>
+          <td>{{ report.system_hostname }}</td>
+          <td>{{ report.cpu_load }}</td>
+          <td>{{ report.mem_usage }}</td>
+          <td>{{ report.disk_usage | default('N/A') }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <p>No Critical Health Alerts Detected</p>
+      {% endif %}
+
+      <hr>
+
+      <h3>Process Audit – New Commands</h3>
+      {% if critical_audit | length > 0 %}
+      <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+          <th>Hostname</th>
+          <th>Command</th>
+        </tr>
+        {% for item in critical_audit %}
+          {% for cmd in item.new_commands %}
+          <tr>
+            <td>{{ item.system_hostname }}</td>
+            <td>{{ cmd }}</td>
+          </tr>
           {% endfor %}
-          {% else %}
-          No Critical Health Alerts Detected
-          {% endif %}
-          ============================================================
-          ============================================================
-          PROCESS AUDIT NEW COMMANDS
-          {% if critical_audit | length > 0 %}
-          Hostname           New Commands
-          -----------------------------------------------------------
-          {% for item in critical_audit %}
-          {% if item.new_commands | length > 0 %}
-          {{ "%-18s %-s" | format(item.system_hostname, item.new_commands[0]) }}
-          {% for cmd in item.new_commands[1:] %}
-          {{ "%-18s %-s" | format(" ", cmd) }}
-          {% endfor %}
-          {% endif %}
-          {% endfor %}
-          {% else %}
-          No new commands detected
-          {% endif %}
-          ============================================================
-          ============================================================
-          PASSWORD EXPIRY ALERTS       
-          {% if critical_password | length > 0 %}        
-          Hostname           User              Days Left
-          -----------------------------------------------------------
-          {% for host in critical_password %}
+        {% endfor %}
+      </table>
+      {% else %}
+      <p>No New Commands Detected</p>
+      {% endif %}
+
+      <hr>
+
+      <h3>Password Expiry Alerts</h3>
+      {% if critical_password | length > 0 %}
+      <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+          <th>Hostname</th>
+          <th>User</th>
+          <th>Days Left</th>
+        </tr>
+        {% for host in critical_password %}
           {% for user in host.expiring_users %}
-          {{ "%-18s %-17s %-10s" | format(host.system_hostname, user.user, user.password_days_left) }}
+          <tr>
+            <td>{{ host.system_hostname }}</td>
+            <td>{{ user.user }}</td>
+            <td>{{ user.password_days_left }}</td>
+          </tr>
           {% endfor %}
-          {% endfor %}
-          {% else %}
-          No expiring passwords detected
-          {% endif %}
-          ============================================================
+        {% endfor %}
+      </table>
+      {% else %}
+      <p>No Expiring Passwords Detected</p>
+      {% endif %}
 
+      <hr>
 
+      <p style="font-size:12px; color:gray;">
+      This is an automated monitoring report generated by Ansible.
+      </p>
+
+      </body>
+      </html>
 
 
     - name: Display formatted email body
