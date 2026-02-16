@@ -13,10 +13,15 @@
   register: user_check
   ignore_errors: yes
 
-- name: Fail if user does not exist
-  ansible.builtin.fail:
-    msg: "User {{ target_user }} does not exist on the target system."
+#- name: Fail if user does not exist
+#  ansible.builtin.fail:
+#    msg: "User {{ target_user }} does not exist on the target system."
+#  when: user_check.failed or user_check.ansible_facts.getent_passwd is not defined
+
+- name: End host execution if user does not exist
+  ansible.builtin.meta: end_host
   when: user_check.failed or user_check.ansible_facts.getent_passwd is not defined
+
 
 ############################################################
 # Grant Sudo
