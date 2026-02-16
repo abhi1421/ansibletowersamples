@@ -1,0 +1,6 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for rman_validation
+rman_oracle_home: "/u01/app/oracle/product/19.0.0/dbhome_1"
+rman_oracle_sid: "ORCL"
+rman_log_dir: "/tmp"

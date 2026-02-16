@@ -1,0 +1,5 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for manage_sudo
+sudo_action: ""
+target_user: ""
