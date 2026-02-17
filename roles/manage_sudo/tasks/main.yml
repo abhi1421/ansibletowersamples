@@ -6,6 +6,10 @@
     msg: "Invalid action. Allowed values: grant or revoke"
   when: sudo_action not in ['grant', 'revoke']
 
+- name: Normalize action to lowercase
+  ansible.builtin.set_fact:
+    sudo_action_normalized: "{{ sudo_action | lower }}"
+
 - name: Check if user exists
   ansible.builtin.getent:
     database: passwd
@@ -17,6 +21,15 @@
 #  ansible.builtin.fail:
 #    msg: "User {{ target_user }} does not exist on the target system."
 #  when: user_check.failed or user_check.ansible_facts.getent_passwd is not defined
+
+- name: Set result when user missing
+  ansible.builtin.set_fact:
+    sudo_result: >-
+      Host: {{ inventory_hostname }}
+      | User: {{ target_user }}
+      | Action: {{ sudo_action_normalized }}
+      | Status: USER NOT PRESENT
+  when: user_check.failed or user_check.ansible_facts.getent_passwd is not defined
 
 - name: End host execution if user does not exist
   ansible.builtin.meta: end_host
@@ -46,3 +59,34 @@
     path: "/etc/sudoers.d/{{ target_user }}"
     state: absent
   when: sudo_action == "revoke"
+
+
+############################################################
+# Consolidated report and Email part
+############################################################
+
+- name: Set per-host result fact
+  ansible.builtin.set_fact:
+    sudo_result: >-
+      Host: {{ inventory_hostname }}
+      | User: {{ target_user }}
+      | Action: {{ sudo_action_normalized }}
+      | Status: SUCCESS
+
+
+- name: Consolidate report
+  ansible.builtin.set_fact:
+    consolidated_report: |
+      SUDO Access Execution Report
+      ===================================
+      Requested Action : {{ sudo_action }}
+      Target User      : {{ target_user }}
+      Execution Time   : {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+
+      Host Results:
+      -----------------------------------
+      {% for host in ansible_play_hosts %}
+      {{ hostvars[host].sudo_result | default("Host: " ~ host ~ " | Status: FAILED") }}
+      {% endfor %}
+  run_once: true
+  delegate_to: localhost
