@@ -164,14 +164,14 @@
       become_user: "{{ run_as_user }}"
       # if this script is interactive on your system you may need to adapt it or pass flags that make it non-interactive
 
-#    - name: Run SNL Perl backup utility (interactive handled)
-#      ansible.builtin.expect:
-#        command: perl {{ perl_backup_script }}
-#        responses:
-#      '(?i)specify.*backup': "{{ snl_backup_dir }}"
-#      register: perl_backup
-#      become_user: "{{ run_as_user }}"
-#      timeout: 1800
+    - name: Run SNL Perl backup utility (interactive handled)
+      ansible.builtin.expect:
+        command: perl {{ perl_backup_script }}
+        responses:
+          '(?i)specify.*backup': "{{ snl_backup_dir }}"
+      register: perl_backup
+      become_user: "{{ run_as_user }}"
+      timeout: 1800
 
 
     - name: Show result of SNL_BackUp.pl
