@@ -74,6 +74,24 @@
       | Status: SUCCESS
 
 
+#- name: Consolidate report
+#  ansible.builtin.set_fact:
+#    consolidated_report: |
+#      SUDO Access Execution Report
+#      ===================================
+#      Requested Action : {{ sudo_action }}
+#      Target User      : {{ target_user }}
+#      Execution Time   : {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+#
+#      Host Results:
+#      -----------------------------------
+#      {% for host in ansible_play_hosts %}
+#      {{ hostvars[host].sudo_result | default("Host: " ~ host ~ " | Status: FAILED") }}
+#      {% endfor %}
+#  run_once: true
+#  delegate_to: localhost
+
+
 - name: Consolidate report
   ansible.builtin.set_fact:
     consolidated_report: |
@@ -83,7 +101,13 @@
       Target User      : {{ target_user }}
       Execution Time   : {{ ansible_date_time.date }} {{ ansible_date_time.time }}
 
-      Host Results:
+      Summary:
+      -----------------------------------
+      Total Hosts        : {{ ansible_play_hosts | length }}
+      Successful         : {{ ansible_play_hosts | map('extract', hostvars, 'sudo_result') | select('search', 'SUCCESS') | list | length }}
+      User Not Present   : {{ ansible_play_hosts | map('extract', hostvars, 'sudo_result') | select('search', 'USER NOT PRESENT') | list | length }}
+
+      Detailed Host Results:
       -----------------------------------
       {% for host in ansible_play_hosts %}
       {{ hostvars[host].sudo_result | default("Host: " ~ host ~ " | Status: FAILED") }}
