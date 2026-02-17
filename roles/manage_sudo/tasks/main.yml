@@ -85,7 +85,7 @@
 #
 #      Host Results:
 #      -----------------------------------
-#      {% for host in ansible_play_hosts %}
+#      {% for host in ansible_play_hosts_all %}
 #      {{ hostvars[host].sudo_result | default("Host: " ~ host ~ " | Status: FAILED") }}
 #      {% endfor %}
 #  run_once: true
@@ -103,13 +103,13 @@
 
       Summary:
       -----------------------------------
-      Total Hosts        : {{ ansible_play_hosts | length }}
-      Successful         : {{ ansible_play_hosts | map('extract', hostvars, 'sudo_result') | select('search', 'SUCCESS') | list | length }}
-      User Not Present   : {{ ansible_play_hosts | map('extract', hostvars, 'sudo_result') | select('search', 'USER NOT PRESENT') | list | length }}
+      Total Hosts        : {{ ansible_play_hosts_all | length }}
+      Successful         : {{ ansible_play_hosts_all | map('extract', hostvars, 'sudo_result') | select('search', 'SUCCESS') | list | length }}
+      User Not Present   : {{ ansible_play_hosts_all | map('extract', hostvars, 'sudo_result') | select('search', 'USER NOT PRESENT') | list | length }}
 
       Detailed Host Results:
       -----------------------------------
-      {% for host in ansible_play_hosts %}
+      {% for host in ansible_play_hosts_all %}
       {{ hostvars[host].sudo_result | default("Host: " ~ host ~ " | Status: FAILED") }}
       {% endfor %}
   run_once: true
