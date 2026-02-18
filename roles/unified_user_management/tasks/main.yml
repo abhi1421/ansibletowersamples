@@ -68,7 +68,6 @@
         password: "{{ target_password | password_hash('sha512') }}"
         create_home: yes
         state: present
-      no_log: true
 
     - name: Set host result
       ansible.builtin.set_fact:
