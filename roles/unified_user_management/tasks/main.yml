@@ -1,4 +1,17 @@
 ---
+
+############################################################
+# INITIALIZE DEFAULT HOST RESULT (VERY IMPORTANT)
+############################################################
+
+- name: Initialize host result
+  ansible.builtin.set_fact:
+    host_result:
+      host: "{{ inventory_hostname }}"
+      action: "{{ action_type | default('UNKNOWN') }}"
+      status: "NOT EXECUTED"
+
+
 ############################################################
 # 1. VALIDATE ACTION
 ############################################################
@@ -266,21 +279,38 @@
 # 5. CONSOLIDATED REPORT (RUN ONCE)
 ############################################################
 
-- name: Build success and failure lists
+############################################################
+# CONSOLIDATED REPORT (SAFE VERSION)
+############################################################
+
+- name: Ensure all hosts have host_result
+  ansible.builtin.set_fact:
+    host_result: "{{ host_result | default({
+      'host': inventory_hostname,
+      'action': action_type | default('UNKNOWN'),
+      'status': 'FAILED'
+    }) }}"
+
+- name: Build execution summary lists
   ansible.builtin.set_fact:
     successful_hosts: >-
       {{ ansible_play_hosts_all
-         | map('extract', hostvars, 'host_result')
-         | selectattr('status','equalto','SUCCESS')
-         | map(attribute='host')
+         | map('extract', hostvars)
+         | selectattr('host_result.status','equalto','SUCCESS')
+         | map(attribute='inventory_hostname')
          | list }}
 
     failed_hosts: >-
       {{ ansible_play_hosts_all
-         | reject('in', successful_hosts)
+         | map('extract', hostvars)
+         | rejectattr('host_result.status','equalto','SUCCESS')
+         | map(attribute='inventory_hostname')
          | list }}
+
   run_once: true
   delegate_to: localhost
+
+
 
 
 - name: Generate consolidated execution report
