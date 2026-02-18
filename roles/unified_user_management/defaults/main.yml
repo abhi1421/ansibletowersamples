@@ -1,0 +1,48 @@
+# defaults file for unified_user_management
+---
+############################################################
+# Default Variables for Unified User & Sudo Management Role
+############################################################
+
+# Action to perform
+# Allowed values:
+# create_user
+# delete_user
+# add_user_to_group
+# remove_user_from_group
+# reset_password
+# grant_sudo
+# revoke_sudo
+action_type: ""
+
+# Target username
+target_username: ""
+
+# Target password (used for create_user and reset_password)
+target_password: ""
+
+# Target group (used for add/remove group)
+target_group: ""
+
+############################################################
+# Optional Settings
+############################################################
+
+# Whether to remove home directory when deleting user
+remove_home_on_delete: true
+
+# Default sudo rule (if you ever want to customize)
+sudo_rule: "ALL=(ALL) NOPASSWD:ALL"
+
+# Whether to validate sudo file with visudo
+validate_sudo: true
+
+############################################################
+# Reporting Defaults
+############################################################
+
+# Default result structure (used as fallback)
+host_result:
+  host: "{{ inventory_hostname | default('unknown') }}"
+  action: "UNKNOWN"
+  status: "NOT EXECUTED"

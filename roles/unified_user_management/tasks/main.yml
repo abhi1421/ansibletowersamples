@@ -1,0 +1,335 @@
+---
+############################################################
+# 1. VALIDATE ACTION
+############################################################
+
+- name: Validate action_type
+  ansible.builtin.assert:
+    that:
+      - action_type is defined
+      - action_type in [
+          'create_user',
+          'delete_user',
+          'add_user_to_group',
+          'remove_user_from_group',
+          'reset_password',
+          'grant_sudo',
+          'revoke_sudo'
+        ]
+    fail_msg: "Invalid action_type provided."
+
+- name: Validate username
+  ansible.builtin.assert:
+    that:
+      - target_username is defined
+      - target_username | length > 0
+    fail_msg: "target_username must be provided."
+
+
+############################################################
+# 2. CHECK IF USER EXISTS
+############################################################
+
+- name: Check if user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ target_username }}"
+  register: user_check
+  ignore_errors: true
+
+- name: Set user existence fact
+  ansible.builtin.set_fact:
+    user_exists: "{{ not user_check.failed and user_check.ansible_facts.getent_passwd is defined }}"
+
+
+############################################################
+# 3. USER MANAGEMENT ACTIONS
+############################################################
+
+################ CREATE USER ################
+
+- block:
+
+    - name: Ensure password provided
+      ansible.builtin.assert:
+        that:
+          - target_password is defined
+          - target_password | length > 0
+        fail_msg: "Password required for user creation."
+
+    - name: Fail if user already exists
+      ansible.builtin.fail:
+        msg: "User already exists."
+      when: user_exists
+
+    - name: Create user
+      ansible.builtin.user:
+        name: "{{ target_username }}"
+        password: "{{ target_password | password_hash('sha512') }}"
+        create_home: yes
+        state: present
+      no_log: true
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "CREATE USER"
+          status: "SUCCESS"
+
+  when: action_type == "create_user"
+
+
+################ DELETE USER ################
+
+- block:
+
+    - name: Fail if user does not exist
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Delete user
+      ansible.builtin.user:
+        name: "{{ target_username }}"
+        state: absent
+        remove: yes
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "DELETE USER"
+          status: "SUCCESS"
+
+  when: action_type == "delete_user"
+
+
+################ ADD USER TO GROUP ################
+
+- block:
+
+    - name: Validate group input
+      ansible.builtin.assert:
+        that:
+          - target_group is defined
+          - target_group | length > 0
+        fail_msg: "target_group must be provided."
+
+    - name: Fail if user missing
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Ensure group exists
+      ansible.builtin.group:
+        name: "{{ target_group }}"
+        state: present
+
+    - name: Add user to group
+      ansible.builtin.user:
+        name: "{{ target_username }}"
+        groups: "{{ target_group }}"
+        append: yes
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "ADD USER TO GROUP"
+          status: "SUCCESS"
+
+  when: action_type == "add_user_to_group"
+
+
+################ REMOVE USER FROM GROUP ################
+
+- block:
+
+    - name: Validate group input
+      ansible.builtin.assert:
+        that:
+          - target_group is defined
+          - target_group | length > 0
+        fail_msg: "target_group must be provided."
+
+    - name: Fail if user missing
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Remove user from group
+      ansible.builtin.command:
+        cmd: "gpasswd -d {{ target_username }} {{ target_group }}"
+      register: remove_group_result
+      changed_when: remove_group_result.rc == 0
+      failed_when: false
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "REMOVE USER FROM GROUP"
+          status: "SUCCESS"
+
+  when: action_type == "remove_user_from_group"
+
+
+################ PASSWORD RESET ################
+
+- block:
+
+    - name: Ensure new password provided
+      ansible.builtin.assert:
+        that:
+          - target_password is defined
+          - target_password | length > 0
+        fail_msg: "New password required."
+
+    - name: Fail if user missing
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Reset password
+      ansible.builtin.user:
+        name: "{{ target_username }}"
+        password: "{{ target_password | password_hash('sha512') }}"
+      no_log: true
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "PASSWORD RESET"
+          status: "SUCCESS"
+
+  when: action_type == "reset_password"
+
+
+############################################################
+# 4. SUDO MANAGEMENT
+############################################################
+
+################ GRANT SUDO ################
+
+- block:
+
+    - name: Fail if user missing
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Grant sudo access
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ target_username }}"
+        content: "{{ target_username }} ALL=(ALL) NOPASSWD:ALL"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "GRANT SUDO"
+          status: "SUCCESS"
+
+  when: action_type == "grant_sudo"
+
+
+################ REVOKE SUDO ################
+
+- block:
+
+    - name: Fail if user missing
+      ansible.builtin.fail:
+        msg: "User does not exist."
+      when: not user_exists
+
+    - name: Revoke sudo access
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/{{ target_username }}"
+        state: absent
+
+    - name: Set host result
+      ansible.builtin.set_fact:
+        host_result:
+          host: "{{ inventory_hostname }}"
+          action: "REVOKE SUDO"
+          status: "SUCCESS"
+
+  when: action_type == "revoke_sudo"
+
+
+############################################################
+# 5. CONSOLIDATED REPORT (RUN ONCE)
+############################################################
+
+- name: Build success and failure lists
+  ansible.builtin.set_fact:
+    successful_hosts: >-
+      {{ ansible_play_hosts_all
+         | map('extract', hostvars, 'host_result')
+         | selectattr('status','equalto','SUCCESS')
+         | map(attribute='host')
+         | list }}
+
+    failed_hosts: >-
+      {{ ansible_play_hosts_all
+         | reject('in', successful_hosts)
+         | list }}
+  run_once: true
+  delegate_to: localhost
+
+
+- name: Generate consolidated execution report
+  ansible.builtin.set_fact:
+    consolidated_report: |
+      ==========================================================
+               USER / SUDO MANAGEMENT EXECUTION REPORT
+      ==========================================================
+      ----------------------------------------------------------
+      REQUEST DETAILS
+      ----------------------------------------------------------
+      Action Performed : {{ action_type }}
+      Target Username  : {{ target_username }}
+      Target Group     : {{ target_group | default("N/A") }}
+      ----------------------------------------------------------
+      TARGET SERVERS
+      ----------------------------------------------------------
+      {% for host in ansible_play_hosts_all %}
+        - {{ host }}
+      {% endfor %}
+      ----------------------------------------------------------
+      EXECUTION SUMMARY
+      ----------------------------------------------------------
+      Total Servers      : {{ ansible_play_hosts_all | length }}
+      Successful Servers : {{ successful_hosts | length }}
+      Failed Servers     : {{ failed_hosts | length }}
+      ----------------------------------------------------------
+      SUCCESSFUL HOSTS
+      ----------------------------------------------------------
+      {% if successful_hosts | length > 0 %}
+      {% for host in successful_hosts %}
+        - {{ host }}
+      {% endfor %}
+      {% else %}
+        None
+      {% endif %}
+      ----------------------------------------------------------
+      FAILED HOSTS
+      ----------------------------------------------------------
+      {% if failed_hosts | length > 0 %}
+      {% for host in failed_hosts %}
+        - {{ host }}
+      {% endfor %}
+      {% else %}
+        None
+      {% endif %}
+      ==========================================================
+      End of Report
+      ==========================================================
+  run_once: true
+  delegate_to: localhost

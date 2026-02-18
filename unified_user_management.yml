@@ -1,0 +1,6 @@
+---
+- name: Unified User & Sudo Lifecycle Management
+  hosts: all
+  become: true
+  roles:
+    - unified_user_management
