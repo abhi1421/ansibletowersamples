@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for aap_backup
+# roles/aap_backup/vars/main.yml
+#aap_installer_dir: "/opt/ansible-automation-platform/installer"
+backup_storage_path: "/var/lib/backup"
+inventory_file: "inventory-growth"
+keep_count: 2

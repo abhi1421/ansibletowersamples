@@ -1,0 +1,59 @@
+#SPDX-License-Identifier: MIT-0
+---
+# roles/aap_backup/tasks/main.yml
+
+- name: Ensure backup destination exists
+  ansible.builtin.file:
+    path: "{{ backup_storage_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Run AAP Backup with Custom Destination
+  ansible.builtin.command:
+    cmd: >
+      ./setup.sh -i {{ inventory_file }} -b 
+      -e "backup_dest={{ backup_storage_path }}" 
+      -e "use_archive_compression=true" 
+      -e "use_db_compression=true"
+    chdir: "{{ aap_installer_dir }}"
+  register: backup_cmd
+  changed_when: true
+
+- name: Gather list of existing backups
+  ansible.builtin.find:
+    paths: "{{ backup_storage_path }}"
+    patterns: "automation-platform-backup-*.tar.gz"
+  register: found_backups
+
+- name: Retention Management - Keep only latest {{ keep_count }}
+  vars:
+    # Sort by modification time descending and skip the first 'keep_count' files
+    files_to_delete: "{{ found_backups.files | sort(attribute='mtime', reverse=true) | slice(keep_count, found_backups.files|length) | first | default([]) }}"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ files_to_delete }}"
+  when: found_backups.matched > keep_count
+
+- name: Get Stats of the Newest Backup
+  ansible.builtin.stat:
+    path: "{{ backup_storage_path }}/automation-platform-backup-latest.tar.gz"
+  register: latest_stat
+
+- name: Prepare Consolidated Report
+  ansible.builtin.set_fact:
+    backup_report: |
+      AAP BACKUP SUMMARY
+      ------------------
+      Status: SUCCESS
+      Target Inventory: {{ inventory_file }}
+      
+      FILES RETAINED IN {{ backup_storage_path }}:
+      {% for file in (found_backups.files | sort(attribute='mtime', reverse=true))[:keep_count] %}
+      - {{ file.path | basename }} (Modified: {{ file.mtime | strftime('%Y-%m-%d %H:%M:%S') }})
+      {% endfor %}
+
+      LATEST BACKUP SIZE: {{ (latest_stat.stat.size / 1024 / 1024) | round(2) }} MB
+      
+      LAST 5 LINES OF LOG:
+      {{ backup_cmd.stdout_lines[-5:] | join('\n') }}

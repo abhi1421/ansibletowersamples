@@ -1,0 +1,6 @@
+---
+- name: Execute Managed AAP Backup
+  hosts: all
+  become: yes
+  roles:
+    - aap_backup
