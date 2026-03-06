@@ -1,4 +1,0 @@
-- name: "Restore login shell for {{ username }}"
-  ansible.builtin.user:
-    name: "{{ username }}"
-    shell: "{{ default_login_shell }}"

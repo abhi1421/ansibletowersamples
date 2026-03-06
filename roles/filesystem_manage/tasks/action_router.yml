@@ -1,2 +1,0 @@
-- name: Include action task
-  include_tasks: "{{ fs_action.type }}.yml"

@@ -1,6 +1,0 @@
-#SPDX-License-Identifier: MIT-0
----
-# vars file for keycopy
-target_user: ansible
-ansible_user_home: "/home/{{ target_user }}"
-ansible_public_key_path: "{{ role_path }}/files/id_rsa.pub"

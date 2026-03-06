@@ -17,7 +17,8 @@
     perl_backup_script: "/opt/swift/SNL/Swiftnet/SNL_BackUp.pl"
     # Who to run the commands as. AAP should provide this user or run as this user.
     run_as_user: "swnet"
-    sag_status_retries: 20
+    groupname: "swnetg"
+    sag_status_retries: 30
     sag_status_delay: 6
 
   pre_tasks:
@@ -163,6 +164,32 @@
 #      register: perl_backup
 #      become_user: "{{ run_as_user }}"
 #      # if this script is interactive on your system you may need to adapt it or pass flags that make it non-interactive
+
+- block:
+
+    - name: Install pexpect temporarily
+      ansible.builtin.pip:
+        name: pexpect
+        state: present
+        executable: pip3
+
+    - name: Run SNL Perl backup utility
+      ansible.builtin.expect:
+        command: perl {{ perl_backup_script }}
+        responses:
+          '(?i)specify.*backup': "{{ snl_backup_dir }}"
+      register: perl_backup
+      timeout: 1800
+
+  always:
+
+    - name: Remove temporary pexpect
+      ansible.builtin.pip:
+        name: pexpect
+        state: absent
+        executable: pip3
+
+
 
     - name: Run SNL Perl backup utility (interactive handled)
       ansible.builtin.expect:

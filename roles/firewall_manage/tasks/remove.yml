@@ -1,7 +1,0 @@
----
-- name: Remove firewall service
-  ansible.builtin.firewalld:
-    service: "{{ action_value }}"
-    permanent: true
-    state: disabled
-    immediate: true

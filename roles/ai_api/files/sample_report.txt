@@ -1,1 +1,0 @@
-The CPU utilization on the server has been high during peak hours, reaching up to 90%.

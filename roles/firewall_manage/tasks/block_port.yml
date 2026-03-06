@@ -1,7 +1,0 @@
----
-- name: Block (open) a firewall port
-  ansible.builtin.firewalld:
-    port: "{{ action_value }}"
-    permanent: true
-    state: enabled
-    immediate: true

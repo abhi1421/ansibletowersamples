@@ -1,5 +1,0 @@
-- name: Loop over all filesystem actions
-  include_tasks: action_router.yml
-  loop: "{{ filesystem_operations }}"
-  loop_control:
-    loop_var: fs_action

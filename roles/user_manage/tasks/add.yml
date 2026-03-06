@@ -1,4 +1,0 @@
-- name: "Add user {{ username }}"
-  ansible.builtin.user:
-    name: "{{ username }}"
-    state: present
