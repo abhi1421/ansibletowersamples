@@ -1,0 +1,38 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for preflight_check
+- name: Connectivity and Credential Check
+  ansible.builtin.ping:
+  ignore_unreachable: true
+  register: ping_result
+
+- name: Set individual host status flag
+  ansible.builtin.set_fact:
+    host_status: "{{ 'FAILED' if (ping_result.unreachable is defined or ping_result.failed is defined) else 'SUCCESS' }}"
+
+- name: Build the failure report string
+  ansible.builtin.set_fact:
+    failed_hosts_report: |
+      {% for h in ansible_play_hosts_all %}
+      {% if hostvars[h]['host_status'] | default('UNKNOWN') == 'FAILED' %}
+      - {{ h }} (Reason: {{ hostvars[h]['ping_result']['msg'] | default('Unreachable/Connection Timeout') }})
+      {% endif %}
+      {% endfor %}
+  run_once: true
+  delegate_to: localhost
+
+#- name: Consolidate Failures and Send Email
+#  community.general.mail:
+#    host: smtp.yourserver.com
+#    port: 25
+#    subject: "AAP Alert: Unreachable Hosts Detected"
+#    to: admin@example.com
+#    body: |
+#      The pre-flight check identified issues on the following systems. 
+#      These hosts will be skipped for the remainder of the automation:
+#
+#      {{ failed_hosts_report }}
+#  run_once: true
+#  delegate_to: localhost
+#  # Only send if the report actually contains data (more than just whitespace)
+#  when: failed_hosts_report | trim | length > 0
