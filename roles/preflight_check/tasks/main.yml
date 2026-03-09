@@ -14,13 +14,14 @@
   ansible.builtin.set_fact:
     failed_hosts_report: |
       {% for h in ansible_play_hosts_all %}
-      {% if hostvars[h]['host_status'] | default('UNKNOWN') == 'FAILED' %}
-      - {{ h }} (Reason: {{ hostvars[h]['ping_result']['msg'] | default('Unreachable/Connection Timeout') }})
+      {% set status = hostvars[h]['host_status'] | default('FAILED') %}
+      {% if status == 'FAILED' %}
+      - {{ h }} (Reason: {{ hostvars[h]['ping_result']['msg'] | default('Connection failed before ping') }})
       {% endif %}
       {% endfor %}
   run_once: true
   delegate_to: localhost
-
+  
 #- name: Consolidate Failures and Send Email
 #  community.general.mail:
 #    host: smtp.yourserver.com
