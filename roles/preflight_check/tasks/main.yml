@@ -1,6 +1,5 @@
 #SPDX-License-Identifier: MIT-0
 ---
-# tasks file for preflight_check
 - name: Connectivity and Credential Check
   ansible.builtin.ping:
   ignore_unreachable: true
@@ -8,15 +7,16 @@
 
 - name: Set individual host status flag
   ansible.builtin.set_fact:
-    host_status: "{{ 'FAILED' if (ping_result.unreachable is defined or ping_result.failed is defined) else 'SUCCESS' }}"
+    # If ping_result has 'ping: pong', it's a definite success.
+    # Otherwise, it's a failure.
+    host_status: "{{ 'SUCCESS' if (ping_result.ping is defined and ping_result.ping == 'pong') else 'FAILED' }}"
 
 - name: Build the failure report string
   ansible.builtin.set_fact:
     failed_hosts_report: |
       {% for h in ansible_play_hosts_all %}
-      {% set status = hostvars[h]['host_status'] | default('FAILED') %}
-      {% if status == 'FAILED' %}
-      - {{ h }} (Reason: {{ hostvars[h]['ping_result']['msg'] | default('Connection failed before ping') }})
+      {% if hostvars[h]['host_status'] == 'FAILED' %}
+      - {{ h }} (Reason: {{ hostvars[h]['ping_result']['msg'] | default('Unreachable or Auth Error') }})
       {% endif %}
       {% endfor %}
   run_once: true
