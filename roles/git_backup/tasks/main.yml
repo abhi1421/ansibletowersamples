@@ -21,6 +21,12 @@
     {{ repo_path }}
   register: backup_result
 
+- name: Remove old backups keeping latest 2
+  ansible.builtin.shell: |
+    ls -1 {{ backup_dir }}/prod-aap-project-backup-*.zip | sort -r | sed -n '3,$p' | xargs rm -f
+  register: cleanup_result
+  changed_when: cleanup_result.stdout != ""
+
 - name: Get backup file stats
   ansible.builtin.stat:
     path: "{{ backup_dir }}/{{ backup_file }}"
