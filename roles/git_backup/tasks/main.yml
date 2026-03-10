@@ -9,7 +9,7 @@
   register: backup_dir_status
 
 - name: Create zip archive of git repository
-  ansible.builtin.archive:
+  community.general.archive:
     path: "{{ repo_path }}"
     dest: "{{ backup_dir }}/{{ backup_file }}"
     format: zip
