@@ -8,11 +8,17 @@
     mode: '0755'
   register: backup_dir_status
 
-- name: Create zip archive of git repository
-  community.general.archive:
-    path: "{{ repo_path }}"
-    dest: "{{ backup_dir }}/{{ backup_file }}"
-    format: zip
+#- name: Create zip archive of git repository
+#  community.general.archive:
+#    path: "{{ repo_path }}"
+#    dest: "{{ backup_dir }}/{{ backup_file }}"
+#    format: zip
+#  register: backup_result
+
+- name: Create zip backup
+  ansible.builtin.shell: >
+    zip -r {{ backup_dir }}/prod-aap-project-backup-{{ ansible_date_time.date }}.zip
+    {{ repo_path }}
   register: backup_result
 
 - name: Get backup file stats
