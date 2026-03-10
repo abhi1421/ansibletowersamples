@@ -1,0 +1,35 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for git_backup
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ backup_dir }}"
+    state: directory
+    mode: '0755'
+  register: backup_dir_status
+
+- name: Create zip archive of git repository
+  ansible.builtin.archive:
+    path: "{{ repo_path }}"
+    dest: "{{ backup_dir }}/{{ backup_file }}"
+    format: zip
+  register: backup_result
+
+- name: Get backup file stats
+  ansible.builtin.stat:
+    path: "{{ backup_dir }}/{{ backup_file }}"
+  register: backup_stat
+
+- name: Build consolidated report
+  ansible.builtin.set_fact:
+    backup_report: |
+      AAP Git Backup Report
+      =====================
+      Repository Path : {{ repo_path }}
+      Backup Location : {{ backup_dir }}/{{ backup_file }}
+      Backup Date     : {{ ansible_date_time.date }}
+      Backup Time     : {{ ansible_date_time.time }}
+      Backup Status   : {{ 'SUCCESS' if backup_result is succeeded else 'FAILED' }}
+      File Size       : {{ (backup_stat.stat.size / 1024 / 1024) | round(2) }} MB
+      Host            : {{ ansible_hostname }}
+

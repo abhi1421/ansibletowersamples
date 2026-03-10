@@ -1,0 +1,5 @@
+- name: Git backup
+  hosts: all
+  become: yes
+  roles:
+    - git_backup

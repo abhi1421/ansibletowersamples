@@ -1,0 +1,6 @@
+#SPDX-License-Identifier: MIT-0
+---
+# defaults file for git_backup
+repo_path: /home/ansible/git-ansible/ansibletowersamples
+backup_dir: /var/lib/backup
+backup_file: "prod-aap-project-backup-{{ ansible_date_time.date }}.zip"
