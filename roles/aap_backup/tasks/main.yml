@@ -23,22 +23,45 @@
   ansible.builtin.find:
     paths: "{{ backup_storage_path }}"
     patterns: "automation-platform-backup-*.tar.gz"
+    file_type: file
   register: found_backups
 
-- name: Retention Management - Keep only latest {{ keep_count }}
-  vars:
-    # Sort by modification time descending and skip the first 'keep_count' files
-    files_to_delete: "{{ found_backups.files | sort(attribute='mtime', reverse=true) | slice(keep_count, found_backups.files|length) | first | default([]) }}"
+- name: Sort backups newest first
+  ansible.builtin.set_fact:
+    sorted_backups: "{{ found_backups.files | sort(attribute='mtime', reverse=True) }}"
+
+- name: Identify latest backup file
+  ansible.builtin.set_fact:
+    latest_backup_file: "{{ sorted_backups[0].path }}"
+
+- name: Remove old backups (keep latest)
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
-  loop: "{{ files_to_delete }}"
-  when: found_backups.matched > keep_count
+  loop: "{{ sorted_backups[1:] }}"
+  when: sorted_backups | length > 1
+
+- name: Identify latest backup file
+  ansible.builtin.set_fact:
+    latest_backup_file: "{{ (found_backups.files | sort(attribute='mtime', reverse=true))[0].path }}"
 
 - name: Get Stats of the Newest Backup
   ansible.builtin.stat:
     path: "{{ backup_storage_path }}/automation-platform-backup-latest.tar.gz"
   register: latest_stat
+
+- name: Archive backup to IBM Storage Protect
+  ansible.builtin.command:
+    cmd: >
+      /opt/tivoli/tsm/client/ba/bin/dsmc arch {{ latest_backup_file }}
+      -subdir=yes
+      -archmc=ANSIBLE_WLY_PV_MGMT
+  register: tsm_archive
+  changed_when: true
+
+- name: Validate archive success
+  ansible.builtin.set_fact:
+    archive_status: "{{ 'SUCCESS' if 'finished without failure' in tsm_archive.stdout else 'FAILED' }}" 
 
 - name: Prepare Consolidated Report
   ansible.builtin.set_fact:
@@ -47,13 +70,18 @@
       ------------------
       Status: SUCCESS
       Target Inventory: {{ inventory_file }}
-      
-      FILES RETAINED IN {{ backup_storage_path }}:
-      {% for file in (found_backups.files | sort(attribute='mtime', reverse=true))[:keep_count] %}
-      - {{ file.path | basename }} (Modified: {{ file.mtime | strftime('%Y-%m-%d %H:%M:%S') }})
-      {% endfor %}
 
-      LATEST BACKUP SIZE: {{ (latest_stat.stat.size / 1024 / 1024) | round(2) }} MB
-      
-      LAST 5 LINES OF LOG:
-      {{ backup_cmd.stdout_lines[-5:] | join('\n') }}
+      BACKUP FILE CREATED:
+      - {{ latest_backup_file | basename }}
+
+      FILE LOCATION:
+      {{ backup_storage_path }}
+
+      LATEST BACKUP SIZE:
+      {{ (latest_stat.stat.size / 1024 / 1024) | round(2) }} MB
+
+      TAPE ARCHIVE STATUS:
+      {{ archive_status }}
+
+      IBM STORAGE PROTECT OUTPUT:
+      {{ 'Archive completed successfully' if archive_status == 'SUCCESS' else 'Archive failed - check logs' }}

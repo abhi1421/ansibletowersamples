@@ -21,6 +21,19 @@
     {{ repo_path }}
   register: backup_result
 
+- name: Archive backup to IBM Storage Protect
+  ansible.builtin.shell: >
+    /opt/tivoli/tsm/client/ba/bin/dsmc arch
+    {{ backup_dir }}/prod-aap-project-backup-{{ ansible_date_time.date }}.zip
+    -subdir=yes
+    -archmc=ANSIBLE_WLY_PV_MGMT
+  register: tsm_archive_result
+
+- name: Validate TSM archive success
+  ansible.builtin.fail:
+    msg: "TSM archive failed. Output: {{ tsm_archive_result.stdout }}"
+  when: "'finished without failure' not in tsm_archive_result.stdout"
+
 - name: Remove old backups keeping latest 2
   ansible.builtin.shell: |
     ls -1 {{ backup_dir }}/prod-aap-project-backup-*.zip | sort -r | sed -n '3,$p' | xargs rm -f
@@ -37,11 +50,10 @@
     backup_report: |
       AAP Git Backup Report
       =====================
+      Host            : {{ ansible_hostname }}
       Repository Path : {{ repo_path }}
       Backup Location : {{ backup_dir }}/{{ backup_file }}
       Backup Date     : {{ ansible_date_time.date }}
-      Backup Time     : {{ ansible_date_time.time }}
       Backup Status   : {{ 'SUCCESS' if backup_result is succeeded else 'FAILED' }}
+      TSM Archive     : {{ 'SUCCESS' if 'finished without failure' in tsm_archive_result.stdout else 'FAILED' }}
       File Size       : {{ (backup_stat.stat.size / 1024 / 1024) | round(2) }} MB
-      Host            : {{ ansible_hostname }}
-
