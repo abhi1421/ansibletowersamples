@@ -1,0 +1,25 @@
+- name: Apply SECURITY patches (RHSA only)
+  dnf:
+    name: "*"
+    state: latest
+    security: yes
+    update_only: yes
+  register: patch_result
+  when: patch_mode == "security"
+
+- name: Apply ALL patches (RHSA + RHBA + RHEA)
+  dnf:
+    name: "*"
+    state: latest
+    update_only: yes
+  register: patch_result
+  when: patch_mode == "full"
+
+- name: Mark execution
+  set_fact:
+    patch_executed: true
+
+- name: Capture errata summary after patch
+  command: dnf updateinfo summary
+  register: errata_after
+  changed_when: false

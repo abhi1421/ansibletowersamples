@@ -1,0 +1,29 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for aap_cve_patch
+# AAP CVE / Errata Patching Role - Main Execution Flow
+
+- name: Run prechecks (system + errata discovery)
+  include_tasks: prechecks.yml
+
+- name: Run validation (decision engine)
+  include_tasks: validation.yml
+
+# Explicit decision logging (important for audit visibility)
+- name: Display patching decision
+  debug:
+    msg: "{{ decision_reason }}"
+
+# Only proceed if all conditions are satisfied
+- name: Execute patching
+  include_tasks: patch.yml
+  when: proceed_with_patching
+
+# Post validation only if patching happened
+- name: Run post checks (AAP services validation)
+  include_tasks: postchecks.yml
+  when: proceed_with_patching
+
+# Always generate report (both scenarios)
+- name: Generate consolidated report
+  include_tasks: report.yml

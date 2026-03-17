@@ -1,0 +1,6 @@
+---
+- name: AAP Patching role
+  hosts: all
+  become: yes
+  roles:
+    - aap_cve_patch

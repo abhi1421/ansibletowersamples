@@ -1,0 +1,19 @@
+- name: Validate AAP services are running
+  systemd:
+    name: "{{ item }}"
+    state: started
+  loop: "{{ aap_services }}"
+  register: svc_status
+  ignore_errors: true
+
+- name: Build service results
+  set_fact:
+    service_results: >-
+      {{
+        svc_status.results | map(attribute='name') |
+        zip(svc_status.results | map(attribute='failed')) | list
+      }}
+
+- name: Detect failed services
+  set_fact:
+    failed_services: "{{ service_results | selectattr(1, 'equalto', true) | list }}"
