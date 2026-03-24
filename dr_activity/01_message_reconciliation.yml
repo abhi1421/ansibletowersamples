@@ -1,0 +1,73 @@
+---
+- name: DR Activity - Message Reconciliation (NEFT Inward)
+  hosts: db_servers
+  gather_facts: no
+
+  vars:
+    db_user: "{{ db_user }}"
+    db_password: "{{ db_password }}"
+    db_connection_string: "{{ db_connection_string }}"
+    script_path: "{{ script_path | default('/opt/db/scripts') }}"
+    neft_batch_id: "{{ neft_batch_id | default('48') }}"
+
+  tasks:
+
+    - name: Validate required variables
+      fail:
+        msg: "Required variables are missing!"
+      when:
+        - db_user is not defined
+        - db_password is not defined
+        - db_connection_string is not defined
+
+    - name: Display execution context
+      debug:
+        msg:
+          - "Running Message Reconciliation"
+          - "DB: {{ db_connection_string }}"
+          - "Script Path: {{ script_path }}"
+          - "NEFT Batch: {{ neft_batch_id }}"
+
+    - name: Execute ISO Reconciliation Script
+      shell: |
+        sqlplus -s {{ db_user }}/{{ db_password }}@{{ db_connection_string }} <<EOF
+        SET HEADING OFF;
+        SET FEEDBACK OFF;
+        @{{ script_path }}/EOD_Recon_ISO.sql
+        EXIT;
+        EOF
+      register: iso_recon_output
+      failed_when: iso_recon_output.rc != 0
+
+    - name: Log ISO Reconciliation Output
+      debug:
+        var: iso_recon_output.stdout_lines
+
+    - name: Execute NEFT Processing Script
+      shell: |
+        sqlplus -s {{ db_user }}/{{ db_password }}@{{ db_connection_string }} <<EOF
+        SET HEADING OFF;
+        SET FEEDBACK OFF;
+        @{{ script_path }}/EOD_NEFT_post12_new_1.sql
+        EXIT;
+        EOF
+      register: neft_output
+      failed_when: neft_output.rc != 0
+
+    - name: Log NEFT Processing Output
+      debug:
+        var: neft_output.stdout_lines
+
+    - name: Validation - Check for errors in ISO script
+      fail:
+        msg: "Errors found in ISO reconciliation output"
+      when: "'ORA-' in iso_recon_output.stdout"
+
+    - name: Validation - Check for errors in NEFT script
+      fail:
+        msg: "Errors found in NEFT processing output"
+      when: "'ORA-' in neft_output.stdout"
+
+    - name: Final Status
+      debug:
+        msg: "Message Reconciliation completed successfully for NEFT batch {{ neft_batch_id }}"

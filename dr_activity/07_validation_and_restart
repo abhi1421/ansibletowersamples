@@ -1,0 +1,164 @@
+---
+- name: DR-SFMS-PAD-CBS-Readiness-Channel-Validation-And-Restart
+  hosts: sfms_pad_servers
+  gather_facts: no
+
+  vars:
+    qmgr: "SFMSRBIPADGWQM"
+
+    qpx_channel: "SFMS.TO.QPX"
+    cbs_channel: "SFMS.TO.CBS"
+
+#    # To be parameterized later via survey
+#    qpx_conn: "172.23.xx.xx(xxxx)"
+#    cbs_conn: "172.23.xx.xx(xxxx)"
+
+  tasks:
+
+    # 🔹 Initialize report
+    - name: Initialize execution report
+      set_fact:
+        execution_report: []
+
+    - name: Start DR activity
+      debug:
+        msg: "Starting DR Activity: CBS Readiness Channel Validation and Restart"
+
+    # 🔹 Step 1: Validate Queue Manager
+    - name: Check Queue Manager status
+      shell: dspmq | grep "{{ qmgr }}"
+      register: qm_status
+      ignore_errors: yes
+
+    - name: Fail if QM not running
+      fail:
+        msg: "Queue Manager {{ qmgr }} is not running"
+      when: qm_status.rc != 0
+
+    - name: Log QM status
+      set_fact:
+        execution_report: "{{ execution_report + ['Queue Manager ' ~ qmgr ~ ' is running'] }}"
+
+    # 🔹 Step 2: Initial Channel Status
+    - name: Check QPX channel status
+      shell: echo "dis chs({{ qpx_channel }})" | runmqsc {{ qmgr }}
+      register: qpx_status_before
+
+    - name: Check CBS channel status
+      shell: echo "dis chs({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: cbs_status_before
+
+    - name: Log initial status
+      set_fact:
+        execution_report: "{{ execution_report + [
+          'Initial QPX channel status: ' ~ qpx_status_before.stdout,
+          'Initial CBS channel status: ' ~ cbs_status_before.stdout
+        ] }}"
+
+    # 🔹 Step 3: Start QPX Channel
+    - name: Alter QPX channel
+      shell: |
+        echo "alter CHANNEL({{ qpx_channel }}) CHLTYPE(SDR) CONNAME('{{ qpx_conn }}')" | runmqsc {{ qmgr }}
+      register: qpx_alter
+
+    - name: Start QPX channel
+      shell: echo "start channel({{ qpx_channel }})" | runmqsc {{ qmgr }}
+      register: qpx_start
+
+    - name: Verify QPX channel
+      shell: echo "dis chs({{ qpx_channel }})" | runmqsc {{ qmgr }}
+      register: qpx_verify
+
+    - name: Log QPX execution
+      set_fact:
+        execution_report: "{{ execution_report + [
+          'QPX alter output: ' ~ qpx_alter.stdout,
+          'QPX start output: ' ~ qpx_start.stdout,
+          'QPX status after start: ' ~ qpx_verify.stdout
+        ] }}"
+
+    # 🔹 Step 4: Start CBS Channel
+    - name: Alter CBS channel
+      shell: |
+        echo "alter CHANNEL({{ cbs_channel }}) CHLTYPE(SDR) CONNAME('{{ cbs_conn }}')" | runmqsc {{ qmgr }}
+      register: cbs_alter
+
+    - name: Start CBS channel
+      shell: echo "start channel({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: cbs_start
+
+    - name: Verify CBS channel
+      shell: echo "dis chs({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: cbs_verify
+
+    - name: Log CBS execution
+      set_fact:
+        execution_report: "{{ execution_report + [
+          'CBS alter output: ' ~ cbs_alter.stdout,
+          'CBS start output: ' ~ cbs_start.stdout,
+          'CBS status after start: ' ~ cbs_verify.stdout
+        ] }}"
+
+    # 🔹 Step 5: Controlled Stop (Few mins simulation)
+    - name: Wait for channel stabilization (controlled duration)
+      wait_for:
+        timeout: 60
+
+    - name: Stop QPX channel
+      shell: echo "stop channel({{ qpx_channel }})" | runmqsc {{ qmgr }}
+      register: qpx_stop
+
+    - name: Stop CBS channel
+      shell: echo "stop channel({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: cbs_stop
+
+    - name: Log stop output
+      set_fact:
+        execution_report: "{{ execution_report + [
+          'QPX stop output: ' ~ qpx_stop.stdout,
+          'CBS stop output: ' ~ cbs_stop.stdout
+        ] }}"
+
+    # 🔹 Step 6: Final Restart
+    - name: Restart QPX channel
+      shell: echo "start channel({{ qpx_channel }})" | runmqsc {{ qmgr }}
+      register: qpx_restart
+
+    - name: Restart CBS channel
+      shell: echo "start channel({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: cbs_restart
+
+    - name: Final verification
+      shell: |
+        echo "dis chs({{ qpx_channel }})" | runmqsc {{ qmgr }}
+        echo "dis chs({{ cbs_channel }})" | runmqsc {{ qmgr }}
+      register: final_status
+
+    - name: Log final status
+      set_fact:
+        execution_report: "{{ execution_report + [
+          'Final QPX restart output: ' ~ qpx_restart.stdout,
+          'Final CBS restart output: ' ~ cbs_restart.stdout,
+          'Final channel status: ' ~ final_status.stdout
+        ] }}"
+
+    # 🔹 Final Report
+    - name: Generate consolidated report
+      set_fact:
+        final_report: |
+          DR Activity: CBS Readiness Channel Validation & Restart
+          --------------------------------------------------------
+          {% for line in execution_report %}
+          - {{ line }}
+          {% endfor %}
+          --------------------------------------------------------
+          Summary:
+          - QPX Channel: START → VALIDATE → STOP → RESTART
+          - CBS Channel: START → VALIDATE → STOP → RESTART
+          - Execution Mode: FULLY AUTOMATED (NO PROMPTS)
+          --------------------------------------------------------
+          Status: COMPLETED
+
+    - name: Print final report
+      debug:
+        var: final_report

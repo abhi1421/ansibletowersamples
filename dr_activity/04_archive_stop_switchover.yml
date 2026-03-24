@@ -1,0 +1,127 @@
+---
+- name: DR-SFMS-PAD-Archive-Backup-And-ODG-Switchover
+  hosts: all
+  gather_facts: no
+
+  vars:
+    archive_script: "/pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
+    oracle_env: ". ~/.bash_profile"
+
+  tasks:
+
+    # 🔹 Initialize report
+    - name: Initialize execution report
+      set_fact:
+        execution_report: []
+
+    - name: Start DR activity message
+      debug:
+        msg: "Starting DR Activity: Archive Backup and ODG Switchover"
+
+    # 🔹 Step 1: Validate archive script exists
+    - name: Check archive backup script presence
+      stat:
+        path: "{{ archive_script }}"
+      register: script_check
+
+    - name: Fail if script not found
+      fail:
+        msg: "Archive backup script not found at {{ archive_script }}"
+      when: not script_check.stat.exists
+
+    - name: Log script validation
+      set_fact:
+        execution_report: "{{ execution_report + ['Archive script found at ' ~ archive_script] }}"
+
+    # 🔹 Step 2: Execute archive backup
+    - name: Run archive backup script
+      shell: |
+        {{ oracle_env }}
+        sh {{ archive_script }}
+      register: archive_output
+
+    - name: Log archive backup output
+      set_fact:
+        execution_report: "{{ execution_report + ['Archive backup output: ' ~ (archive_output.stdout | default('No output'))] }}"
+
+    - name: Validate archive backup success
+      fail:
+        msg: "Archive backup execution failed"
+      when: archive_output.rc != 0
+
+    - name: Append archive success
+      set_fact:
+        execution_report: "{{ execution_report + ['Archive backup completed successfully'] }}"
+
+    # 🔹 Step 3: Defer ODG (Stop replication)
+    - name: Defer ODG replication
+      shell: |
+        {{ oracle_env }}
+        echo "alter system set log_archive_dest_state_2=DEFER;" | sqlplus -s / as sysdba
+      register: odg_defer
+
+    - name: Log ODG defer output
+      set_fact:
+        execution_report: "{{ execution_report + ['ODG Defer output: ' ~ (odg_defer.stdout | default('No output'))] }}"
+
+    - name: Validate ODG defer
+      fail:
+        msg: "Failed to defer ODG replication"
+      when: odg_defer.rc != 0
+
+    - name: Append ODG defer success
+      set_fact:
+        execution_report: "{{ execution_report + ['ODG replication deferred successfully'] }}"
+
+    # 🔹 Step 4: Manual Switchover Pause
+    - name: Pause for manual DB switchover
+      pause:
+        prompt: |
+          कृपया Oracle DBA टीम से confirm करें:
+          - Switchover command executed?
+          - Primary switched to ODC?
+          - No lag or errors?
+
+          Type YES to continue:
+      register: user_input
+
+    - name: Validate manual confirmation
+      fail:
+        msg: "Switchover not confirmed. Aborting playbook."
+      when: user_input.user_input != "YES"
+
+    - name: Log switchover confirmation
+      set_fact:
+        execution_report: "{{ execution_report + ['Manual DB Switchover to ODC confirmed by DBA team'] }}"
+
+    # 🔹 Step 5: Post Switchover Validation (Basic)
+    - name: Check DB role after switchover
+      shell: |
+        {{ oracle_env }}
+        echo "select database_role from v\\$database;" | sqlplus -s / as sysdba
+      register: db_role
+
+    - name: Log DB role
+      set_fact:
+        execution_report: "{{ execution_report + ['Database role after switchover: ' ~ (db_role.stdout | default('No output'))] }}"
+
+    # 🔹 Final Report
+    - name: Generate consolidated report
+      set_fact:
+        final_report: |
+          DR Activity: Archive Backup & ODG Switchover
+          --------------------------------------------------
+          {% for line in execution_report %}
+          - {{ line }}
+          {% endfor %}
+          --------------------------------------------------
+          Summary:
+          - Archive Backup: SUCCESS
+          - ODG Defer: SUCCESS
+          - Switchover: MANUALLY CONFIRMED
+          --------------------------------------------------
+          Status: COMPLETED
+
+    - name: Print final report
+      debug:
+        var: final_report

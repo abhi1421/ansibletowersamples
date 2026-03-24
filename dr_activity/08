@@ -1,0 +1,190 @@
+---
+- name: DR-Oracle-Archive-Backup-And-ODG-Switchover-Generic
+  hosts: oracle_primary_servers
+  gather_facts: no
+
+  vars:
+    db_name: "SFMS"
+    standby_db: "SFMSBEL"
+
+    archive_script_path: "/pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
+    archive_log_path: "/pad_oraBkp/BACKUPS/DBA_Activity/archive_deletion_log"
+
+    alert_log_path: "/orahome/app/oracle/diag/rdbms/{{ db_name | lower }}/{{ db_name }}/trace/alert_{{ db_name }}.log"
+
+    oracle_env: ". ~/.bash_profile"
+
+  tasks:
+
+    # 🔹 Initialize tracking variables
+    - name: Initialize execution tracking
+      set_fact:
+        execution_report: []
+        overall_status: "SUCCESS"
+        failure_step: ""
+        failure_reason: ""
+
+    - name: Start DR Oracle Activity
+      debug:
+        msg: "Starting DR Activity for DB: {{ db_name }}"
+
+    # 🔴 MAIN BLOCK
+    - block:
+
+        # 🔹 Step 1: Validate Script
+        - name: Validate archive script presence
+          stat:
+            path: "{{ archive_script_path }}"
+          register: script_check
+
+        - name: Fail if script missing
+          fail:
+            msg: "Archive script not found at {{ archive_script_path }}"
+          when: not script_check.stat.exists
+
+        - name: Log step
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 1: Archive script validation - SUCCESS'] }}"
+
+        # 🔹 Step 2: Execute Backup
+        - name: Run archive backup
+          shell: |
+            {{ oracle_env }}
+            sh {{ archive_script_path }}
+          register: archive_output
+
+        - name: Fail if backup failed
+          fail:
+            msg: "{{ archive_output.stderr | default('Archive execution failed') }}"
+          when: archive_output.rc != 0
+
+        - name: Log backup output
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 2: Archive backup execution - SUCCESS | Output: ' ~ archive_output.stdout] }}"
+
+        # 🔹 Step 3: Validate Backup Log
+        - name: Fetch latest backup log
+          shell: |
+            ls -t {{ archive_log_path }}/SFMS_rman_BKP_DEL_*.log | head -1
+          register: latest_log
+
+        - name: Check success message
+          shell: grep -E "Recovery Manager complete" {{ latest_log.stdout }}
+          register: success_check
+          ignore_errors: yes
+
+        - name: Check ORA errors
+          shell: grep -E "ORA-" {{ latest_log.stdout }}
+          register: ora_check
+          ignore_errors: yes
+
+        - name: Fail if validation fails
+          fail:
+            msg: "Backup validation failed: Missing success message or ORA errors found"
+          when: success_check.rc != 0 or ora_check.rc == 0
+
+        - name: Log validation
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 3: Backup validation - SUCCESS'] }}"
+
+        # 🔹 Step 4: DB Readiness Check
+        - name: Check DB status
+          shell: |
+            {{ oracle_env }}
+            echo "select database_role, switchover_status from v\\$database;" | sqlplus -s / as sysdba
+          register: db_status
+
+        - name: Fail if DB not ready
+          fail:
+            msg: "DB not ready for switchover"
+          when: "'PRIMARY' not in db_status.stdout or 'TO STANDBY' not in db_status.stdout"
+
+        - name: Log DB status
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 4: DB readiness check - SUCCESS | ' ~ db_status.stdout] }}"
+
+        # 🔹 Step 5: Switchover VERIFY
+        - name: Execute VERIFY
+          shell: |
+            {{ oracle_env }}
+            echo "ALTER DATABASE SWITCHOVER TO {{ standby_db }} VERIFY;" | sqlplus -s / as sysdba
+          register: verify_output
+
+        - name: Log VERIFY
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 5: Switchover VERIFY executed | Output: ' ~ verify_output.stdout] }}"
+
+        # 🔹 Step 6: Validate VERIFY in alert log
+        - name: Check VERIFY success in alert log
+          shell: grep -E "SWITCHOVER VERIFY COMPLETE" {{ alert_log_path }}
+          register: verify_log
+          ignore_errors: yes
+
+        - name: Fail if VERIFY failed
+          fail:
+            msg: "Switchover VERIFY failed (alert log validation)"
+          when: verify_log.rc != 0
+
+        - name: Log VERIFY validation
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 6: VERIFY validation - SUCCESS'] }}"
+
+        # 🔹 Step 7: Switchover
+        - name: Execute switchover
+          shell: |
+            {{ oracle_env }}
+            echo "ALTER DATABASE SWITCHOVER TO {{ standby_db }};" | sqlplus -s / as sysdba
+          register: switchover_output
+
+        - name: Log switchover command
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 7: Switchover command executed | Output: ' ~ switchover_output.stdout] }}"
+
+        # 🔹 Step 8: Validate Switchover
+        - name: Validate switchover in alert log
+          shell: grep -E "Completed: ALTER DATABASE SWITCHOVER" {{ alert_log_path }}
+          register: switchover_log
+          ignore_errors: yes
+
+        - name: Fail if switchover failed
+          fail:
+            msg: "Switchover not confirmed in alert log"
+          when: switchover_log.rc != 0
+
+        - name: Log switchover success
+          set_fact:
+            execution_report: "{{ execution_report + ['STEP 8: Switchover validation - SUCCESS'] }}"
+
+      rescue:
+
+        # 🔴 Capture failure details
+        - name: Capture failure details
+          set_fact:
+            overall_status: "FAILED"
+            failure_step: "{{ ansible_failed_task.name }}"
+            failure_reason: "{{ ansible_failed_result.msg | default(ansible_failed_result.stderr) | default('Unknown error') }}"
+
+        - name: Log failure
+          set_fact:
+            execution_report: "{{ execution_report + ['FAILED at: ' ~ failure_step ~ ' | Reason: ' ~ failure_reason] }}"
+
+    # 🔹 Final Report
+    - name: Generate final DR report
+      set_fact:
+        final_report: |
+          DR Activity: Oracle Archive Backup & ODG Switchover
+          --------------------------------------------------
+          {% for line in execution_report %}
+          - {{ line }}
+          {% endfor %}
+          --------------------------------------------------
+          Final Status: {{ overall_status }}
+          {% if overall_status == 'FAILED' %}
+          Failed Step: {{ failure_step }}
+          Failure Reason: {{ failure_reason }}
+          {% endif %}
+          --------------------------------------------------
+
+    - name: Print final report
+      debug:
+        var: final_report
