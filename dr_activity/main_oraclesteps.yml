@@ -1,0 +1,179 @@
+---
+- name: Oracle Data Guard Switchover Automation
+  hosts: all
+  become: yes
+  become_user: oracle
+  any_errors_fatal: true # Stop all execution if any single task fails
+  vars:
+    db_unique_name_primary: "SFMS"
+    db_unique_name_standby: "SFMSBEL"
+    oracle_home: "/orahome/app/oracle"
+    log_dest_index: "3"
+    
+    # Validation Keywords (Adjust these when the team provides final strings)
+    kw_startup_success: "ORACLE instance started"
+    kw_shutdown_success: "ORACLE instance shut down"
+    
+    # Host Identification (Must match your AAP Inventory names)
+    primary_node: "ServerA"
+    standby_node: "ServerB"
+
+  tasks:
+    # --- STEP 1: ARCHIVE LOG BACKUP ---
+    - name: 1. Archive Log Backup and Cleanup
+      shell: "sh /pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
+      when: inventory_hostname == primary_node
+      register: step1_out
+      failed_when: "'Recovery Manager complete' not in step1_out.stdout"
+
+    # --- STEP 2: SWITCHOVER CHECK ---
+    - name: 2. Switchover Role Check (Primary)
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEAD OFF
+        SELECT DATABASE_ROLE, SWITCHOVER_STATUS, OPEN_MODE FROM V\$DATABASE;
+        EOF
+      when: inventory_hostname == primary_node
+      register: step2_out
+      failed_when: 
+        - "'PRIMARY' not in step2_out.stdout"
+        - "'TO STANDBY' not in step2_out.stdout"
+        - "'READ WRITE' not in step2_out.stdout"
+
+    # --- STEP 3: SWITCHOVER VERIFY ---
+    - name: 3. Switchover Verify
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        ALTER DATABASE SWITCHOVER TO {{ db_unique_name_standby }} VERIFY;
+        EOF
+      when: inventory_hostname == primary_node
+      register: step3_out
+      failed_when: "'Completed: ALTER DATABASE SWITCHOVER' not in step3_out.stdout"
+
+    # --- STEP 4: EXECUTE SWITCHOVER ---
+    - name: 4. Execute Switchover (Primary to Standby)
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        ALTER DATABASE SWITCHOVER TO {{ db_unique_name_standby }};
+        EOF
+      when: inventory_hostname == primary_node
+      register: step4_out
+      failed_when: "'Completed: ALTER DATABASE SWITCHOVER' not in step4_out.stdout"
+
+    # --- STEP 5: START NEW PRIMARY ---
+    - name: 5. Startup New Primary (on Standby Node)
+      shell: |
+        export ORACLE_SID={{ db_unique_name_standby }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        STARTUP;
+        EOF
+      when: inventory_hostname == standby_node
+      register: step5_out
+      failed_when: kw_startup_success not in step5_out.stdout
+
+    # --- STEP 6: VERIFY NEW PRIMARY ---
+    - name: 6. Verify Role on New Primary
+      shell: |
+        export ORACLE_SID={{ db_unique_name_standby }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        SET PAGESIZE 0 FEEDBACK OFF HEAD OFF
+        SELECT DATABASE_ROLE, OPEN_MODE FROM V\$DATABASE;
+        EOF
+      when: inventory_hostname == standby_node
+      register: step6_out
+      failed_when: 
+        - "'PRIMARY' not in step6_out.stdout"
+        - "'READ WRITE' not in step6_out.stdout"
+
+    # --- STEP 7: RESTART OLD PRIMARY AS STANDBY ---
+    - name: 7.a Shutdown Old Primary
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        SHUTDOWN IMMEDIATE;
+        EOF
+      when: inventory_hostname == primary_node
+      register: step7a_out
+      failed_when: kw_shutdown_success not in step7a_out.stdout
+
+    - name: 7.b Startup Old Primary in Mount Mode
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        STARTUP MOUNT;
+        EOF
+      when: inventory_hostname == primary_node
+      register: step7b_out
+      failed_when: kw_startup_success not in step7b_out.stdout
+
+    # --- STEP 8: START RECOVERY & VALIDATE ---
+    - name: 8. Start Managed Recovery and Validate
+      shell: |
+        export ORACLE_SID={{ db_unique_name_primary }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        SET PAGESIZE 0 FEEDBACK OFF HEAD OFF
+        ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT FROM SESSION;
+        SELECT DATABASE_ROLE FROM V\$DATABASE;
+        EOF
+      when: inventory_hostname == primary_node
+      register: step8_out
+      failed_when: "'PHYSICAL STANDBY' not in step8_out.stdout"
+
+    # --- STEP 9: DEFER LOG ARCHIVE ---
+    - name: 9. Defer Log Archive Destination on New Primary
+      shell: |
+        export ORACLE_SID={{ db_unique_name_standby }}
+        {{ oracle_home }}/bin/sqlplus -s / as sysdba <<EOF
+        ALTER SYSTEM SET LOG_ARCHIVE_DEST_STATE_{{ log_dest_index }}=DEFER;
+        EOF
+      when: inventory_hostname == standby_node
+      register: step9_out
+
+    # --- DEBUGGING (Triggers for every step for visibility) ---
+    - name: Task Result Debugger
+      debug:
+        msg: "Task executed on {{ inventory_hostname }}. Result: {{ item.stdout | default('No Output') }}"
+      loop: "{{ [step1_out, step2_out, step3_out, step4_out, step5_out, step6_out, step7a_out, step7b_out, step8_out, step9_out] }}"
+      when: item is defined and item.changed
+
+
+    # --- STEP 10: CONSOLIDATE DATA INTO A VARIABLE ---
+    - name: 10. Create Report Variable for Email
+      run_once: true
+      set_fact:
+        switchover_report_body: |
+          BANK DR SWITCHOVER EXECUTION REPORT
+          ==========================================
+          Execution Date: {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+          Primary Host:   {{ primary_node }}
+          Standby Host:   {{ standby_node }}
+          Database Name:  {{ db_name }}
+          ------------------------------------------
+          PHASE 1: PRE-CHECKS & BACKUP
+          - Step 1 (Archive Backup):    {{ 'SUCCESS' if (hostvars[primary_node].step1_out.rc | default(1) == 0) else 'FAILED' }}
+          - Step 2 (Role Validation):   {{ 'SUCCESS' if (hostvars[primary_node].step2_out.rc | default(1) == 0) else 'FAILED' }}
+          
+          PHASE 2: SWITCHOVER EXECUTION
+          - Step 3 (Verify Command):    {{ 'SUCCESS' if (hostvars[primary_node].step3_out.rc | default(1) == 0) else 'FAILED' }}
+          - Step 4 (Switchover Cmd):    {{ 'SUCCESS' if (hostvars[primary_node].step4_out.rc | default(1) == 0) else 'FAILED' }}
+          
+          PHASE 3: POST-SWITCHOVER STARTUP
+          - Step 5 (New Primary Start): {{ 'SUCCESS' if (hostvars[standby_node].step5_out.rc | default(1) == 0) else 'FAILED' }}
+          - Step 6 (New Primary Role):  {{ 'SUCCESS' if (hostvars[standby_node].step6_out.stdout | default('') is search('PRIMARY')) else 'FAILED' }}
+          - Step 8 (New Standby Role):  {{ 'SUCCESS' if (hostvars[primary_node].step8_out.stdout | default('') is search('PHYSICAL STANDBY')) else 'FAILED' }}
+          
+          PHASE 4: FINAL CONFIG
+          - Step 9 (Log Deferral):      {{ 'SUCCESS' if (hostvars[standby_node].step9_out.rc | default(1) == 0) else 'FAILED' }}
+          ------------------------------------------
+          FINAL STATUS: {{ 'COMPLETED SUCCESSFULLY' if (hostvars[primary_node].step8_out.rc | default(1) == 0 and hostvars[standby_node].step6_out.rc | default(1) == 0) else 'CRITICAL FAILURE' }}
+          
+          DETAILED DIAGNOSTICS:
+          {% if hostvars[primary_node].step4_out.failed | default(false) %}
+          Primary Error: {{ hostvars[primary_node].step4_out.stdout }}
+          {% endif %}
+          {% if hostvars[standby_node].step5_out.failed | default(false) %}
+          Standby Error: {{ hostvars[standby_node].step5_out.stdout }}
+          {% endif %}

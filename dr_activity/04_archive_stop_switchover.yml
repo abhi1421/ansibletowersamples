@@ -73,28 +73,7 @@
       set_fact:
         execution_report: "{{ execution_report + ['ODG replication deferred successfully'] }}"
 
-    # 🔹 Step 4: Manual Switchover Pause
-    - name: Pause for manual DB switchover
-      pause:
-        prompt: |
-          कृपया Oracle DBA टीम से confirm करें:
-          - Switchover command executed?
-          - Primary switched to ODC?
-          - No lag or errors?
-
-          Type YES to continue:
-      register: user_input
-
-    - name: Validate manual confirmation
-      fail:
-        msg: "Switchover not confirmed. Aborting playbook."
-      when: user_input.user_input != "YES"
-
-    - name: Log switchover confirmation
-      set_fact:
-        execution_report: "{{ execution_report + ['Manual DB Switchover to ODC confirmed by DBA team'] }}"
-
-    # 🔹 Step 5: Post Switchover Validation (Basic)
+    # 🔹 Step 4: Post Switchover Validation (Basic)
     - name: Check DB role after switchover
       shell: |
         {{ oracle_env }}

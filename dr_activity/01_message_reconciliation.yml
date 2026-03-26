@@ -8,25 +8,11 @@
     db_password: "{{ db_password }}"
     db_connection_string: "{{ db_connection_string }}"
     script_path: "{{ script_path | default('/opt/db/scripts') }}"
-    neft_batch_id: "{{ neft_batch_id | default('48') }}"
+    
+    # REPLACE THIS LATER
+    success_keyword: "SUCCESS_PLACEHOLDER"
 
   tasks:
-
-    - name: Validate required variables
-      fail:
-        msg: "Required variables are missing!"
-      when:
-        - db_user is not defined
-        - db_password is not defined
-        - db_connection_string is not defined
-
-    - name: Display execution context
-      debug:
-        msg:
-          - "Running Message Reconciliation"
-          - "DB: {{ db_connection_string }}"
-          - "Script Path: {{ script_path }}"
-          - "NEFT Batch: {{ neft_batch_id }}"
 
     - name: Execute ISO Reconciliation Script
       shell: |
@@ -36,12 +22,8 @@
         @{{ script_path }}/EOD_Recon_ISO.sql
         EXIT;
         EOF
-      register: iso_recon_output
-      failed_when: iso_recon_output.rc != 0
-
-    - name: Log ISO Reconciliation Output
-      debug:
-        var: iso_recon_output.stdout_lines
+      register: iso_output
+      failed_when: iso_output.rc != 0
 
     - name: Execute NEFT Processing Script
       shell: |
@@ -54,20 +36,22 @@
       register: neft_output
       failed_when: neft_output.rc != 0
 
-    - name: Log NEFT Processing Output
-      debug:
-        var: neft_output.stdout_lines
-
-    - name: Validation - Check for errors in ISO script
+    # GREP VALIDATION (PLACEHOLDER)
+    - name: Validate ISO script output using keyword
       fail:
-        msg: "Errors found in ISO reconciliation output"
-      when: "'ORA-' in iso_recon_output.stdout"
+        msg: "ISO reconciliation validation failed - keyword not found"
+      when: success_keyword not in iso_output.stdout
 
-    - name: Validation - Check for errors in NEFT script
+    - name: Validate NEFT script output using keyword
       fail:
-        msg: "Errors found in NEFT processing output"
-      when: "'ORA-' in neft_output.stdout"
+        msg: "NEFT processing validation failed - keyword not found"
+      when: success_keyword not in neft_output.stdout
+
+    - name: Check for ORA errors
+      fail:
+        msg: "Database error found in output"
+      when: "'ORA-' in iso_output.stdout or 'ORA-' in neft_output.stdout"
 
     - name: Final Status
       debug:
-        msg: "Message Reconciliation completed successfully for NEFT batch {{ neft_batch_id }}"
+        msg: "Message Reconciliation completed successfully"
