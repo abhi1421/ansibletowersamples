@@ -1,14 +1,18 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for aap_cve_patch
-patch_mode: security   # security | full
+# Control flags
+run_pre_checks: true
+enable_satellite_registration_check: true
+enable_repo_check: true
+enable_errata_reporting: true
 
-required_repos:
-  - rhel-9-for-x86_64-baseos-rpms
-  - rhel-9-for-x86_64-appstream-rpms
-  - ansible-automation-platform-2.5-for-rhel-9-x86_64-rpms
+# Patch toggles
+apply_security_patches: true
+apply_bugfix_patches: false
+apply_enhancement_patches: false
+apply_kernel_patches: true
 
-aap_services:
-  - automation-controller
-  - automation-gateway
-  - automation-hub
+# Safety
+fail_if_not_registered: true
+fail_if_repo_missing: true

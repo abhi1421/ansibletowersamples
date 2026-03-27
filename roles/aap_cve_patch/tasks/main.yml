@@ -1,29 +1,45 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for aap_cve_patch
-# AAP CVE / Errata Patching Role - Main Execution Flow
+- name: Run Pre-checks
+  ansible.builtin.import_tasks: pre_checks.yml
+  when: run_pre_checks
 
-- name: Run prechecks (system + errata discovery)
-  include_tasks: prechecks.yml
+- name: Check Satellite Registration
+  ansible.builtin.import_tasks: check_registration.yml
+  when: enable_satellite_registration_check
 
-- name: Run validation (decision engine)
-  include_tasks: validation.yml
+- name: Check Required Repositories
+  ansible.builtin.import_tasks: check_repos.yml
+  when: enable_repo_check
 
-# Explicit decision logging (important for audit visibility)
-- name: Display patching decision
-  debug:
-    msg: "{{ decision_reason }}"
+- name: Fetch Pre-Patching Errata
+  ansible.builtin.import_tasks: fetch_pre_errata.yml
+  when: enable_errata_reporting
 
-# Only proceed if all conditions are satisfied
-- name: Execute patching
-  include_tasks: patch.yml
-  when: proceed_with_patching
+# ---- PATCHING ----
 
-# Post validation only if patching happened
-- name: Run post checks (AAP services validation)
-  include_tasks: postchecks.yml
-  when: proceed_with_patching
+- name: Apply Security Patches
+  ansible.builtin.import_tasks: apply_security.yml
+  when: apply_security_patches
 
-# Always generate report (both scenarios)
-- name: Generate consolidated report
-  include_tasks: report.yml
+- name: Apply Bugfix Patches
+  ansible.builtin.import_tasks: apply_bugfix.yml
+  when: apply_bugfix_patches
+
+- name: Apply Enhancement Patches
+  ansible.builtin.import_tasks: apply_enhancement.yml
+  when: apply_enhancement_patches
+
+- name: Apply Kernel Patches
+  ansible.builtin.import_tasks: apply_kernel.yml
+  when: apply_kernel_patches
+
+# ---- POST PATCH ----
+
+- name: Run dracut if kernel updated
+  ansible.builtin.import_tasks: dracut.yml
+
+- name: Fetch Pre-Patching Errata
+  ansible.builtin.import_tasks: fetch_ost_errata.yml
+  when: enable_errata_reporting

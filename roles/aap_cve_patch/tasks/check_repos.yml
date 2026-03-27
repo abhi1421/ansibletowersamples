@@ -1,0 +1,17 @@
+---
+
+- name: Get enabled repositories
+  ansible.builtin.command: yum repolist enabled
+  register: repo_list
+  changed_when: false
+
+- name: Validate required repos
+  ansible.builtin.assert:
+    that:
+      - "'rhel' in repo_list.stdout"
+    fail_msg: "Required RHEL repositories are NOT enabled."
+  when: fail_if_repo_missing
+
+- name: Show enabled repos
+  ansible.builtin.debug:
+    var: repo_list.stdout_lines

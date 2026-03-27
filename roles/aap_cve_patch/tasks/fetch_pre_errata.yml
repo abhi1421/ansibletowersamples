@@ -1,0 +1,22 @@
+---
+
+- name: Fetch security errata
+  ansible.builtin.command: yum updateinfo list security bugfix
+  register: security_errata
+  changed_when: false
+
+- name: Show security errata
+  ansible.builtin.debug:
+    var: security_errata.stdout_lines
+
+- name: Fetch a pre-count of errata
+  ansible.builtin.shell: dnf updateinfo list available | wc -l
+  register: pre_errata_count
+  changed_when: false
+- name: Display Pre-Count of Errata
+  ansible.builtin.debug:
+    var: pre_errata_count.stdout_lines
+
+- name: Pre-Patching Checklist - End
+  ansible.builtin.debug:
+    msg: "Pre-Patching Checklist completed."

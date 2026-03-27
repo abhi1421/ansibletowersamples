@@ -1,0 +1,17 @@
+---
+- name: Ensure system is reachable
+  ansible.builtin.ping:
+
+- name: Gather minimal facts
+  ansible.builtin.setup:
+    gather_subset:
+      - min
+
+- name: Check disk space (/var)
+  ansible.builtin.command: df -h /var
+  register: disk_check
+  changed_when: false
+
+- name: Display disk usage
+  ansible.builtin.debug:
+    var: disk_check.stdout_lines

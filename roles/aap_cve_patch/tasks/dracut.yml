@@ -1,0 +1,29 @@
+---
+
+- name: Find installed kernels
+  ansible.builtin.find:
+    paths: /boot
+    patterns: "vmlinuz-*"
+    file_type: file
+  register: kernels
+
+- name: Get latest kernel version
+  ansible.builtin.set_fact:
+    kernel_for_dracut: "{{ kernels.files
+      | sort(attribute='path', reverse=true)
+      | map(attribute='path')
+      | first
+      | regex_replace('.*vmlinuz-(.*)', '\\1') }}"
+  when: kernels.files | length > 0
+
+- name: Run dracut
+  ansible.builtin.command: >
+    dracut -f /boot/initramfs-{{ kernel_for_dracut }}.img {{ kernel_for_dracut }}
+  when:
+    - kernel_for_dracut is defined
+  changed_when: true
+
+- name: Notify reboot required (NO reboot performed)
+  ansible.builtin.debug:
+    msg: "Kernel updated. Reboot required but intentionally skipped for AAP safety."
+  when: kernel_updated | default(false)

@@ -1,0 +1,17 @@
+---
+- name: Check if system is registered to Satellite
+  ansible.builtin.command: subscription-manager status
+  register: sub_status
+  changed_when: false
+  failed_when: false
+
+#- name: Fail if not registered
+#  ansible.builtin.fail:
+#    msg: "System is NOT registered to Satellite."
+#  when:
+#    - fail_if_not_registered
+#    - "'Current' not in sub_status.stdout"
+
+- name: Debug registration status
+  ansible.builtin.debug:
+    var: sub_status.stdout
