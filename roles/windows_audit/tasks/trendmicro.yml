@@ -1,0 +1,23 @@
+---
+
+- name: Check TrendMicro installation
+  ansible.windows.win_shell: |
+    Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*Trend*" }
+  register: trend_check
+  ignore_errors: yes
+
+- name: Set TrendMicro installed status
+  set_fact:
+    trend_installed: "{{ 'YES' if trend_check.stdout else 'NO' }}"
+
+- name: Get TrendMicro last update
+  ansible.windows.win_shell: |
+    Get-ChildItem "C:\Program Files\Trend Micro" -Recurse |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 LastWriteTime
+  register: trend_update_raw
+  ignore_errors: yes
+
+- name: Set Trend update
+  set_fact:
+    trend_update: "{{ trend_update_raw.stdout | default('NOT FOUND') }}"

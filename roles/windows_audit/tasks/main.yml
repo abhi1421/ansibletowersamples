@@ -1,0 +1,85 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for windows_audit
+
+- name: Run SCCM checks and remediation
+  include_tasks: sccm.yml
+
+- name: Run TrendMicro checks
+  include_tasks: trendmicro.yml
+
+- name: Run System checks
+  include_tasks: system.yml
+
+- name: Build final report
+  set_fact:
+    audit_report: |
+      ================== SYSTEM AUDIT REPORT ==================
+
+      🔹 SCCM STATUS:
+      Service: {{ sccm_service_status }}
+      Communication: {{ sccm_comm_status }}
+      Action Taken: {{ sccm_action }}
+
+      🔹 TrendMicro:
+      Installed: {{ trend_installed }}
+      Last Update: {{ trend_update }}
+
+      🔹 Windows Hotfix:
+      Count: {{ hotfix_count }}
+
+      🔹 Installed Software:
+      {{ software_list }}
+
+      =========================================================
+
+- name: Show final report
+  debug:
+    var: audit_report
+
+
+- name: Save per-host summary
+  set_fact:
+    host_summary:
+      hostname: "{{ inventory_hostname }}"
+      sccm: "{{ 'YES' if sccm_service_status == 'running' else 'NO' }}"
+      av: "{{ 'OK' if (trend_installed == 'YES') else 'ISSUE' }}"
+      hotfix: "{{ hotfix_data.hotfixes | map(attribute='installed_on') | list | max | default('N/A') }}"
+
+- name: Build consolidated table
+  run_once: true
+  delegate_to: localhost
+  set_fact:
+    final_email_body: |
+      <html>
+      <body>
+      <h3>Windows Audit Report</h3>
+      <table border="1" cellpadding="5" cellspacing="0">
+        <tr>
+          <th>Host</th>
+          <th>SCCM</th>
+          <th>Antivirus</th>
+          <th>Last Hotfix</th>
+        </tr>
+        {% for host in groups['windows'] %}
+        <tr>
+          <td>{{ host }}</td>
+          <td>{{ hostvars[host].host_summary.sccm | default('N/A') }}</td>
+          <td>{{ hostvars[host].host_summary.av | default('N/A') }}</td>
+          <td>{{ hostvars[host].host_summary.hotfix | default('N/A') }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      </body>
+      </html>
+
+- name: Send consolidated email
+  run_once: true
+  delegate_to: localhost
+  ansible.builtin.mail:
+    host: smtp.yourcompany.com
+    port: 25
+    to: "user@company.com"
+    subject: "Windows Audit Report - All Servers"
+    body: "{{ final_email_body }}"
+    subtype: html

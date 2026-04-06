@@ -1,0 +1,38 @@
+---
+- name: Step 1 - Stop SFMS Sender Channels
+  hosts: mq_servers
+  gather_facts: no
+  vars:
+    qmgr: SFMSRBIPADGWQM
+    channels:
+      - SFMS.TO.CBS
+      - SFMS.TO.QPX
+
+  tasks:
+
+    - name: Check if Queue Manager is running
+      shell: dspmq | grep "{{ qmgr }}"
+      register: qm_status
+      ignore_errors: yes  
+
+    - name: Check channel status before stop
+      shell: echo "dis chs({{ item }})" | runmqsc {{ qmgr }}
+      loop: "{{ channels }}"
+      register: ch_status_before
+      changed_when: false
+
+    - name: Stop channel only if RUNNING
+      shell: echo "stop channel({{ item.item }})" | runmqsc {{ qmgr }}
+      loop: "{{ ch_status_before.results }}"
+      when: "'RUNNING' in item.stdout"
+      register: stop_output
+      changed_when: "'STOPPED' in stop_output.stdout or 'STOPPING' in stop_output.stdout"
+
+    - name: Wait until channel stops
+      shell: echo "dis chs({{ item }})" | runmqsc {{ qmgr }}
+      loop: "{{ channels }}"
+      register: ch_status_after
+      retries: 5
+      delay: 5
+      until: "'RUNNING' not in ch_status_after.stdout"
+      changed_when: false

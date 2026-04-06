@@ -1,0 +1,62 @@
+---
+- name: Step 2 - Queue Depth and Process Cleanup
+  hosts: mq_servers
+  gather_facts: no
+  vars:
+    qmgrs:
+      - SFMSRBIPADGWQM
+      - SFMSRBIPADCLQM1
+      - SFMSRBIPADCLQM2
+    hub_channel: RBISBR.TO.HUB
+    hub_qmgr: SFMSRBIPADGWQM
+
+  tasks:
+
+    - name: Check queue depth > 0
+      shell: echo "dis ql(*) where (curdepth gt 0)" | runmqsc {{ item }}
+      loop: "{{ qmgrs }}"
+      register: qdepth
+      changed_when: false
+
+    - name: Fail if queues still have messages (optional DR strictness)
+      fail:
+        msg: "Queues still have messages, investigate before proceeding"
+      when: "'CURDEPTH' in item.stdout"
+      loop: "{{ qdepth.results }}"
+
+    - name: Get PAD process list
+      shell: ps -ef | grep -i pad | grep -v grep
+      register: processes
+      changed_when: false
+
+    - name: Extract PIDs safely
+      set_fact:
+        pad_pids: "{{ processes.stdout_lines | map('split') | map(attribute=1) | list }}"
+      when: processes.stdout_lines | length > 0
+
+    - name: Kill PAD processes
+      shell: kill -9 {{ item }}
+      loop: "{{ pad_pids }}"
+      when: pad_pids is defined
+      register: kill_output
+      changed_when: kill_output.rc == 0
+      failed_when: kill_output.rc != 0
+
+    - name: Check HUB channel status
+      shell: echo "dis chs({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      register: hub_status
+      changed_when: false
+
+    - name: Stop HUB channel if running
+      shell: echo "stop channel({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      when: "'RUNNING' in hub_status.stdout"
+      register: hub_stop
+      changed_when: "'STOPPED' in hub_stop.stdout or 'STOPPING' in hub_stop.stdout"
+
+    - name: Wait until HUB channel stops
+      shell: echo "dis chs({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      register: hub_verify
+      retries: 5
+      delay: 5
+      until: "'RUNNING' not in hub_verify.stdout"
+      changed_when: false

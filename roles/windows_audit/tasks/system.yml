@@ -1,0 +1,21 @@
+---
+
+# Hotfix
+- name: Get hotfix info
+  ansible.windows.win_hotfix_facts:
+  register: hotfix_data
+
+- name: Set hotfix count
+  set_fact:
+    hotfix_count: "{{ hotfix_data.hotfixes | length }}"
+
+# Installed Software
+- name: Get installed software
+  ansible.windows.win_shell: |
+    Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\* |
+    Select-Object DisplayName
+  register: software_raw
+
+- name: Set software list
+  set_fact:
+    software_list: "{{ software_raw.stdout }}"
