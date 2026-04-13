@@ -1,5 +1,5 @@
 ---
-- name: Tenable Backup Copy, Cleanup & Consolidated Report
+- name: Tenable Backup Copy & Consolidated Report
   hosts: all
   become: yes
   gather_facts: yes
@@ -11,11 +11,10 @@
 
   tasks:
 
-    # Dates
-    - name: Set date facts
+    # Get today's date
+    - name: Set date fact
       set_fact:
         today_date: "{{ ansible_date_time.date }}"
-        yesterday_date: "{{ lookup('pipe', 'date -d \"yesterday\" +%Y-%m-%d') }}"
 
     # Find files
     - name: Find backup files
@@ -36,7 +35,7 @@
       set_fact:
         final_file: "{{ (today_file_result.results | selectattr('ansible_facts.final_file','defined') | map(attribute='ansible_facts.final_file') | list)[0] | default('') }}"
 
-    # Copy
+    # Copy file
     - name: Copy today's backup file
       copy:
         src: "{{ final_file }}"
@@ -45,16 +44,7 @@
       when: final_file != ""
       register: copy_status
 
-    # Delete yesterday
-    - name: Delete yesterday's backup file
-      file:
-        path: "{{ item.path }}"
-        state: absent
-      loop: "{{ found_files.files }}"
-      when: yesterday_date in item.path
-      register: delete_status
-
-    # Store per-host result (no separate report yet)
+    # Store per-host result
     - name: Store execution result
       set_fact:
         host_result:
@@ -69,12 +59,9 @@
             {% else %}
             Skipped
             {% endif %}
-          deleted_files: >-
-            {{ delete_status.results | selectattr('changed','equalto',true)
-               | map(attribute='path') | list }}
           status: "{{ 'SUCCESS' if final_file != '' else 'FAILED' }}"
 
-    # 🔽 SINGLE FINAL CONSOLIDATED REPORT TASK
+    # FINAL CONSOLIDATED REPORT (Single Task)
     - name: Build consolidated report
       run_once: true
       delegate_to: localhost
@@ -94,15 +81,6 @@
 
           Copy Status:
           {{ hostvars[host].host_result.copy_status }}
-
-          Deleted (Yesterday):
-          {% if hostvars[host].host_result.deleted_files | length > 0 %}
-          {% for f in hostvars[host].host_result.deleted_files %}
-          - {{ f }}
-          {% endfor %}
-          {% else %}
-          No file deleted
-          {% endif %}
 
           Status: {{ hostvars[host].host_result.status }}
 
