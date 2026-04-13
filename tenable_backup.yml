@@ -1,0 +1,91 @@
+---
+- name: Tenable Backup Copy & Cleanup
+  hosts: serverA
+  become: yes
+  gather_facts: yes
+
+  vars:
+    source_dir: "/tenable-backup/"
+    dest_dir: "/DRDC/tenable-backup/"
+    file_pattern: "tenable-sc-pdcvmt*.tar"
+
+  tasks:
+
+    # Get today's date in required format (YYYY-MM-DD)
+    - name: Set today's date
+      set_fact:
+        today_date: "{{ ansible_date_time.date }}"
+
+    # Find today's backup file
+    - name: Find today's backup file
+      find:
+        paths: "{{ source_dir }}"
+        patterns: "{{ file_pattern }}"
+        use_regex: false
+      register: found_files
+
+    - name: Filter today's file
+      set_fact:
+        todays_file: "{{ item.path }}"
+      loop: "{{ found_files.files }}"
+      when: today_date in item.path
+      register: todays_file_result
+
+    - name: Set final today's file
+      set_fact:
+        final_file: "{{ (todays_file_result.results | selectattr('ansible_facts.todays_file','defined') | map(attribute='ansible_facts.todays_file') | list)[0] | default('') }}"
+
+    # Fail if no file found
+    - name: Fail if today's file not found
+      fail:
+        msg: "No backup file found for {{ today_date }}"
+      when: final_file == ""
+
+    # Copy file (same server, mounted path)
+    - name: Copy file to DRDC mount
+      copy:
+        src: "{{ final_file }}"
+        dest: "{{ dest_dir }}"
+        remote_src: yes
+      register: copy_status
+
+    # Find old files (exclude today's file)
+    - name: Find old backup files
+      find:
+        paths: "{{ source_dir }}"
+        patterns: "{{ file_pattern }}"
+      register: all_files
+
+    - name: Delete old files
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ all_files.files }}"
+      when: today_date not in item.path
+      register: delete_status
+
+    # Consolidated report
+    - name: Build report
+      set_fact:
+        backup_report: |
+          Backup Execution Report
+          ------------------------
+          Date: {{ today_date }}
+
+          Source Directory: {{ source_dir }}
+          Destination Directory: {{ dest_dir }}
+
+          File Copied:
+          {{ final_file }}
+
+          Copy Status:
+          {{ copy_status.msg | default('Success') }}
+
+          Deleted Files:
+          {% for item in delete_status.results if item.changed %}
+          - {{ item.path }}
+          {% else %}
+          No old files deleted
+          {% endfor %}
+
+          Status: SUCCESS

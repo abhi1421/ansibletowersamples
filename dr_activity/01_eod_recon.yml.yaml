@@ -1,0 +1,226 @@
+---
+#############################################
+# PRE-TASK: Create Output Directory
+#############################################
+- name: Prepare control node
+  hosts: localhost
+  gather_facts: no
+  vars:
+    output_dir: "./outputs"
+
+  tasks:
+    - name: Ensure output directory exists
+      file:
+        path: "{{ output_dir }}"
+        state: directory
+
+
+#############################################
+# PLAY 1: SFMS-PAD Execution
+#############################################
+- name: Run PAD EOD Script
+  hosts: pad
+  gather_facts: no
+
+  vars:
+    pad_script: /path/to/EOD_Recon_ISO.sql
+
+  tasks:
+    - name: Validate batch_time input
+      fail:
+        msg: "batch_time variable is required"
+      when: batch_time is not defined
+
+    - name: Run PAD SQL script
+      shell: |
+        echo "{{ batch_time }}" | sqlplus -s / as sysdba @{{ pad_script }}
+      register: pad_output
+
+    - name: Save PAD output
+      copy:
+        content: "{{ pad_output.stdout }}"
+        dest: /tmp/pad_output.log
+
+    - name: Fetch PAD output
+      fetch:
+        src: /tmp/pad_output.log
+        dest: "{{ output_dir }}/pad_output.log"
+        flat: yes
+
+
+#############################################
+# PLAY 2: SFMS-NEFT Execution
+#############################################
+- name: Run NEFT EOD Script
+  hosts: neft
+  gather_facts: no
+
+  vars:
+    neft_script: /path/to/EOD_NEFT_post12_new.sql
+
+  tasks:
+    - name: Validate inputs
+      fail:
+        msg: "txn_date and partition are required"
+      when: txn_date is not defined or partition is not defined
+
+    - name: Run NEFT SQL script
+      shell: |
+        printf "%s\n%s\n" "{{ txn_date }}" "{{ partition }}" | sqlplus -s / as sysdba @{{ neft_script }}
+      register: neft_output
+
+    - name: Save NEFT output
+      copy:
+        content: "{{ neft_output.stdout }}"
+        dest: /tmp/neft_output.log
+
+    - name: Fetch NEFT output
+      fetch:
+        src: /tmp/neft_output.log
+        dest: "{{ output_dir }}/neft_output.log"
+        flat: yes
+
+
+#############################################
+# PLAY 3: Comparison + Report
+#############################################
+- name: Compare Outputs and Generate Report
+  hosts: localhost
+  gather_facts: no
+
+  vars:
+    output_dir: "./outputs"
+
+  tasks:
+
+    #########################################
+    # Read Outputs
+    #########################################
+    - name: Read PAD output
+      set_fact:
+        pad_output: "{{ lookup('file', output_dir + '/pad_output.log') }}"
+
+    - name: Read NEFT output
+      set_fact:
+        neft_output: "{{ lookup('file', output_dir + '/neft_output.log') }}"
+
+    #########################################
+    # PAD Parsing (Robust)
+    #########################################
+    - name: Extract PAD outward block
+      set_fact:
+        pad_outward_block: "{{ pad_output | regex_search('QPX_OUTWARD[\\s\\S]+?Elapsed', '\\0') }}"
+
+    - name: Extract PAD inward block
+      set_fact:
+        pad_inward_block: "{{ pad_output | regex_search('QPX_INWARD[\\s\\S]+?Elapsed', '\\0') }}"
+
+    - name: Extract PAD values
+      set_fact:
+        pad_qpx_outward: "{{ pad_outward_block | regex_findall('(\\d+)') | first | default('0') }}"
+        pad_cbs_outward: "{{ pad_outward_block | regex_findall('(\\d+)') | last | default('0') }}"
+        pad_qpx_inward: "{{ pad_inward_block | regex_findall('(\\d+)') | first | default('0') }}"
+        pad_cbs_inward: "{{ pad_inward_block | regex_findall('(\\d+)') | last | default('0') }}"
+
+    #########################################
+    # NEFT Parsing (Robust)
+    #########################################
+    - name: Extract NEFT outward block
+      set_fact:
+        neft_outward_block: "{{ neft_output | regex_search('OUTWARD_C_QPX[\\s\\S]+?INWARD', '\\0') }}"
+
+    - name: Extract NEFT inward block
+      set_fact:
+        neft_inward_block: "{{ neft_output | regex_search('INWARD_E_QPX[\\s\\S]+', '\\0') }}"
+
+    - name: Extract NEFT values
+      set_fact:
+        neft_qpx_outward: "{{ neft_outward_block | regex_findall('(\\d+)') | first | default('0') }}"
+        neft_cbs_outward: "{{ neft_outward_block | regex_findall('(\\d+)') | last | default('0') }}"
+        neft_qpx_inward: "{{ neft_inward_block | regex_findall('(\\d+)') | first | default('0') }}"
+        neft_cbs_inward: "{{ neft_inward_block | regex_findall('(\\d+)') | last | default('0') }}"
+
+    #########################################
+    # Comparison
+    #########################################
+    - name: Compare values
+      set_fact:
+        reconciliation_status: >-
+          {{
+            'PASS' if
+            (pad_qpx_outward == neft_qpx_outward and
+             pad_qpx_inward == neft_qpx_inward)
+            else 'FAIL'
+          }}
+
+    #########################################
+    # Execution Time
+    #########################################
+    - name: Capture execution time
+      set_fact:
+        execution_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    #########################################
+    # Report
+    #########################################
+    - name: Build reconciliation report
+      set_fact:
+        recon_report: |
+          DR EOD RECONCILIATION REPORT
+          ========================================
+
+          Execution Time : {{ execution_time }}
+
+          INPUT DETAILS
+          ----------------------------------------
+          Batch Time (PAD) : {{ batch_time }}
+          Transaction Date : {{ txn_date }}
+          Partition        : {{ partition }}
+
+          RECONCILIATION STATUS
+          ----------------------------------------
+          Status : {{ reconciliation_status }}
+
+          COMPARISON DETAILS
+          ----------------------------------------
+          QPX_OUTWARD : PAD={{ pad_qpx_outward }} | NEFT={{ neft_qpx_outward }}
+          QPX_INWARD  : PAD={{ pad_qpx_inward }}  | NEFT={{ neft_qpx_inward }}
+          CBS_OUTWARD : PAD={{ pad_cbs_outward }} | NEFT={{ neft_cbs_outward }}
+          CBS_INWARD  : PAD={{ pad_cbs_inward }}  | NEFT={{ neft_cbs_inward }}
+
+          ----------------------------------------
+          Remarks:
+          {% if reconciliation_status == 'PASS' %}
+          All values matched successfully.
+          {% else %}
+          Mismatch detected. Immediate investigation required.
+          {% endif %}
+
+    #########################################
+    # Output
+    #########################################
+    - name: Display report
+      debug:
+        msg: "{{ recon_report }}"
+
+    #########################################
+    # Email
+    #########################################
+    - name: Send email notification
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "DR EOD Recon Status - {{ reconciliation_status }}"
+        body: "{{ recon_report }}"
+        to:
+          - ops-team@yourcompany.com
+        from: noreply@yourcompany.com
+      ignore_errors: yes
+
+    #########################################
+    # Fail on mismatch
+    #########################################
+    - name: Fail if reconciliation failed
+      fail:
+        msg: "EOD Reconciliation Failed"
+      when: reconciliation_status == "FAIL"

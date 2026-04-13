@@ -1,0 +1,183 @@
+---
+#############################################
+# PLAY 1: NODE 1 START
+#############################################
+- name: PAD Node 1 - Start Processes
+  hosts: 10.10.10.1
+  gather_facts: no
+
+  tasks:
+
+    #########################################
+    # START EHCACHE
+    #########################################
+    - name: Start ehcache Node1
+      shell: sh start-ehcache-server.sh
+      register: ehcache_start_node1
+
+    #########################################
+    # DETACH EHCACHE
+    #########################################
+    - name: Detach ehcache screen Node1
+      shell: |
+        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r screen -d
+      register: detach_node1
+      ignore_errors: yes
+
+    #########################################
+    # START PROCESSES
+    #########################################
+    - name: Start PAD processes Node1
+      shell: |
+        echo -e "1\ny" | sh Main_Script_All_Process.sh
+      register: start_node1
+
+    #########################################
+    # VALIDATE PROCESSES
+    #########################################
+    - name: Check running processes Node1
+      shell: screen -ls
+      register: screen_node1
+
+    - name: Validate Node1 processes started
+      set_fact:
+        node1_start_issue: "{{ screen_node1.stdout is not search('Sockets') }}"
+
+    #########################################
+    # START FRONTEND
+    #########################################
+    - name: Start frontend Node1
+      shell: sh catalina.sh start
+      register: frontend_node1
+
+
+#############################################
+# PLAY 2: NODE 2 START
+#############################################
+- name: PAD Node 2 - Start Processes
+  hosts: 10.10.10.2
+  gather_facts: no
+
+  tasks:
+
+    #########################################
+    # START EHCACHE
+    #########################################
+    - name: Start ehcache Node2
+      shell: sh start-ehcache-server.sh
+      register: ehcache_start_node2
+
+    #########################################
+    # DETACH EHCACHE
+    #########################################
+    - name: Detach ehcache screen Node2
+      shell: |
+        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r screen -d
+      register: detach_node2
+      ignore_errors: yes
+
+    #########################################
+    # START PROCESSES
+    #########################################
+    - name: Start PAD processes Node2
+      shell: |
+        echo -e "1\ny" | sh Main_Script_Specific_Process.sh
+      register: start_node2
+
+    #########################################
+    # VALIDATE PROCESSES
+    #########################################
+    - name: Check running processes Node2
+      shell: screen -ls
+      register: screen_node2
+
+    - name: Validate Node2 processes started
+      set_fact:
+        node2_start_issue: "{{ screen_node2.stdout is not search('Sockets') }}"
+
+
+#############################################
+# PLAY 3: FINAL REPORT
+#############################################
+- name: Build Start Report
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+
+    #########################################
+    # TIME
+    #########################################
+    - name: Capture execution time
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    #########################################
+    # REPORT
+    #########################################
+    - name: Build DR start report
+      set_fact:
+        dr_start_report: |
+          DR PAD START REPORT
+          ======================================
+
+          Execution Time: {{ exec_time }}
+
+          NODE 1
+          --------------------------------------
+          Ehcache Start:
+          {{ hostvars['10.10.10.1'].ehcache_start_node1.stdout }}
+
+          Process Start:
+          {{ hostvars['10.10.10.1'].start_node1.stdout }}
+
+          Processes:
+          {{ hostvars['10.10.10.1'].screen_node1.stdout }}
+
+          Frontend:
+          {{ hostvars['10.10.10.1'].frontend_node1.stdout }}
+
+          NODE 2
+          --------------------------------------
+          Ehcache Start:
+          {{ hostvars['10.10.10.2'].ehcache_start_node2.stdout }}
+
+          Process Start:
+          {{ hostvars['10.10.10.2'].start_node2.stdout }}
+
+          Processes:
+          {{ hostvars['10.10.10.2'].screen_node2.stdout }}
+
+          FINAL STATUS
+          --------------------------------------
+          Node1 Issue: {{ hostvars['10.10.10.1'].node1_start_issue }}
+          Node2 Issue: {{ hostvars['10.10.10.2'].node2_start_issue }}
+
+    #########################################
+    # DISPLAY
+    #########################################
+    - name: Show report
+      debug:
+        msg: "{{ dr_start_report }}"
+
+    #########################################
+    # EMAIL
+    #########################################
+    - name: Send email
+      mail:
+        host: smtp.yourcompany.com
+        subject: "DR PAD Start Status"
+        body: "{{ dr_start_report }}"
+        to:
+          - ops-team@company.com
+      ignore_errors: yes
+
+    #########################################
+    # FINAL FAIL
+    #########################################
+    - name: Fail if issues found
+      fail:
+        msg: "PAD Start Validation Failed"
+      when:
+        - hostvars['10.10.10.1'].node1_start_issue
+        - hostvars['10.10.10.2'].node2_start_issue

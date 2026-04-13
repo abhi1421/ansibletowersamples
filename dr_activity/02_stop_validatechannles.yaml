@@ -1,0 +1,234 @@
+---
+#############################################
+# PLAY 1: NODE 1 OPERATIONS
+#############################################
+- name: PAD Node 1 - MQ Check and Shutdown
+  hosts: 10.10.10.1
+  gather_facts: no
+
+  vars:
+    qmgrs:
+      - SFMSRBIPADGWQM
+      - SFMSRBIPADCLQM1
+
+    queues:
+      - IDRBT.QUEUE.MANAGER
+      - NEFT.QPXXMITQ
+      - NEFT.CBSXMITQ
+      - RBISPADBRQ
+      - SFMS.INCOMING
+
+  tasks:
+
+    #########################################
+    # MQ CHECK WITH RETRY
+    #########################################
+    - name: Wait for MQ queues to drain (Node1)
+      shell: |
+        echo "dis ql({{ item.1 }}) curdepth" | runmqsc {{ item.0 }}
+      loop: "{{ qmgrs | product(queues) | list }}"
+      register: mq_node1
+      retries: 30
+      delay: 10
+      until: mq_node1.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
+
+    #########################################
+    # SCREEN BEFORE
+    #########################################
+    - name: Check running processes (before)
+      shell: screen -ls
+      register: screen_before_node1
+
+    #########################################
+    # STOP PROCESSES
+    #########################################
+    - name: Stop PAD processes Node1
+      shell: |
+        echo -e "2\ny" | sh SH_Files/Main_Script_All_Process.sh
+      register: stop_node1
+
+    #########################################
+    # KILL EHCACHE
+    #########################################
+    - name: Kill ehcache Node1
+      shell: |
+        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
+      register: kill_node1
+      ignore_errors: yes
+
+    #########################################
+    # STOP FRONTEND
+    #########################################
+    - name: Stop frontend Node1
+      shell: sh catalina.sh stop
+      register: frontend_node1
+
+    #########################################
+    # SCREEN AFTER
+    #########################################
+    - name: Check processes after stop Node1
+      shell: screen -ls
+      register: screen_after_node1
+
+    - name: Validate Node1 stopped
+      set_fact:
+        node1_issue: "{{ screen_after_node1.stdout is not search('No Sockets') }}"
+
+
+#############################################
+# PLAY 2: NODE 2 OPERATIONS
+#############################################
+- name: PAD Node 2 - MQ Check and Shutdown
+  hosts: 10.10.10.2
+  gather_facts: no
+
+  vars:
+    qmgr: SFMSRBIPADCLQM2
+    queues:
+      - RBISPADBRQ
+      - SFMS.INCOMING
+
+  tasks:
+
+    #########################################
+    # MQ CHECK WITH RETRY
+    #########################################
+    - name: Wait for MQ queues to drain (Node2)
+      shell: |
+        echo "dis ql({{ item }}) curdepth" | runmqsc {{ qmgr }}
+      loop: "{{ queues }}"
+      register: mq_node2
+      retries: 30
+      delay: 10
+      until: mq_node2.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
+
+    #########################################
+    # SCREEN BEFORE
+    #########################################
+    - name: Check running processes (before)
+      shell: screen -ls
+      register: screen_before_node2
+
+    #########################################
+    # STOP PROCESSES
+    #########################################
+    - name: Stop PAD processes Node2
+      shell: |
+        echo -e "2\ny" | sh SH_Files/Main_Script_Specific_Process.sh
+      register: stop_node2
+
+    #########################################
+    # KILL EHCACHE
+    #########################################
+    - name: Kill ehcache Node2
+      shell: |
+        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
+      register: kill_node2
+      ignore_errors: yes
+
+    #########################################
+    # SCREEN AFTER
+    #########################################
+    - name: Check processes after stop Node2
+      shell: screen -ls
+      register: screen_after_node2
+
+    - name: Validate Node2 stopped
+      set_fact:
+        node2_issue: "{{ screen_after_node2.stdout is not search('No Sockets') }}"
+
+
+#############################################
+# PLAY 3: XA TEST + FINAL REPORT
+#############################################
+- name: Final Validation and Reporting
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+
+    #########################################
+    # XA TEST (REMOTE EXEC)
+    #########################################
+    - name: Run XA Test Node1
+      shell: |
+        ssh 10.10.10.1 "echo SFMSRBIPADCLQM1 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      register: xa1
+
+    - name: Run XA Test Node2
+      shell: |
+        ssh 10.10.10.2 "echo SFMSRBIPADCLQM2 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      register: xa2
+
+    #########################################
+    # EXEC TIME
+    #########################################
+    - name: Capture execution time
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    #########################################
+    # REPORT
+    #########################################
+    - name: Build DR report
+      set_fact:
+        dr_report: |
+          DR PAD SHUTDOWN REPORT
+          ======================================
+
+          Execution Time: {{ exec_time }}
+
+          NODE 1
+          --------------------------------------
+          MQ Check:
+          {{ hostvars['10.10.10.1'].mq_node1.stdout }}
+
+          Processes Before:
+          {{ hostvars['10.10.10.1'].screen_before_node1.stdout }}
+
+          Stop Output:
+          {{ hostvars['10.10.10.1'].stop_node1.stdout }}
+
+          Processes After:
+          {{ hostvars['10.10.10.1'].screen_after_node1.stdout }}
+
+          NODE 2
+          --------------------------------------
+          MQ Check:
+          {{ hostvars['10.10.10.2'].mq_node2.stdout }}
+
+          Processes Before:
+          {{ hostvars['10.10.10.2'].screen_before_node2.stdout }}
+
+          Stop Output:
+          {{ hostvars['10.10.10.2'].stop_node2.stdout }}
+
+          Processes After:
+          {{ hostvars['10.10.10.2'].screen_after_node2.stdout }}
+
+          XA TEST
+          --------------------------------------
+          Node1:
+          {{ xa1.stdout }}
+
+          Node2:
+          {{ xa2.stdout }}
+
+    #########################################
+    # DISPLAY
+    #########################################
+    - name: Show report
+      debug:
+        msg: "{{ dr_report }}"
+
+    #########################################
+    # EMAIL
+    #########################################
+    - name: Send email
+      mail:
+        host: smtp.yourcompany.com
+        subject: "DR PAD Shutdown Status"
+        body: "{{ dr_report }}"
+        to:
+          - ops-team@company.com
+      ignore_errors: yes
