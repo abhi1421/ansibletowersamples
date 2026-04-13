@@ -1,5 +1,5 @@
 ---
-- name: Tenable Backup Copy & Consolidated Report
+- name: Tenable Backup Copy with Controls & Consolidated Report
   hosts: all
   become: yes
   gather_facts: yes
@@ -9,31 +9,81 @@
     dest_dir: "/DRDC/tenable-backup/"
     file_pattern: "tenable-sc-pdcvmt*.tar"
 
+    holidays:
+      - "2026-02-19"
+      - "2026-03-03"
+      - "2026-03-19"
+      - "2026-03-26"
+      - "2026-03-31"
+      - "2026-04-03"
+      - "2026-04-14"
+      - "2026-05-01"
+      - "2026-05-28"
+      - "2026-06-26"
+      - "2026-08-26"
+      - "2026-09-14"
+      - "2026-10-02"
+      - "2026-10-20"
+      - "2026-11-10"
+      - "2026-11-24"
+      - "2026-12-25"
+
   tasks:
 
-    # Get today's date
+    # Date
     - name: Set date fact
       set_fact:
         today_date: "{{ ansible_date_time.date }}"
 
-    # Find files
+    # Holiday check
+    - name: Check if today is a holiday
+      set_fact:
+        is_holiday: "{{ today_date in holidays }}"
+
+    # Disk usage check
+    - name: Get disk usage of destination
+      set_fact:
+        disk_usage: >-
+          {{
+            (ansible_mounts | selectattr('mount','equalto', dest_dir)
+            | map(attribute='size_used') | list | first | float)
+            /
+            (ansible_mounts | selectattr('mount','equalto', dest_dir)
+            | map(attribute='size_total') | list | first | float)
+            * 100
+          }}
+
+    - name: Check if disk is above threshold
+      set_fact:
+        disk_full: "{{ disk_usage | int >= 95 }}"
+
+    # Find files (only if allowed)
     - name: Find backup files
       find:
         paths: "{{ source_dir }}"
         patterns: "{{ file_pattern }}"
       register: found_files
+      when: not is_holiday and not disk_full
 
     # Identify today's file
     - name: Identify today's file
       set_fact:
         final_file: "{{ item.path }}"
-      loop: "{{ found_files.files }}"
-      when: today_date in item.path
+      loop: "{{ found_files.files | default([]) }}"
+      when: not is_holiday and not disk_full and today_date in item.path
       register: today_file_result
 
     - name: Set final file properly
       set_fact:
         final_file: "{{ (today_file_result.results | selectattr('ansible_facts.final_file','defined') | map(attribute='ansible_facts.final_file') | list)[0] | default('') }}"
+      when: not is_holiday and not disk_full
+
+    # Get file details
+    - name: Get file details
+      stat:
+        path: "{{ final_file }}"
+      when: final_file != "" and not is_holiday and not disk_full
+      register: file_stat
 
     # Copy file
     - name: Copy today's backup file
@@ -41,27 +91,75 @@
         src: "{{ final_file }}"
         dest: "{{ dest_dir }}"
         remote_src: yes
-      when: final_file != ""
+      when: final_file != "" and not is_holiday and not disk_full
       register: copy_status
+
+    # Set ownership & permissions
+    - name: Set ownership and permissions
+      file:
+        path: "{{ dest_dir }}/{{ final_file | basename }}"
+        owner: tenable
+        group: tenable
+        mode: '0664'
+      when: final_file != "" and not is_holiday and not disk_full
 
     # Store per-host result
     - name: Store execution result
       set_fact:
         host_result:
           host: "{{ inventory_hostname }}"
-          date: "{{ today_date }}"
-          file: "{{ final_file if final_file != '' else 'Not Found' }}"
+          source: "{{ source_dir }}"
+          destination: "{{ dest_dir }}"
+          file: >-
+            {% if is_holiday or disk_full %}
+            N/A
+            {% else %}
+            {{ final_file | default('Not Found') | basename }}
+            {% endif %}
+          file_size: >-
+            {% if file_stat is defined and file_stat.stat.exists %}
+            {{ (file_stat.stat.size / 1024 / 1024) | round(2) }} MB
+            {% else %}
+            N/A
+            {% endif %}
           copy_status: >-
-            {% if copy_status is defined and copy_status.changed %}
+            {% if is_holiday %}
+            Skipped (Holiday)
+            {% elif disk_full %}
+            Skipped (Disk >=95%)
+            {% elif copy_status is defined and copy_status.changed %}
             Success
             {% elif copy_status is defined and not copy_status.changed %}
             No Change
             {% else %}
             Skipped
             {% endif %}
-          status: "{{ 'SUCCESS' if final_file != '' else 'FAILED' }}"
+          status: >-
+            {% if is_holiday %}
+            SKIPPED - HOLIDAY
+            {% elif disk_full %}
+            SKIPPED - DISK FULL
+            {% elif final_file != "" %}
+            SUCCESS
+            {% else %}
+            FAILED
+            {% endif %}
+          reason: >-
+            {% if is_holiday %}
+            Execution skipped as the current date is a configured bank holiday.
+            {% elif disk_full %}
+            Destination filesystem utilization exceeded 95%; no actions performed.
+            {% elif final_file == "" %}
+            No backup file found for the current date.
+            {% elif copy_status is defined and copy_status.changed %}
+            Backup file successfully copied and validated.
+            {% elif copy_status is defined and not copy_status.changed %}
+            File already exists at destination; no changes required.
+            {% else %}
+            Execution skipped due to unknown condition.
+            {% endif %}
 
-    # FINAL CONSOLIDATED REPORT (Single Task)
+    # 🔽 FINAL CONSOLIDATED REPORT
     - name: Build consolidated report
       run_once: true
       delegate_to: localhost
@@ -74,15 +172,23 @@
           ----------------------------------------
           Host: {{ host }}
           ----------------------------------------
-          Date: {{ hostvars[host].host_result.date }}
+          Source Location: {{ hostvars[host].host_result.source }}
+          Destination Location: {{ hostvars[host].host_result.destination }}
 
-          File Copied:
+          File Name:
           {{ hostvars[host].host_result.file }}
+
+          File Size:
+          {{ hostvars[host].host_result.file_size }}
 
           Copy Status:
           {{ hostvars[host].host_result.copy_status }}
 
-          Status: {{ hostvars[host].host_result.status }}
+          Status:
+          {{ hostvars[host].host_result.status }}
+
+          Reason:
+          {{ hostvars[host].host_result.reason }}
 
           {% endfor %}
 
