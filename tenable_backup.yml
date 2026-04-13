@@ -61,7 +61,14 @@
           host: "{{ inventory_hostname }}"
           date: "{{ today_date }}"
           file: "{{ final_file if final_file != '' else 'Not Found' }}"
-          copy_status: "{{ copy_status.msg | default('Skipped') }}"
+          copy_status: >-
+            {% if copy_status is defined and copy_status.changed %}
+            Success
+            {% elif copy_status is defined and not copy_status.changed %}
+            No Change
+            {% else %}
+            Skipped
+            {% endif %}
           deleted_files: >-
             {{ delete_status.results | selectattr('changed','equalto',true)
                | map(attribute='path') | list }}
