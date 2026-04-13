@@ -1,6 +1,6 @@
 ---
-- name: Tenable Backup Copy & Cleanup
-  hosts: serverA
+- name: Tenable Backup Copy, Cleanup & Consolidated Report
+  hosts: all
   become: yes
   gather_facts: yes
 
@@ -11,81 +11,98 @@
 
   tasks:
 
-    # Get today's date in required format (YYYY-MM-DD)
-    - name: Set today's date
+    # Dates
+    - name: Set date facts
       set_fact:
         today_date: "{{ ansible_date_time.date }}"
+        yesterday_date: "{{ lookup('pipe', 'date -d \"yesterday\" +%Y-%m-%d') }}"
 
-    # Find today's backup file
-    - name: Find today's backup file
+    # Find files
+    - name: Find backup files
       find:
         paths: "{{ source_dir }}"
         patterns: "{{ file_pattern }}"
-        use_regex: false
       register: found_files
 
-    - name: Filter today's file
+    # Identify today's file
+    - name: Identify today's file
       set_fact:
-        todays_file: "{{ item.path }}"
+        final_file: "{{ item.path }}"
       loop: "{{ found_files.files }}"
       when: today_date in item.path
-      register: todays_file_result
+      register: today_file_result
 
-    - name: Set final today's file
+    - name: Set final file properly
       set_fact:
-        final_file: "{{ (todays_file_result.results | selectattr('ansible_facts.todays_file','defined') | map(attribute='ansible_facts.todays_file') | list)[0] | default('') }}"
+        final_file: "{{ (today_file_result.results | selectattr('ansible_facts.final_file','defined') | map(attribute='ansible_facts.final_file') | list)[0] | default('') }}"
 
-    # Fail if no file found
-    - name: Fail if today's file not found
-      fail:
-        msg: "No backup file found for {{ today_date }}"
-      when: final_file == ""
-
-    # Copy file (same server, mounted path)
-    - name: Copy file to DRDC mount
+    # Copy
+    - name: Copy today's backup file
       copy:
         src: "{{ final_file }}"
         dest: "{{ dest_dir }}"
         remote_src: yes
+      when: final_file != ""
       register: copy_status
 
-    # Find old files (exclude today's file)
-    - name: Find old backup files
-      find:
-        paths: "{{ source_dir }}"
-        patterns: "{{ file_pattern }}"
-      register: all_files
-
-    - name: Delete old files
+    # Delete yesterday
+    - name: Delete yesterday's backup file
       file:
         path: "{{ item.path }}"
         state: absent
-      loop: "{{ all_files.files }}"
-      when: today_date not in item.path
+      loop: "{{ found_files.files }}"
+      when: yesterday_date in item.path
       register: delete_status
 
-    # Consolidated report
-    - name: Build report
+    # Store per-host result (no separate report yet)
+    - name: Store execution result
       set_fact:
-        backup_report: |
-          Backup Execution Report
-          ------------------------
-          Date: {{ today_date }}
+        host_result:
+          host: "{{ inventory_hostname }}"
+          date: "{{ today_date }}"
+          file: "{{ final_file if final_file != '' else 'Not Found' }}"
+          copy_status: "{{ copy_status.msg | default('Skipped') }}"
+          deleted_files: >-
+            {{ delete_status.results | selectattr('changed','equalto',true)
+               | map(attribute='path') | list }}
+          status: "{{ 'SUCCESS' if final_file != '' else 'FAILED' }}"
 
-          Source Directory: {{ source_dir }}
-          Destination Directory: {{ dest_dir }}
+    # 🔽 SINGLE FINAL CONSOLIDATED REPORT TASK
+    - name: Build consolidated report
+      run_once: true
+      delegate_to: localhost
+      set_fact:
+        final_report: |
+          Consolidated Backup Report
+          ==========================
+
+          {% for host in ansible_play_hosts %}
+          ----------------------------------------
+          Host: {{ host }}
+          ----------------------------------------
+          Date: {{ hostvars[host].host_result.date }}
 
           File Copied:
-          {{ final_file }}
+          {{ hostvars[host].host_result.file }}
 
           Copy Status:
-          {{ copy_status.msg | default('Success') }}
+          {{ hostvars[host].host_result.copy_status }}
 
-          Deleted Files:
-          {% for item in delete_status.results if item.changed %}
-          - {{ item.path }}
+          Deleted (Yesterday):
+          {% if hostvars[host].host_result.deleted_files | length > 0 %}
+          {% for f in hostvars[host].host_result.deleted_files %}
+          - {{ f }}
+          {% endfor %}
           {% else %}
-          No old files deleted
+          No file deleted
+          {% endif %}
+
+          Status: {{ hostvars[host].host_result.status }}
+
           {% endfor %}
 
-          Status: SUCCESS
+    - name: Print final report
+      run_once: true
+      delegate_to: localhost
+      debug:
+        var: final_report
