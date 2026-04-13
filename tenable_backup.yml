@@ -40,18 +40,13 @@
       set_fact:
         is_holiday: "{{ today_date in holidays }}"
 
-    # Disk usage check
     - name: Get disk usage of destination
+      command: df -h {{ dest_dir }}
+      register: disk_output
+    
+    - name: Extract disk usage percentage
       set_fact:
-        disk_usage: >-
-          {{
-            (ansible_mounts | selectattr('mount','equalto', dest_dir)
-            | map(attribute='size_used') | list | first | float)
-            /
-            (ansible_mounts | selectattr('mount','equalto', dest_dir)
-            | map(attribute='size_total') | list | first | float)
-            * 100
-          }}
+        disk_usage: "{{ disk_output.stdout_lines[1].split()[4].replace('%','') | int }}"
 
     - name: Check if disk is above threshold
       set_fact:
