@@ -29,6 +29,10 @@
       - "2026-12-25"
 
   tasks:
+    - name: Initialize variables
+      set_fact:
+        final_file: ""
+
 
     # Date
     - name: Set date fact
@@ -77,7 +81,10 @@
     - name: Get file details
       stat:
         path: "{{ final_file }}"
-      when: final_file != "" and not is_holiday and not disk_full
+      when:
+        - not is_holiday
+        - not disk_full
+        - (final_file | default('')) != ""
       register: file_stat
 
     # Copy file
@@ -86,7 +93,10 @@
         src: "{{ final_file }}"
         dest: "{{ dest_dir }}"
         remote_src: yes
-      when: final_file != "" and not is_holiday and not disk_full
+      when:
+        - not is_holiday
+        - not disk_full
+        - (final_file | default('')) != ""
       register: copy_status
 
     # Set ownership & permissions
@@ -96,7 +106,10 @@
         owner: tenable
         group: tenable
         mode: '0664'
-      when: final_file != "" and not is_holiday and not disk_full
+      when:
+        - not is_holiday
+        - not disk_full
+        - (final_file | default('')) != ""
 
     # Store per-host result
     - name: Store execution result
