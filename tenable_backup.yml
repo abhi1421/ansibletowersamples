@@ -125,7 +125,7 @@
             {{ final_file | default('Not Found') | basename }}
             {% endif %}
           file_size: >-
-            {% if file_stat is defined and file_stat.stat.exists %}
+            {% if file_stat is defined and file_stat.stat.exists | default(false) %}
             {{ (file_stat.stat.size / 1024 / 1024) | round(2) }} MB
             {% else %}
             N/A
