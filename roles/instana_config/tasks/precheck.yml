@@ -1,0 +1,26 @@
+- name: Check if PDC file exists
+  stat:
+    path: "{{ instana_config_dir }}/{{ pdc_file }}"
+  register: pdc_stat
+
+- name: Check if ODC file exists
+  stat:
+    path: "{{ instana_config_dir }}/{{ odc_file }}"
+  register: odc_stat
+
+- name: Set current state
+  set_fact:
+    current_state: >-
+      {% if pdc_stat.stat.exists and odc_stat.stat.exists %}
+      BOTH
+      {% elif pdc_stat.stat.exists %}
+      PDC
+      {% elif odc_stat.stat.exists %}
+      ODC
+      {% else %}
+      NONE
+      {% endif %}
+
+- name: Debug current state
+  debug:
+    msg: "Current agent state: {{ current_state }}"

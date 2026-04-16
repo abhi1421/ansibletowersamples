@@ -1,0 +1,7 @@
+#SPDX-License-Identifier: MIT-0
+---
+# handlers file for instana_config
+- name: restart instana
+  service:
+    name: "{{ instana_service_name }}"
+    state: restarted

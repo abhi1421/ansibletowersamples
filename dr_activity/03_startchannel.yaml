@@ -180,4 +180,4 @@
         msg: "PAD Start Validation Failed"
       when:
         - hostvars['10.10.10.1'].node1_start_issue
-        - hostvars['10.10.10.2'].node2_start_issue
+        - hostvars['10.10.10.2'].node2_start_issue  

@@ -1,0 +1,61 @@
+- name: Re-check PDC file
+  stat:
+    path: "{{ instana_config_dir }}/{{ pdc_file }}"
+  register: post_pdc
+
+- name: Re-check ODC file
+  stat:
+    path: "{{ instana_config_dir }}/{{ odc_file }}"
+  register: post_odc
+
+- name: Validate final state
+  debug:
+    msg: >-
+      Final state:
+      PDC={{ post_pdc.stat.exists }},
+      ODC={{ post_odc.stat.exists }}
+
+- name: Fail if configuration mismatch
+  fail:
+    msg: "Post-check failed! Desired state not achieved."
+  when: >
+    (target_mode == "PDC" and (not post_pdc.stat.exists or post_odc.stat.exists)) or
+    (target_mode == "ODC" and (not post_odc.stat.exists or post_pdc.stat.exists)) or
+    (target_mode == "BOTH" and (not post_pdc.stat.exists or not post_odc.stat.exists))
+
+
+- name: Set execution report
+  set_fact:
+    instana_report:
+      host: "{{ inventory_hostname }}"
+      initial_state: "{{ current_state }}"
+      target_state: "{{ target_mode }}"
+      final_pdc: "{{ post_pdc.stat.exists }}"
+      final_odc: "{{ post_odc.stat.exists }}"
+      changed: "{{ (post_pdc.stat.exists|string + post_odc.stat.exists|string) != (pdc_stat.stat.exists|string + odc_stat.stat.exists|string) }}"
+
+- name: Aggregate reports
+  set_fact:
+    final_report: "{{ final_report | default([]) + [ hostvars[item].instana_report ] }}"
+  loop: "{{ groups['all'] }}"
+  run_once: true
+
+- name: Build email body
+  set_fact:
+    report_email_body: |
+      Instana Configuration Report
+      {% for r in final_report %}
+      Host: {{ r.host }}
+      Initial: {{ r.initial_state }}
+      Target: {{ r.target_state }}
+      Final -> PDC: {{ r.final_pdc }}, ODC: {{ r.final_odc }}
+      Changed: {{ r.changed }}
+      ----------------------------------------
+      {% endfor %}
+  run_once: true
+
+- name: Print final report
+  run_once: true
+  delegate_to: localhost
+  debug:
+    var: report_email_body

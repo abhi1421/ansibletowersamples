@@ -1,0 +1,50 @@
+# ---- PDC MODE ----
+- name: Ensure PDC file is present
+  copy:
+    src: "{{ pdc_file }}"
+    dest: "{{ instana_config_dir }}/{{ pdc_file }}"
+    mode: '0644'
+  when: target_mode == "PDC"
+  notify: restart instana
+
+- name: Remove ODC file if present (PDC mode)
+  file:
+    path: "{{ instana_config_dir }}/{{ odc_file }}"
+    state: absent
+  when: target_mode == "PDC" and odc_stat.stat.exists
+  notify: restart instana
+
+
+# ---- ODC MODE ----
+- name: Ensure ODC file is present
+  copy:
+    src: "{{ odc_file }}"
+    dest: "{{ instana_config_dir }}/{{ odc_file }}"
+    mode: '0644'
+  when: target_mode == "ODC"
+  notify: restart instana
+
+- name: Remove PDC file if present (ODC mode)
+  file:
+    path: "{{ instana_config_dir }}/{{ pdc_file }}"
+    state: absent
+  when: target_mode == "ODC" and pdc_stat.stat.exists
+  notify: restart instana
+
+
+# ---- BOTH MODE ----
+- name: Ensure PDC file exists (BOTH mode)
+  copy:
+    src: "{{ pdc_file }}"
+    dest: "{{ instana_config_dir }}/{{ pdc_file }}"
+    mode: '0644'
+  when: target_mode == "BOTH"
+  notify: restart instana
+
+- name: Ensure ODC file exists (BOTH mode)
+  copy:
+    src: "{{ odc_file }}"
+    dest: "{{ instana_config_dir }}/{{ odc_file }}"
+    mode: '0644'
+  when: target_mode == "BOTH"
+  notify: restart instana

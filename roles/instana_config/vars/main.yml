@@ -1,0 +1,8 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for instana_config
+instana_config_dir: "/opt/instana/agent/etc"
+
+pdc_file: "com.instana.agent.main.sender.Backend-1.cfg"
+odc_file: "com.instana.agent.main.sender.Backend-2.cfg"
+instana_service_name: "instana-agent"

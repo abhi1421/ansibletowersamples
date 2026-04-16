@@ -1,0 +1,14 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for instana_config
+- name: Run precheck
+  import_tasks: precheck.yml
+
+- name: Apply configuration
+  import_tasks: configure.yml
+
+- name: Flush handlers (restart if needed)
+  meta: flush_handlers
+
+- name: Run postcheck
+  import_tasks: postcheck.yml
