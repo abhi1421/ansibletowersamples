@@ -8,6 +8,7 @@
       {{ entry }}
       {% endfor %}
   when: target_mode == "PDC"
+  notify: restart instana
 
 - name: Remove ODC host entries (PDC mode)
   blockinfile:
@@ -15,6 +16,7 @@
     marker: "# {mark} INSTANA ODC"
     state: absent
   when: target_mode == "PDC"
+  notify: restart instana
 
 
 # ---- ODC MODE ----
@@ -27,6 +29,7 @@
       {{ entry }}
       {% endfor %}
   when: target_mode == "ODC"
+  notify: restart instana
 
 - name: Remove PDC host entries (ODC mode)
   blockinfile:
@@ -34,6 +37,7 @@
     marker: "# {mark} INSTANA PDC"
     state: absent
   when: target_mode == "ODC"
+  notify: restart instana
 
 
 # ---- BOTH MODE ----
@@ -46,6 +50,7 @@
       {{ entry }}
       {% endfor %}
   when: target_mode == "BOTH"
+  notify: restart instana
 
 - name: Ensure ODC entries exist (BOTH mode)
   blockinfile:
@@ -56,3 +61,4 @@
       {{ entry }}
       {% endfor %}
   when: target_mode == "BOTH"
+  notify: restart instana
