@@ -1,0 +1,58 @@
+# ---- PDC MODE ----
+- name: Add PDC host entries
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA PDC"
+    block: |
+      {% for entry in pdc_host_entries %}
+      {{ entry }}
+      {% endfor %}
+  when: target_mode == "PDC"
+
+- name: Remove ODC host entries (PDC mode)
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA ODC"
+    state: absent
+  when: target_mode == "PDC"
+
+
+# ---- ODC MODE ----
+- name: Add ODC host entries
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA ODC"
+    block: |
+      {% for entry in odc_host_entries %}
+      {{ entry }}
+      {% endfor %}
+  when: target_mode == "ODC"
+
+- name: Remove PDC host entries (ODC mode)
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA PDC"
+    state: absent
+  when: target_mode == "ODC"
+
+
+# ---- BOTH MODE ----
+- name: Ensure PDC entries exist (BOTH mode)
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA PDC"
+    block: |
+      {% for entry in pdc_host_entries %}
+      {{ entry }}
+      {% endfor %}
+  when: target_mode == "BOTH"
+
+- name: Ensure ODC entries exist (BOTH mode)
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} INSTANA ODC"
+    block: |
+      {% for entry in odc_host_entries %}
+      {{ entry }}
+      {% endfor %}
+  when: target_mode == "BOTH"

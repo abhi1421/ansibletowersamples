@@ -6,3 +6,11 @@ instana_config_dir: "/opt/instana/agent/etc"
 pdc_file: "com.instana.agent.main.sender.Backend-1.cfg"
 odc_file: "com.instana.agent.main.sender.Backend-2.cfg"
 instana_service_name: "instana-agent"
+
+pdc_host_entries:
+  - "10.1.1.1 agent-acceptor.instana.rbi1.rbi.org.in"
+  - "10.1.1.1 agent-acceptor.instanapilot.rbi1.rbi.org.in"
+
+odc_host_entries:
+  - "10.2.2.2 agent-acceptor.instana.rbi1.rbi.org.in"
+  - "10.2.2.2 agent-acceptor.instanapilot.rbi1.rbi.org.in"

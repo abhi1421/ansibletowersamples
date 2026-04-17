@@ -7,6 +7,9 @@
 - name: Apply configuration
   import_tasks: configure.yml
 
+- name: Update /etc/hosts
+  import_tasks: hosts_update.yml
+
 - name: Flush handlers (restart if needed)
   meta: flush_handlers
 
