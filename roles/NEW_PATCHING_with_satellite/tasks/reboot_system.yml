@@ -1,9 +1,52 @@
 # tasks/reboot_system.yml
 # Task to reboot the system if required
 
+#- name: Check if reboot is required
+#  ansible.builtin.command: needs-restarting -r
+#  register: reboot_check
+#  changed_when: false
+#  failed_when: false
+#  when: reboot_after_patching | bool
+#
+#- name: Include task to reboot the system if required
+#  ansible.builtin.import_tasks: reboot_system.yml
+#  tags:
+#    - reboot
+#  when:
+#    - reboot_after_patching | bool
+#    - reboot_check is defined
+#    - reboot_check.rc == 1
+#
+#- name: Reboot the system if required
+#  ansible.builtin.reboot:
+#    reboot_timeout: 600 # Wait up to 10 minutes for the system to come back up
+#  when: reboot_after_patching | bool
+#  tags:
+#    - reboot
+#
+
+
+## Check if reboot is required
+
+- name: Check if reboot is required
+  ansible.builtin.command: needs-restarting -r
+  register: reboot_check
+  changed_when: false
+  failed_when: false
+
+# Optional debug (good for logs)
+
+- name: Show reboot check result
+  ansible.builtin.debug:
+    msg: >
+      Reboot check rc={{ reboot_check.rc }}.
+      {{ 'Reboot required' if reboot_check.rc == 1 else 'No reboot required' }}
+
+# Perform reboot only if needed
+
 - name: Reboot the system if required
   ansible.builtin.reboot:
-    reboot_timeout: 600 # Wait up to 10 minutes for the system to come back up
-  when: reboot_after_patching | bool
+    reboot_timeout: 600
+  when: reboot_check.rc == 1
   tags:
     - reboot

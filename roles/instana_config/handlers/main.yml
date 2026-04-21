@@ -5,3 +5,18 @@
   service:
     name: "{{ instana_service_name }}"
     state: restarted
+
+
+#- name: restart instana
+#  shell: |
+#    /opt/instana/agent/bin/stop
+#    sleep 2
+#    /opt/instana/agent/bin/start
+#  args:
+#    executable: /bin/bash
+#
+#- name: Verify agent is running
+#  shell: "/opt/instana/agent/bin/status"
+#  register: instana_status
+#  changed_when: false
+#  failed_when: "'Running' not in instana_status.stdout"
