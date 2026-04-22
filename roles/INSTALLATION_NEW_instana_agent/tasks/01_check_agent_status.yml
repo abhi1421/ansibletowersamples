@@ -67,11 +67,9 @@
     - name: Debug - Display results of additional checks
       ansible.builtin.debug:
         msg: |
-          Env vars script in place: {{ env_vars_script_stat.stat.exists }}
-          Host entries likely handled (via env script check): {{ instana_host_entries_ok }}
+          Host entries assumed handled: {{ instana_host_entries_ok }}
           Certificate imported: {{ cert_import_check.rc == 0 }}
           All additional checks pass: {{ instana_all_checks_pass_for_exit }}
-      tags: [check_status]
 
 - name: Exit playbook for this host if Instana agent is fully installed, configured, and running
   ansible.builtin.meta:
