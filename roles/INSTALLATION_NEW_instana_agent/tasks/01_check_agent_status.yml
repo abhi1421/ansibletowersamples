@@ -46,18 +46,9 @@
 - name: Perform additional configuration and certificate checks if Instana agent is running and package is installed
   when: instana_agent_running and instana_package_installed
   block:
-    - name: Check if environment variables script is in place
-      ansible.builtin.stat:
-        path: "{{ instana_env_vars_script }}"
-      register: env_vars_script_stat
-      tags: [check_status]
-
-    - name: Check if host entries file was processed (by checking existence of env vars script)
-      # This is a simplified check. A more robust check for /etc/hosts would involve parsing its content.
-      # For now, we assume if the env var script is present, host entries were likely handled.
+    - name: Set host entries check flag (no env script validation needed)
       ansible.builtin.set_fact:
-        instana_host_entries_ok: "{{ env_vars_script_stat.stat.exists }}"
-      tags: [check_status]
+        instana_host_entries_ok: true
 
     - name: Check if certificate is imported into cacerts keystore
       ansible.builtin.command: "{{ instana_keytool_path }} -list -keystore {{ instana_cacerts_path }} -alias {{ instana_certificate_alias }} -storepass {{ instana_cacerts_password }}"
@@ -69,8 +60,7 @@
     - name: Set flag if all additional checks pass for early exit
       ansible.builtin.set_fact:
         instana_all_checks_pass_for_exit: >-
-          {{ env_vars_script_stat.stat.exists and
-             instana_host_entries_ok and
+          {{ instana_host_entries_ok and
              (cert_import_check.rc == 0) }}
       tags: [check_status]
 

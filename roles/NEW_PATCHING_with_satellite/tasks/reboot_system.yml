@@ -39,7 +39,7 @@
 - name: Show reboot check result
   ansible.builtin.debug:
     msg: >
-      Reboot check rc={{ reboot_check.rc }}.
+      Reboot check rc={{ reboot_check.rc }}.  
       {{ 'Reboot required' if reboot_check.rc == 1 else 'No reboot required' }}
 
 # Perform reboot only if needed

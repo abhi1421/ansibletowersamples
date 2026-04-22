@@ -8,8 +8,7 @@
     mode: '0755'
     recurse: true # Create parent directories if they don't exist
   tags: [create_configs]
-  # Iterate through the list of config files defined in defaults/main.yml
-  # and ensure that the parent directory for each config file exists.
+
 
 - name: Create Instana agent configuration directories
   ansible.builtin.file:
@@ -20,12 +19,12 @@
   tags: [create_configs]
 
 
-- name: Copy Instana agent config files from role files/ dir
-  ansible.builtin.copy:
-    src: 10-environment.conf 
-    dest: /etc/systemd/system/instana-agent.service.d/10-environment.conf
-    mode: '0644'
-  tags: [create_configs]
+#- name: Copy Instana agent config files from role files/ dir
+#  ansible.builtin.copy:
+#    src: 10-environment.conf 
+#    dest: /etc/systemd/system/instana-agent.service.d/10-environment.conf
+#    mode: '0644'
+#  tags: [create_configs]
 
 - name: Copy Instana agent config files from role files/ dir
   ansible.builtin.copy:
@@ -41,11 +40,20 @@
     mode: '0644'
   tags: [create_configs]
 
-- name: Copy Instana agent config files from role files/ dir
+- name: Copy Backend config for PDC
   ansible.builtin.copy:
-    src: com.instana.agent.main.sender.Backend.cfg
-    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.sender.Backend.cfg
+    src: com.instana.agent.main.sender.Backend-1.cfg
+    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.sender.Backend-1.cfg
     mode: '0644'
+  when: instana_backend_type == "PDC" or instana_backend_type == "BOTH"
+  tags: [create_configs]
+
+- name: Copy Backend config for ODC
+  ansible.builtin.copy:
+    src: com.instana.agent.main.sender.Backend-2.cfg
+    dest: /opt/instana/agent/etc/instana/com.instana.agent.main.sender.Backend-2.cfg
+    mode: '0644'
+  when: instana_backend_type == "ODC" or instana_backend_type == "BOTH"
   tags: [create_configs]
 
 - name: Copy Instana agent config files from role files/ dir
