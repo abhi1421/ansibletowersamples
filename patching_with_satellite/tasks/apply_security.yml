@@ -1,0 +1,42 @@
+# tasks/apply_security.yml
+# Task to apply security patches
+
+#- name: Apply Security Patches
+#  ansible.builtin.yum:
+#    name: "*"
+#    security: true # Apply only security updates
+#    state: latest
+#  when: apply_security_patches | bool
+#  tags:
+#    - patching
+#    - security_patches
+
+
+- name: Apply security patches
+  become: yes
+  ansible.builtin.dnf:
+    name: "*"
+    security: true
+    state: latest
+  register: security_result
+  ignore_errors: true
+  tags:
+    - patching
+    - security_patches
+#  when: apply_security_patches | default(false)
+
+
+- name: Count security packages updated
+  ansible.builtin.set_fact:
+    security_patch_count: >-
+      {{
+        (security_result.results | select('match', '^Installed:') | list | length)
+          if (security_result is defined and security_result.rc == 0)
+          else 0
+      }}
+  when: security_result is defined
+
+- name: Set security patch status
+  ansible.builtin.set_fact:
+    security_status: "{{ 'Completed' if (security_result.rc == 0) else 'Failed' }}"
+  when: security_result is defined

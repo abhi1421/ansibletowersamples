@@ -1,0 +1,37 @@
+# tasks/apply_kernel.yml
+# Task to apply kernel patches
+
+#- name: Apply Kernel Patches
+#  ansible.builtin.yum:
+#    name: "kernel*" # Target kernel packages specifically
+#    state: latest
+#  when: apply_kernel_patches | bool
+#  tags:
+#    - patching
+#    - kernel_patches
+
+- name: Apply Kernel Patches
+  ansible.builtin.yum:
+    name: "kernel*" # Target kernel packages specifically
+    state: latest
+  ignore_errors: true
+  register: kernel_result
+  when: apply_kernel_patches | bool
+  tags:
+    - patching
+    - kernel_patches
+
+- name: Count kernel packages updated
+  ansible.builtin.set_fact:
+    kernel_patch_count: >-
+      {{
+        (kernel_result.results | select('match', '^Installed:') | list | length)
+          if (kernel_result is defined and kernel_result.rc == 0)
+          else 0
+      }}
+  when: kernel_result is defined
+
+- name: Set kernel patch status
+  ansible.builtin.set_fact:
+    kernel_status: "{{ 'Completed' if (kernel_result.rc == 0) else 'Failed' }}"
+  when: kernel_result is defined

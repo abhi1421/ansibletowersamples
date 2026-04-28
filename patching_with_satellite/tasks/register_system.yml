@@ -1,0 +1,37 @@
+# tasks/register_system.yml
+# Task to register the system to Satellite if not already registered
+
+- name: Clean the stale date of the system
+  command: subscription-manager clean
+  when: subscription_status_check.stdout != "Current"
+  tags:
+    - registration
+
+- name: Register system to Satellite if not registered
+  ansible.builtin.command: >
+    subscription-manager register
+    --org={{ satellite_org_id }} --activationkey={{ satellite_activation_key }}  --force
+  when: subscription_status_check.stdout != "Current"
+  tags:
+    - registration
+
+- name: Enable required repositories (baseos, appstream, ha)
+  ansible.builtin.command: >
+    subscription-manager repos --enable={{ item }}
+  register: repo_enable_result
+  failed_when: false     # do not fail playbook if repo is missing
+  changed_when: "'enabled' in repo_enable_result.stdout or 'already enabled' in repo_enable_result.stdout"
+  loop:
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+    - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-highavailability-rpms"
+
+- name: Debug repo enable results
+  ansible.builtin.debug:
+    var: repo_enable_result.results
+
+- name: Set release version for subscription-manager to current RHEL version
+  ansible.builtin.command: "subscription-manager release --set {{ ansible_distribution_version }}"
+  changed_when: true # Setting the release version is a change
+  tags:
+    - registration
