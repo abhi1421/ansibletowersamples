@@ -216,29 +216,29 @@
         final_report: |
           Consolidated Backup Report
           ==========================
-
+          
           {% for host in ansible_play_hosts %}
           ----------------------------------------
           Host: {{ host }}
           ----------------------------------------
           Source Location: {{ hostvars[host].host_result.source }}
           Destination Location: {{ hostvars[host].host_result.destination }}
-
+          
           File Name:
           {{ hostvars[host].host_result.file }}
-
+          
           File Size:
           {{ hostvars[host].host_result.file_size }}
-
+          
           Copy Status:
           {{ hostvars[host].host_result.copy_status }}
-
+          
           Status:
           {{ hostvars[host].host_result.status }}
-
+          
           Reason:
           {{ hostvars[host].host_result.reason }}
-
+          
           Source Cleanup:
           {% if hostvars[host].host_result.deleted_source_files | default([]) | length > 0 %}
           {% for f in hostvars[host].host_result.deleted_source_files %}
@@ -256,6 +256,8 @@
           {% else %}
           No files deleted
           {% endif %}
+          
+          {% endfor %}
 
     - name: Print final report
       run_once: true
