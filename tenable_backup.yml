@@ -240,13 +240,22 @@
           {{ hostvars[host].host_result.reason }}
 
           Source Cleanup:
-          {% for f in hostvars[host].host_result.deleted_source %}
+          {% if hostvars[host].host_result.deleted_source_files | default([]) | length > 0 %}
+          {% for f in hostvars[host].host_result.deleted_source_files %}
+          - {{ f }}
           {% endfor %}
-
+          {% else %}
+          No files deleted
+          {% endif %}
+          
           Destination Cleanup:
-          {% for f in hostvars[host].host_result.deleted_dest %}
-
+          {% if hostvars[host].host_result.deleted_dest_files | default([]) | length > 0 %}
+          {% for f in hostvars[host].host_result.deleted_dest_files %}
+          - {{ f }}
           {% endfor %}
+          {% else %}
+          No files deleted
+          {% endif %}
 
     - name: Print final report
       run_once: true
