@@ -241,6 +241,7 @@
 
           Source Cleanup:
           {% for f in hostvars[host].host_result.deleted_source %}
+          {% endfor %}
 
           Destination Cleanup:
           {% for f in hostvars[host].host_result.deleted_dest %}
