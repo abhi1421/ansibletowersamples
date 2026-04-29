@@ -110,6 +110,44 @@
         - not disk_full
         - (final_file | default('')) != ""
 
+
+# 🔹 Cleanup Source (older than 7 days)
+    - name: Find old files in source (older than 7 days)
+      find:
+        paths: "{{ source_dir }}"
+        patterns: "{{ file_pattern }}"
+        age: 7d
+        age_stamp: mtime
+      register: old_source_files
+      when: not is_holiday
+
+
+    - name: Delete old files from source
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_source_files.files }}"
+      when: not is_holiday
+      register: source_cleanup
+
+# 🔹 Cleanup Destination
+    - name: Find old files in destination (older than 7 days)
+      find:
+        paths: "{{ dest_dir }}"
+        patterns: "{{ file_pattern }}"
+        age: 7d
+        age_stamp: mtime
+      register: old_dest_files
+      when: not is_holiday
+    
+    - name: Delete old files from destination
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_dest_files.files }}"
+      when: not is_holiday
+      register: dest_cleanup
+
     # Store per-host result
     - name: Store execution result
       set_fact:
@@ -165,6 +203,10 @@
             {% else %}
             Execution skipped due to unknown condition.
             {% endif %}
+          deleted_source_files: >-
+            {{ old_source_files.files | map(attribute='path') | list | default([]) }}
+          deleted_dest_files: >-
+            {{ old_dest_files.files | map(attribute='path') | list | default([]) }}
 
     # 🔽 FINAL CONSOLIDATED REPORT
     - name: Build consolidated report
@@ -196,6 +238,12 @@
 
           Reason:
           {{ hostvars[host].host_result.reason }}
+
+          Source Cleanup:
+          {% for f in hostvars[host].host_result.deleted_source %}
+
+          Destination Cleanup:
+          {% for f in hostvars[host].host_result.deleted_dest %}
 
           {% endfor %}
 
