@@ -1,0 +1,52 @@
+---
+- name: Check available updates
+  command: yum check-update
+  register: prepatch_yum_output
+  failed_when: false
+  changed_when: false
+
+- name: Extract package list
+  set_fact:
+    prepatch_pkg_list: "{{ prepatch_yum_output.stdout_lines | select('match', '^[a-zA-Z0-9]') | list }}"
+
+- name: Count total updates
+  set_fact:
+    prepatch_total_updates: "{{ prepatch_pkg_list | length }}"
+
+# -------------------------------
+# Security updates
+# -------------------------------
+- name: Get security updates
+  command: yum updateinfo list security all
+  register: prepatch_sec_output
+  failed_when: false
+  changed_when: false
+
+- name: Count security updates
+  set_fact:
+    prepatch_security_updates: "{{ prepatch_sec_output.stdout_lines | select('search', 'RHSA') | list | length }}"
+
+# -------------------------------
+# Bugfix updates
+# -------------------------------
+- name: Get bugfix updates
+  command: yum updateinfo list bugfix all
+  register: prepatch_bug_output
+  failed_when: false
+  changed_when: false
+
+- name: Count bugfix updates
+  set_fact:
+    prepatch_bugfix_updates: "{{ prepatch_bug_output.stdout_lines | select('search', 'RHBA') | list | length }}"
+
+# -------------------------------
+# Other updates
+# -------------------------------
+- name: Count other updates
+  set_fact:
+    prepatch_other_updates: >-
+      {{
+        prepatch_total_updates | int
+        - prepatch_security_updates | int
+        - prepatch_bugfix_updates | int
+      }}

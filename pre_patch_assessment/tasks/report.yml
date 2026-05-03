@@ -1,0 +1,35 @@
+---
+- name: Build host report
+  set_fact:
+    host_report: |
+      Host: {{ inventory_hostname }}
+      Subscription Status  : {{ prepatch_subscription_status }}
+      Subscription Source  : {{ prepatch_subscription_backend }}
+      Total Updates        : {{ prepatch_total_updates }}
+      Security Updates     : {{ prepatch_security_updates }}
+      Bugfix Updates       : {{ prepatch_bugfix_updates }}
+      Other Updates        : {{ prepatch_other_updates }}
+      {% if prepatch_subscription_status != 'Registered' %}
+      Status               : ❌ Subscription issue
+      {% elif prepatch_security_updates | int > 0 %}
+      Status               : ⚠️ Security patches pending
+      {% elif prepatch_total_updates | int > 0 %}
+      Status               : ℹ️ Updates available
+      {% else %}
+      Status               : ✅ Up to date
+      {% endif %}
+
+- name: Generate final report
+  set_fact:
+    final_report: |
+      Pre-Patch & Subscription Assessment Report
+      ==========================================
+      {% for host in groups['all'] %}
+      --------------------------------------------------
+      {{ hostvars[host].host_report | default('No data available') }}
+      {% endfor %}
+  run_once: true
+  delegate_to: localhost
+
+- debug:
+    var: final_report

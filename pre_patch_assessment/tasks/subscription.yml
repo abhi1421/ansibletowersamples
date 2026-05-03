@@ -1,0 +1,95 @@
+---
+# -------------------------------
+# Check subscription identity
+# -------------------------------
+- name: Check subscription identity
+  command: subscription-manager identity
+  register: prepatch_sub_identity
+  failed_when: false
+  changed_when: false
+
+- name: Set registration status
+  set_fact:
+    prepatch_is_registered: "{{ prepatch_sub_identity.rc == 0 }}"
+
+# -------------------------------
+# Only proceed if NOT registered
+# -------------------------------
+- name: Check subscription-manager config
+  command: subscription-manager config
+  register: prepatch_sub_config
+  failed_when: false
+  changed_when: false
+  when: not prepatch_is_registered
+
+- name: Detect if system is pointing to CDN
+  set_fact:
+    prepatch_using_cdn: "{{ 'cdn.redhat.com' in prepatch_sub_config.stdout }}"
+  when: not prepatch_is_registered
+
+# -------------------------------
+# Fix Katello ONLY if CDN detected
+# -------------------------------
+- name: Copy Katello CA consumer package
+  copy:
+    src: katello-ca-consumer.rpm
+    dest: "{{ prepatch_katello_tmp_path }}"
+    mode: '0644'
+  when:
+    - not prepatch_is_registered
+    - prepatch_using_cdn
+
+- name: Install Katello CA consumer package
+  yum:
+    name: "{{ prepatch_katello_tmp_path }}"
+    state: present
+  when:
+    - not prepatch_is_registered
+    - prepatch_using_cdn
+
+- name: Re-check subscription-manager config
+  command: subscription-manager config
+  register: prepatch_sub_config_after
+  failed_when: false
+  changed_when: false
+  when:
+    - not prepatch_is_registered
+    - prepatch_using_cdn
+
+- name: Confirm Satellite config applied
+  set_fact:
+    prepatch_satellite_configured: "{{ 'cdn.redhat.com' not in prepatch_sub_config_after.stdout }}"
+  when:
+    - not prepatch_is_registered
+    - prepatch_using_cdn
+
+# -------------------------------
+# Attempt registration
+# -------------------------------
+- name: Register system
+  command: >
+    subscription-manager register
+    --org={{ prepatch_org_id }}
+    --activationkey={{ prepatch_activation_key }}
+  register: prepatch_register_attempt
+  failed_when: false
+  when: not prepatch_is_registered
+
+# -------------------------------
+# Final validation
+# -------------------------------
+- name: Final subscription check
+  command: subscription-manager identity
+  register: prepatch_final_identity
+  failed_when: false
+  changed_when: false
+
+- name: Set final subscription status
+  set_fact:
+    prepatch_subscription_status: >-
+      {{ 'Registered' if prepatch_final_identity.rc == 0 else 'Not Registered' }}
+
+- name: Set subscription backend
+  set_fact:
+    prepatch_subscription_backend: >-
+      {{ 'Satellite' if (prepatch_using_cdn is defined and not prepatch_using_cdn) else 'RedHat CDN/Unknown' }}
