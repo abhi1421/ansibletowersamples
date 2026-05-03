@@ -1,3 +1,11 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for pre_patch_assessment
+- name: Subscription validation and remediation
+  import_tasks: subscription.yml
+
+- name: Patch assessment
+  import_tasks: patch_check.yml
+
+- name: Build report
+  import_tasks: report.yml

@@ -1,3 +1,7 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for pre_patch_assessment
+
+prepatch_org_id: ""
+prepatch_activation_key: ""
+prepatch_katello_tmp_path: "/tmp/katello-ca-consumer.rpm"

@@ -113,41 +113,73 @@
 
 
 # 🔹 Cleanup Source (older than 7 days)
-    - name: Find old files in source (older than 7 days)
-      find:
-        paths: "{{ source_dir }}"
-        patterns: "{{ file_pattern }}"
-        age: 7d
-        age_stamp: mtime
-      register: old_source_files
+#    - name: Find old files in source (older than 7 days)
+#      find:
+#        paths: "{{ source_dir }}"
+#        patterns: "{{ file_pattern }}"
+#        age: 7d
+#        age_stamp: mtime
+#      register: old_source_files
+#      when: not is_holiday
+#
+#
+#    - name: Delete old files from source
+#      file:
+#        path: "{{ item.path }}"
+#        state: absent
+#      loop: "{{ old_source_files.files }}"
+#      when: not is_holiday
+#      register: source_cleanup
+
+
+    - name: Get sorted backup files from source
+      shell: ls -1t {{ source_dir }}/{{ file_pattern }}
+      register: source_sorted_files
+      changed_when: false
       when: not is_holiday
-
-
-    - name: Delete old files from source
+    
+    - name: Delete older files beyond last 7 (source)
       file:
-        path: "{{ item.path }}"
+        path: "{{ item }}"
         state: absent
-      loop: "{{ old_source_files.files }}"
+      loop: "{{ source_sorted_files.stdout_lines[7:] | default([]) }}"
       when: not is_holiday
       register: source_cleanup
 
+
+
 # 🔹 Cleanup Destination
-    - name: Find old files in destination (older than 7 days)
-      find:
-        paths: "{{ dest_dir }}"
-        patterns: "{{ file_pattern }}"
-        age: 7d
-        age_stamp: mtime
-      register: old_dest_files
+#    - name: Find old files in destination (older than 7 days)
+#      find:
+#        paths: "{{ dest_dir }}"
+#        patterns: "{{ file_pattern }}"
+#        age: 7d
+#        age_stamp: mtime
+#      register: old_dest_files
+#      when: not is_holiday
+#    
+#    - name: Delete old files from destination
+#      file:
+#        path: "{{ item.path }}"
+#        state: absent
+#      loop: "{{ old_dest_files.files }}"
+#      when: not is_holiday
+#      register: dest_cleanup
+
+    - name: Get sorted backup files from destination
+      shell: ls -1t {{ dest_dir }}/{{ file_pattern }}
+      register: dest_sorted_files
+      changed_when: false
       when: not is_holiday
     
-    - name: Delete old files from destination
+    - name: Delete older files beyond last 7 (destination)
       file:
-        path: "{{ item.path }}"
+        path: "{{ item }}"
         state: absent
-      loop: "{{ old_dest_files.files }}"
+      loop: "{{ dest_sorted_files.stdout_lines[7:] | default([]) }}"
       when: not is_holiday
       register: dest_cleanup
+
 
     # Store per-host result
     - name: Store execution result
