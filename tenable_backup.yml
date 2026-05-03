@@ -46,6 +46,7 @@
     - name: Get disk usage of destination
       command: df -h {{ dest_dir }}
       register: disk_output
+      
     
     - name: Extract disk usage percentage
       set_fact:
