@@ -20,12 +20,10 @@
   register: prepatch_sub_config
   failed_when: false
   changed_when: false
-  when: not prepatch_is_registered
 
 - name: Detect if system is pointing to CDN
   set_fact:
     prepatch_using_cdn: "{{ 'cdn.redhat.com' in prepatch_sub_config.stdout }}"
-  when: not prepatch_is_registered
 
 # -------------------------------
 # Fix Katello ONLY if CDN detected
@@ -66,6 +64,17 @@
 # -------------------------------
 # Attempt registration
 # -------------------------------
+- name: Re-check subscription before registration
+  command: subscription-manager identity
+  register: prepatch_recheck_identity
+  failed_when: false
+  changed_when: false
+
+- name: Clean stale subscription data
+  command: subscription-manager clean
+  when: prepatch_recheck_identity.rc != 0
+  failed_when: false
+
 - name: Register system
   command: >
     subscription-manager register
@@ -73,7 +82,7 @@
     --activationkey={{ prepatch_activation_key }}
   register: prepatch_register_attempt
   failed_when: false
-  when: not prepatch_is_registered
+  when: when: prepatch_recheck_identity.rc != 0
 
 # -------------------------------
 # Final validation

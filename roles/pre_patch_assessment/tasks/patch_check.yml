@@ -42,11 +42,7 @@
 # -------------------------------
 # Other updates
 # -------------------------------
-- name: Count other updates
+# 🔹 Set "Other" safely (NO calculation)
+- name: Set other updates
   set_fact:
-    prepatch_other_updates: >-
-      {{
-        prepatch_total_updates | int
-        - prepatch_security_updates | int
-        - prepatch_bugfix_updates | int
-      }}
+    prepatch_other_updates: "N/A"

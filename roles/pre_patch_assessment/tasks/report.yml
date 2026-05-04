@@ -8,7 +8,6 @@
       Total Updates        : {{ prepatch_total_updates }}
       Security Updates     : {{ prepatch_security_updates }}
       Bugfix Updates       : {{ prepatch_bugfix_updates }}
-      Other Updates        : {{ prepatch_other_updates }}
       {% if prepatch_subscription_status != 'Registered' %}
       Status               : ❌ Subscription issue
       {% elif prepatch_security_updates | int > 0 %}

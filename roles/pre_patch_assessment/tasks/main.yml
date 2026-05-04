@@ -6,6 +6,7 @@
 
 - name: Patch assessment
   import_tasks: patch_check.yml
+  when: prepatch_subscription_status == "Registered"
 
 - name: Build report
   import_tasks: report.yml
