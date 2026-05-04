@@ -236,10 +236,17 @@
             {% else %}
             Execution skipped due to unknown condition.
             {% endif %}
+
           deleted_source_files: >-
-            {{ old_source_files.files | map(attribute='path') | list | default([]) }}
+            {{ source_cleanup.results | default([]) 
+               | selectattr('changed', 'equalto', true)
+               | map(attribute='item') | list }}
+
           deleted_dest_files: >-
-            {{ old_dest_files.files | map(attribute='path') | list | default([]) }}
+            {{ dest_cleanup.results | default([]) 
+               | selectattr('changed', 'equalto', true)
+               | map(attribute='item') | list }}
+
 
     # 🔽 FINAL CONSOLIDATED REPORT
     - name: Build consolidated report
