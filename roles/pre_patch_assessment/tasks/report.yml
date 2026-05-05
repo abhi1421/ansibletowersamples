@@ -22,6 +22,9 @@
   set_fact:
     final_report: |
       Pre-Patch & Subscription Assessment Report
+      Note:
+      Total Updates represent packages available for update.
+      Security and Bugfix counts represent advisories (issue notifications), not direct package counts.
       ==========================================
       {% for host in groups['all'] %}
       --------------------------------------------------
