@@ -43,11 +43,26 @@
       set_fact:
         is_holiday: "{{ today_date in holidays }}"
 
+
+
+    - name: Get disk usage of Source
+      command: df -h {{ source_dir }}
+      register: disk_output
+
+    - name: Extract source disk usage %
+      set_fact:
+        source_disk_usage: "{{ source_disk_output.stdout_lines[1].split()[4] }}"
+
+
     - name: Get disk usage of destination
       command: df -h {{ dest_dir }}
       register: disk_output
-      
     
+    
+    - name: Extract destination disk usage %
+      set_fact:
+        dest_disk_usage: "{{ dest_disk_output.stdout_lines[1].split()[4] }}"
+
     - name: Extract disk usage percentage
       set_fact:
         disk_usage: "{{ disk_output.stdout_lines[1].split()[4].replace('%','') | int }}"
@@ -200,6 +215,8 @@
             {% else %}
             N/A
             {% endif %}
+          source_disk: "{{ source_disk_usage | default('N/A') }}"
+          destination_disk: "{{ dest_disk_usage | default('N/A') }}"
           copy_status: >-
             {% if is_holiday %}
             Skipped (Holiday)
@@ -264,6 +281,12 @@
           Source Location: {{ hostvars[host].host_result.source }}
           Destination Location: {{ hostvars[host].host_result.destination }}
           
+          Source Disk Usage:
+          {{ hostvars[host].host_result.source_disk }}
+          
+          Destination Disk Usage:
+          {{ hostvars[host].host_result.destination_disk }}
+
           File Name:
           {{ hostvars[host].host_result.file }}
           
