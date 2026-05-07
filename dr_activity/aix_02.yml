@@ -60,3 +60,98 @@
       delay: 5
       until: "'RUNNING' not in hub_verify.stdout"
       changed_when: false
+
+
+
+---
+- name: Step 2 - Queue Depth and Process Cleanup
+  hosts: mq_servers
+  gather_facts: no
+  become: yes
+  become_user: mqm
+  vars:
+    # AIX Compatibility Fixes
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    
+    qmgrs:
+      - SFMSRBIPADGWQM
+      - SFMSRBIPADCLQM1
+      - SFMSRBIPADCLQM2
+    hub_channel: RBISBR.TO.HUB
+    hub_qmgr: SFMSRBIPADGWQM
+
+  tasks:
+    # --- QUEUE DEPTH CHECK ---
+    - name: 1. Check queue depth > 0
+      shell: echo "dis ql(*) where (curdepth gt 0)" | runmqsc {{ item }}
+      loop: "{{ qmgrs }}"
+      register: qdepth
+      changed_when: false
+
+    # --- PROCESS CLEANUP ---
+    - name: 2a. Get PAD process list
+      shell: ps -ef | grep -i pad | grep -v grep
+      register: processes
+      ignore_errors: yes
+      changed_when: false
+
+    - name: 2b. Extract PIDs safely
+      set_fact:
+        pad_pids: "{{ processes.stdout_lines | map('split') | map(attribute=1) | list }}"
+      when: processes.stdout_lines | length > 0
+
+    - name: 2c. Kill PAD processes
+      shell: kill -9 {{ item }}
+      loop: "{{ pad_pids }}"
+      when: pad_pids is defined and (pad_pids | length > 0)
+      register: kill_output
+      failed_when: kill_output.rc != 0
+
+    # --- HUB CHANNEL MANAGEMENT ---
+    - name: 3a. Check HUB channel status
+      shell: echo "dis chs({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      register: hub_status
+      changed_when: false
+
+    - name: 3b. Stop HUB channel if running
+      shell: echo "stop channel({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      when: "'RUNNING' in hub_status.stdout"
+      register: hub_stop
+
+    - name: 3c. Wait until HUB channel stops
+      shell: echo "dis chs({{ hub_channel }})" | runmqsc {{ hub_qmgr }}
+      register: hub_verify
+      retries: 5
+      delay: 5
+      until: "'RUNNING' not in hub_verify.stdout"
+      changed_when: false
+
+    # --- CONSOLIDATED REPORTING ---
+    - name: Generate Summary for Step 2
+      set_fact:
+        step2_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * Queue Depths:
+          {% for res in qdepth.results %}
+            - QMGR {{ res.item }}: {{ 'Messages Found (Alert)' if 'CURDEPTH' in res.stdout else 'Empty (Clean)' }}
+          {% endfor %}
+          
+          * Process Cleanup:
+            - PIDs Identified: {{ pad_pids | default('None') }}
+            - Action: {{ 'Processes Terminated' if pad_pids is defined and (pad_pids | length > 0) else 'No PAD processes found' }}
+          
+          * HUB Channel Status ({{ hub_channel }}):
+            - Final State: {{ 'STOPPED' if 'RUNNING' not in hub_verify.stdout else 'FAILED TO STOP' }}
+
+    - name: Consolidate Step 2 Reports
+      set_fact:
+        email_body_step2: "{{ ansible_play_hosts | map('extract', hostvars, 'step2_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Debug Step 2 Report
+      debug:
+        var: email_body_step2
+      run_once: true

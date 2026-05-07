@@ -41,3 +41,77 @@
       delay: 10
       until: "'RUNNING' in verify.stdout"
       changed_when: false
+
+---
+- name: Step 4 - Start SFMS Channels (QPX & CBS)
+  hosts: mq_servers
+  gather_facts: no
+  become: yes
+  become_user: mqm
+  vars:
+    # AIX Compatibility Fixes
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    
+    qmgr: SFMSRBIPADGWQM
+    channels:
+      - name: SFMS.TO.QPX
+        conn: "172.23.xx.xx(xxxx)"
+      - name: SFMS.TO.CBS
+        conn: "172.23.xx.xx(xxxx)"
+
+  tasks:
+    - name: Check channel status
+      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
+      loop: "{{ channels }}"
+      register: ch_status
+      changed_when: false
+
+    - name: Alter channel connection
+      shell: >
+        echo "alter channel({{ item.item.name }}) chltype(sdr) conname('{{ item.item.conn }}')" | runmqsc {{ qmgr }}
+      loop: "{{ ch_status.results }}"
+      register: alter_output
+      changed_when: "'AMQ' in alter_output.stdout"
+
+    - name: Start channels if not running
+      shell: echo "start channel({{ item.item.name }})" | runmqsc {{ qmgr }}
+      loop: "{{ ch_status.results }}"
+      when: "'RUNNING' not in item.stdout"
+      register: start_output
+      changed_when: "'RUNNING' in start_output.stdout or 'STARTING' in start_output.stdout"
+
+    - name: Wait until channels are RUNNING
+      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
+      loop: "{{ channels }}"
+      register: verify
+      retries: 6
+      delay: 10
+      until: "'RUNNING' in verify.stdout"
+      changed_when: false
+
+    # --- REPORTING SECTION ---
+
+    - name: Generate Individual Server Report for Step 4
+      set_fact:
+        step4_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * Queue Manager: {{ qmgr }}
+          * Channel Verifications:
+          {% for res in verify.results %}
+            - Channel: {{ res.item.name }}
+              Connection Name: {{ res.item.conn }}
+              Final Status: {{ 'RUNNING' if 'RUNNING' in res.stdout else 'FAILED TO START' }}
+          {% endfor %}
+
+    - name: Consolidate Step 4 Reports
+      set_fact:
+        email_body_step4: "{{ ansible_play_hosts | map('extract', hostvars, 'step4_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Debug Step 4 Report
+      debug:
+        var: email_body_step4
+      run_once: true
