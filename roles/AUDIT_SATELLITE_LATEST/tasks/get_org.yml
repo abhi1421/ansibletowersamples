@@ -1,0 +1,23 @@
+- name: Get list of organizations from Satellite
+  uri:
+    url: "{{ satellite_url }}/katello/api/organizations"
+    method: GET
+    user: "{{ satellite_username }}"
+    password: "{{ satellite_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ validate_certs }}"
+    return_content: true
+  register: satellite_orgs
+
+
+- name: Extract organization ID from org name
+  set_fact:
+    org_id: "{{ item.id }}"
+  loop: "{{ satellite_orgs.json.results }}"
+  when: item.name == org_name
+
+
+- name: Fail if organization not found
+  fail:
+    msg: "Organization {{ org_name }} not found in Satellite"
+  when: org_id is not defined
