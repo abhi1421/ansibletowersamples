@@ -1,9 +1,0 @@
-collections:
-- name: f5networks-f5_modules-1.41.0.tar.gz
-  version: 1.41.0
-- name: ansible-netcommon-8.5.2.tar.gz
-  version: 8.5.2
-- name: ansible-utils-6.0.2.tar.gz
-  version: 6.0.2
-- name: cisco-ios-11.4.1.tar.gz
-  version: 11.4.1
