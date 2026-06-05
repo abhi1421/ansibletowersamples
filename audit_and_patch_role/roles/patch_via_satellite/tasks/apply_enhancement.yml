@@ -1,0 +1,29 @@
+---
+- name: Fail if attempting to apply enhancement patches on non-DNF systems
+  ansible.builtin.fail:
+    msg: "Applying enhancement patches is only explicitly supported on RHEL/CentOS 8+ (DNF-based systems) using the '--enhancement' flag."
+  when:
+    - ansible_facts['distribution_major_version'] | int < 8
+    - ansible_facts['os_family'] == "RedHat"
+  tags: [patching, enhancement_patches]
+
+- name: Apply Enhancement Patches (RHEA) using DNF
+  ansible.builtin.shell: >
+    dnf upgrade-minimal --enhancement -y
+  when:
+    - ansible_facts['distribution_major_version'] | int >= 8
+    - ansible_facts['os_family'] == "RedHat"
+  register: dnf_enhancement_output
+  changed_when: "'Nothing to do.' not in dnf_enhancement_output.stdout"
+  tags: [patching, enhancement_patches]
+
+- name: Count enhancement packages updated
+  ansible.builtin.set_fact:
+    enhancement_patch_count: >-
+      {{
+        (dnf_enhancement_output.stdout_lines | select('match', '^Installed:') | list | length)
+          if (dnf_enhancement_output is defined and dnf_enhancement_output.rc is defined and dnf_enhancement_output.rc == 0 and
+              ('Nothing to do.' not in dnf_enhancement_output.stdout))
+          else 0
+      }}
+  when: dnf_enhancement_output is defined

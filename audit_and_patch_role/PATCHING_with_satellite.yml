@@ -1,0 +1,143 @@
+---
+# =========================================================================
+# PLAY 1: Executes ONLY on the approved, filtered hosts
+# =========================================================================
+- name: Patch packages via Satellite server
+  # Fallback to 'none' ensures the play skips gracefully if the audit found nothing
+  hosts: "{{ target_patch_hosts | default('none') }}"
+  become: yes
+  roles:
+    - patching_with_satellite
+
+  tasks:
+    - name: Register patch summary for consolidated report
+      ansible.builtin.set_fact:
+        patch_summary_entry:
+          hostname: "{{ inventory_hostname }}"
+          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          kernel: "{{ ansible_kernel }}"
+          security_enabled: "{{ apply_security_patches | default(false) }}"
+          bugfix_enabled: "{{ apply_bugfix_patches | default(false) }}"
+          kernel_enabled: "{{ apply_kernel_patches | default(false) }}"
+          enhancement_enabled: "{{ apply_enhancement_patches | default(false) }}"
+          security_count: "{{ security_patch_count | default('Not Applied') }}"
+          bugfix_count: "{{ bugfix_patch_count | default('Not Applied') }}"
+          kernel_count: "{{ kernel_patch_count | default('Not Applied') }}"
+          enhancement_count: "{{ enhancement_patch_count | default('Not Applied') }}"
+          rebooted: "{{ reboot_after_patching | default(false) }}"
+          status: >-
+            {% if
+              (security_status is defined and security_status == 'Failed') or
+              (bugfix_status is defined and bugfix_status == 'Failed') or
+              (kernel_status is defined and kernel_status == 'Failed') or
+              (enhancement_status is defined and enhancement_status == 'Failed')
+            %}
+            Failed
+            {% else %}
+            Completed
+            {% endif %}
+
+    - name: Build consolidated summary table
+      ansible.builtin.set_fact:
+        consolidated_report: |
+          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
+          -------------------------------------------------------------------
+          {% for host in ansible_play_hosts_all %}
+          Hostname: {{ host }}
+          {% set ps = hostvars[host].patch_summary_entry if ('patch_summary_entry' in hostvars[host]) else {} %}
+          OS Version: {{ ps.os_version | default('Unknown') }}
+          Kernel: {{ ps.kernel | default('Unknown') }}
+
+          Security Packages Updated: {{
+            (ps.security_count|string + ' packages updated')
+            if ps.get('security_enabled', false)
+            else 'Not Applied'
+          }}
+
+          Bugfix Packages Updated: {{
+            (ps.bugfix_count|string + ' packages updated')
+            if ps.get('bugfix_enabled', false)
+            else 'Not Applied'
+          }}
+
+          Kernel Packages Updated: {{
+            (ps.kernel_count|string + ' packages updated')
+            if ps.get('kernel_enabled', false)
+            else 'Not Applied'
+          }}
+
+          Enhancement Packages Updated: {{
+            (ps.enhancement_count|string + ' packages updated')
+            if ps.get('enhancement_enabled', false)
+            else 'Not Applied'
+          }}
+
+          Rebooted: {{ ps.rebooted | default(false) }}
+          Status: {{ ps.status | default('FAILED or UNREACHABLE') }}
+          -------------------------------------------------------------------
+          {% endfor %}
+
+          {% set failed_hosts = ansible_play_hosts_all | difference(ansible_play_hosts) %}
+          {% if failed_hosts | length > 0 %}
+          Failed or Unreachable Systems:
+          -------------------------------------------------------------------
+          {% for host in failed_hosts %}
+          Hostname: {{ host }}
+          Status: FAILED or UNREACHABLE
+          -------------------------------------------------------------------
+          {% endfor %}
+          {% else %}
+          All systems patched successfully
+          -------------------------------------------------------------------
+          {% endif %}
+      run_once: true
+      delegate_to: localhost
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "Patching Summary - {{ ansible_date_time.iso8601 }}"
+        body: "{{ consolidated_report }}"
+      delegate_to: localhost
+      run_once: true
+
+
+# =========================================================================
+# PLAY 2: Runs ONLY if there are no hosts requiring patches
+# =========================================================================
+- name: Handle empty patching scope gracefully
+  hosts: localhost
+  gather_facts: true
+  connection: local
+
+  tasks:
+    # Safely stops Play 2 right here if there actually are hosts to process
+    - name: Exit play if there are hosts to patch
+      ansible.builtin.meta: end_play
+      when: target_patch_hosts is defined and (target_patch_hosts | length > 0)
+
+    # These tasks execute only when target_patch_hosts is empty or undefined
+    - name: Construct empty execution notice
+      ansible.builtin.set_fact:
+        empty_patch_report: |
+          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
+          -------------------------------------------------------------------
+          Execution Status: SKIPPED
+          Reason: Zero (0) systems require Critical or Important updates.
+          
+          No patching operations were executed as all systems under the organization
+          are currently compliant with security policies.
+          -------------------------------------------------------------------
+
+    - name: Send Clean Compliance Status Email
+      community.general.mail:
+        host: 10.35.1.17 
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "Patching Summary - SKIPPED (All Systems Compliant) - {{ ansible_date_time.date }}"
+        body: "{{ empty_patch_report }}"
+      ignore_errors: true

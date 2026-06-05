@@ -1,0 +1,6 @@
+---
+- name: Check if system is registered to Satellite
+  ansible.builtin.shell: subscription-manager status | grep 'Overall Status' | awk '{print $3}'
+  register: subscription_status_check
+  changed_when: false
+  tags: [registration_check]

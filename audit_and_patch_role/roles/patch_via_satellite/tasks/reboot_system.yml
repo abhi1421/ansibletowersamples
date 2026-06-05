@@ -1,0 +1,24 @@
+---
+- name: Install dnf-utils for needs-restarting command
+  ansible.builtin.dnf:
+    name: dnf-utils
+    state: present
+  become: true
+
+- name: Check if reboot is required
+  ansible.builtin.command: needs-restarting -r
+  register: reboot_check
+  changed_when: false
+  failed_when: false
+
+- name: Show the reboot check result
+  ansible.builtin.debug:
+    msg: >
+      Reboot check={{ reboot_check.rc }}.
+      {{ 'Reboot required' if reboot_check.rc == 1 else 'No reboot required'}}
+
+- name: Reboot the system if required
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: reboot_check.rc == 1
+  tags: [reboot]

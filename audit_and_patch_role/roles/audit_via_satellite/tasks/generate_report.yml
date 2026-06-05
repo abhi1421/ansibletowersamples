@@ -1,0 +1,130 @@
+---
+- name: Prepare report statistics
+  ansible.builtin.set_fact:
+    total_systems: "{{ patch_report | length }}"
+
+    fully_patched_systems: >-
+      {{
+        patch_report
+        | selectattr('critical', 'equalto', 0)
+        | selectattr('important', 'equalto', 0)
+        | list
+        | length
+      }}
+
+    systems_needing_updates: >-
+      {{
+        patch_report
+        | rejectattr('critical', 'equalto', 0)
+        | list
+        | length
+        +
+        (
+          patch_report
+          | selectattr('critical', 'equalto', 0)
+          | rejectattr('important', 'equalto', 0)
+          | list
+          | length
+        )
+      }}
+
+    filtered_patch_report: >-
+      {{
+        patch_report
+        | rejectattr('critical', 'equalto', 0)
+        | list
+        +
+        (
+          patch_report
+          | selectattr('critical', 'equalto', 0)
+          | rejectattr('important', 'equalto', 0)
+          | list
+        )
+      }}
+
+- name: Build HTML consolidated report
+  ansible.builtin.set_fact:
+    consolidated_report: |
+      <html>
+      <body style="font-family: Arial, sans-serif;">
+      <h2>Satellite Patch Audit Report</h2>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 50%;">
+        <tr style="background-color: #d9ead3;">
+          <th align="left">Parameter</th>
+          <th align="left">Value</th>
+        </tr>
+        <tr>
+          <td><b>Organization</b></td>
+          <td>{{ org_name }}</td>
+        </tr>
+        <tr>
+          <td><b>Generated On</b></td>
+          <td>{{ ansible_date_time.date }} {{ ansible_date_time.time }}</td>
+        </tr>
+        <tr>
+          <td><b>Total Systems</b></td>
+          <td>{{ total_systems }}</td>
+        </tr>
+        <tr>
+          <td><b>Fully Patched Systems</b></td>
+          <td>{{ fully_patched_systems }}</td>
+        </tr>
+        <tr>
+          <td><b>Systems Needing Updates</b></td>
+          <td>{{ systems_needing_updates }}</td>
+        </tr>
+      </table>
+      <br><br>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 70%;">
+        <tr style="background-color: #4F81BD; color: white;">
+          <th>Hostname</th>
+          <th>Critical</th>
+          <th>Important</th>
+        </tr>
+        {% for host in filtered_patch_report %}
+        <tr>
+          <td>{{ host.hostname }}</td>
+          {% if host.critical|int > 0 %}
+          <td style="background-color: #f4cccc; text-align: center;">{{ host.critical }}</td>
+          {% else %}
+          <td style="text-align: center;">0</td>
+          {% endif %}
+          {% if host.important|int > 0 %}
+          <td style="background-color: #fff2cc; text-align: center;">{{ host.important }}</td>
+          {% else %}
+          <td style="text-align: center;">0</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </table>
+      </body>
+      </html>
+
+- name: Display consolidated report
+  ansible.builtin.debug:
+    msg: "{{ consolidated_report }}"
+
+- name: Send consolidated RHEL upgrade report email
+  community.general.mail:
+    host: 10.35.1.17
+    port: 25
+    to: "{{ email_recepients | join(', ') }}"
+    from: ansible.alerts@rbi.org.in
+    subject: "Consolidated Audit Report from Satellite - {{ ansible_date_time.date }}"
+    body: "{{ consolidated_report }}"
+    subtype: html
+  run_once: true
+  delegate_to: localhost
+  ignore_errors: true
+
+# =========================================================================
+# CRITICAL WORKFLOW CHANGES ADDED BELOW
+# This extracts the hostnames from the audit and stores them into AAP memory
+# =========================================================================
+- name: Register vulnerable hosts into AAP Workflow Engine
+  ansible.builtin.set_stats:
+    data:
+      target_patch_hosts: "{{ filtered_patch_report | map(attribute='hostname') | list }}"
+    per_host: false
+  run_once: true
+  delegate_to: localhost

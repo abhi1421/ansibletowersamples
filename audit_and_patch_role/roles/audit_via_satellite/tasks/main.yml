@@ -1,0 +1,15 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for audit_via_satellite
+
+- name: Get organization details from Satellite
+  ansible.builtin.import_tasks: get_org.yml
+
+- name: Fetch all registered hosts
+  ansible.builtin.import_tasks: get_hosts.yml
+
+- name: Collect host errata profiles
+  ansible.builtin.import_tasks: get_errata.yml
+
+- name: Process data and generate workflow outputs
+  ansible.builtin.import_tasks: generate_report.yml

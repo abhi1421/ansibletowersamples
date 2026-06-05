@@ -1,0 +1,21 @@
+---
+- name: Post-Patching Checklist - Start
+  ansible.builtin.debug:
+    msg: "Starting Post-Patching Checklist..."
+
+- name: Record ending timestamp for report
+  ansible.builtin.set_fact:
+    upgrade_end_time: "{{ ansible_date_time.iso8601_basic }}"
+
+- name: Fetch a post-count of errata
+  ansible.builtin.shell: dnf updateinfo list available | wc -l
+  register: post_errata_count
+  changed_when: false
+
+- name: Display Post-Count of Errata
+  ansible.builtin.debug:
+    var: post_errata_count.stdout_lines
+
+- name: Post-Patching Checklist - End
+  ansible.builtin.debug:
+    msg: "Post-Patching Checklist completed."
