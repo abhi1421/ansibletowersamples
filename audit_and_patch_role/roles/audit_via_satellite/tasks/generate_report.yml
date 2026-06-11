@@ -42,6 +42,54 @@
         )
       }}
 
+- name: Prepare report statistics
+  ansible.builtin.set_fact:
+    total_systems: "{{ patch_report | length }}"
+
+    fully_patched_systems: >-
+      {{
+        patch_report
+        | selectattr('critical', 'defined')
+        | selectattr('important', 'defined')
+        | select_clean_systems
+        | length
+      }}
+
+    systems_needing_updates: >-
+      {{
+        patch_report
+        | selectattr('critical', 'defined')
+        | selectattr('important', 'defined')
+        | select_vulnerable_systems
+        | length
+      }}
+
+    filtered_patch_report: >-
+      {{
+        patch_report
+        | selectattr('critical', 'defined')
+        | selectattr('important', 'defined')
+        | select_vulnerable_systems
+      }}
+  vars:
+    select_clean_systems: >-
+      {% set clean = [] %}
+      {% for host in patch_report %}
+        {% if host.critical | int == 0 and host.important | int == 0 %}
+          {% set _ = clean.append(host) %}
+        {% endif %}
+      {% endfor %}
+      {{ clean }}
+    select_vulnerable_systems: >-
+      {% set vulnerable = [] %}
+      {% for host in patch_report %}
+        {% if host.critical | int > 0 or host.important | int > 0 %}
+          {% set _ = vulnerable.append(host) %}
+        {% endif %}
+      {% endfor %}
+      {{ vulnerable }}
+
+
 - name: Build HTML consolidated report
   ansible.builtin.set_fact:
     consolidated_report: |
@@ -125,6 +173,22 @@
   ansible.builtin.set_stats:
     data:
       target_patch_hosts: "{{ filtered_patch_report | map(attribute='hostname') | list }}"
+    per_host: false
+  run_once: true
+  delegate_to: localhost
+
+
+- name: Register vulnerable hosts into AAP Workflow Engine (IP Mode)
+  ansible.builtin.set_stats:
+    data:
+      target_patch_hosts: >-
+        {% set filtered_ips = [] %}
+        {% for host in patch_report %}
+          {% if host.critical | int > 0 or host.important | int > 0 %}
+            {% set _ = filtered_ips.append(host.ip_address) %}
+          {% endif %}
+        {% endfor %}
+        {{ filtered_ips }}
     per_host: false
   run_once: true
   delegate_to: localhost

@@ -1,0 +1,26 @@
+---
+# tasks/main.yml
+
+- name: Initialize Palo Alto CLI session configurations
+  ansible.builtin.include_tasks: init_session.yml
+
+- name: Execute Software Process and Daemon checks
+  ansible.builtin.include_tasks: check_software.yml
+
+- name: Execute Environmental Sensor checks
+  ansible.builtin.include_tasks: check_environment.yml
+
+- name: Execute RAID operational health checks
+  ansible.builtin.include_tasks: check_raid.yml
+
+- name: Execute System Core Resource Load Profiles
+  ansible.builtin.include_tasks: check_resources.yml
+
+- name: Execute High Availability cluster checks
+  ansible.builtin.include_tasks: check_ha.yml
+
+- name: Execute System Log anomaly filtering
+  ansible.builtin.include_tasks: check_logs.yml
+
+- name: Generate finalized summaries and backup files
+  ansible.builtin.include_tasks: generate_report.yml

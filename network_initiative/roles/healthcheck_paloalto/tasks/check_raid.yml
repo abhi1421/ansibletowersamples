@@ -1,0 +1,32 @@
+---
+# tasks/check_raid.yml
+
+# 1. Capture exact plain text for the customer's text file archive
+- name: Capture Raw Text System RAID details
+  paloaltonetworks.panos.panos_cli:
+    command: "show system raid detail"
+  register: raid_raw_text
+
+- name: Save raw text to host memory
+  ansible.builtin.set_fact:
+    raid_raw_out: "{{ raid_raw_text.stdout }}"
+    check_raid_status: "Good" # Initialize as Good
+
+# 2. Grab the XML variation to process status flags
+- name: Retrieve System RAID detailed XML configurations
+  paloaltonetworks.panos.panos_cli:
+    command: "show system raid detail | display xml"
+  register: raid_raw_xml
+
+- name: Parse XML block into native structured facts
+  ansible.netcommon.cli_parse:
+    text: "{{ raid_raw_xml.stdout }}"
+    parser: name=ansible.netcommon.xml
+  register: raid_parsed
+
+- name: Flag RAID anomalies
+  ansible.builtin.set_fact:
+    check_raid_status: "CRITICAL"
+  when: >
+    (raid_parsed.parsed.response.result.raid.system['overall-status'] | default('Good') != 'Good') or
+    (raid_parsed.parsed.response.result.raid.logging['overall-status'] | default('Good') != 'Good')

@@ -3,8 +3,12 @@
 # PLAY 1: NODE 1 START
 #############################################
 - name: PAD Node 1 - Start Processes
-  hosts: 10.10.10.1
+  hosts: 172.24.21.132
   gather_facts: no
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
 
   tasks:
 
@@ -12,7 +16,7 @@
     # START EHCACHE
     #########################################
     - name: Start ehcache Node1
-      shell: sh start-ehcache-server.sh
+      shell: sh /home/sfmspadl301/start-ehcache-server.sh
       register: ehcache_start_node1
 
     #########################################
@@ -55,8 +59,12 @@
 # PLAY 2: NODE 2 START
 #############################################
 - name: PAD Node 2 - Start Processes
-  hosts: 10.10.10.2
+  hosts: 172.24.21.134
   gather_facts: no
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
 
   tasks:
 

@@ -2,58 +2,16 @@
 - name: Step 4 - Start SFMS Channels (QPX & CBS)
   hosts: mq_servers
   gather_facts: no
-  vars:
-    qmgr: SFMSRBIPADGWQM
-
-    channels:
-      - name: SFMS.TO.QPX
-        conn: "172.23.xx.xx(xxxx)"
-      - name: SFMS.TO.CBS
-        conn: "172.23.xx.xx(xxxx)"
-
-  tasks:
-
-    - name: Check channel status
-      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
-      loop: "{{ channels }}"
-      register: ch_status
-      changed_when: false
-
-    - name: Alter channel connection
-      shell: >
-        echo "alter channel({{ item.item.name }}) chltype(sdr) conname('{{ item.item.conn }}')" | runmqsc {{ qmgr }}
-      loop: "{{ ch_status.results }}"
-      register: alter_output
-      changed_when: "'AMQ' in alter_output.stdout"
-
-    - name: Start channels if not running
-      shell: echo "start channel({{ item.item.name }})" | runmqsc {{ qmgr }}
-      loop: "{{ ch_status.results }}"
-      when: "'RUNNING' not in item.stdout"
-      register: start_output
-      changed_when: "'RUNNING' in start_output.stdout or 'STARTING' in start_output.stdout"
-
-    - name: Wait until channels are RUNNING
-      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
-      loop: "{{ channels }}"
-      register: verify
-      retries: 6
-      delay: 10
-      until: "'RUNNING' in verify.stdout"
-      changed_when: false
-
----
-- name: Step 4 - Start SFMS Channels (QPX & CBS)
-  hosts: mq_servers
-  gather_facts: no
-  become: yes
+  become_method: sudo
   become_user: mqm
+
   vars:
-    # AIX Compatibility Fixes
     ansible_become_flags: "-H -S"
     ansible_ssh_pipelining: true
-    
+    mqm_binary: /usr/mqm/bin
+
     qmgr: SFMSRBIPADGWQM
+
     channels:
       - name: SFMS.TO.QPX
         conn: "172.23.xx.xx(xxxx)"
@@ -61,28 +19,29 @@
         conn: "172.23.xx.xx(xxxx)"
 
   tasks:
+
     - name: Check channel status
-      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
+      shell: "echo 'dis chs({{ item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
       loop: "{{ channels }}"
       register: ch_status
       changed_when: false
 
     - name: Alter channel connection
       shell: >
-        echo "alter channel({{ item.item.name }}) chltype(sdr) conname('{{ item.item.conn }}')" | runmqsc {{ qmgr }}
+        "echo 'alter channel({{ item.item.name }}) chltype(sdr) conname('{{ item.item.conn }}')' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
       loop: "{{ ch_status.results }}"
       register: alter_output
       changed_when: "'AMQ' in alter_output.stdout"
 
     - name: Start channels if not running
-      shell: echo "start channel({{ item.item.name }})" | runmqsc {{ qmgr }}
+      shell: "echo 'start channel({{ item.item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
       loop: "{{ ch_status.results }}"
       when: "'RUNNING' not in item.stdout"
       register: start_output
       changed_when: "'RUNNING' in start_output.stdout or 'STARTING' in start_output.stdout"
 
     - name: Wait until channels are RUNNING
-      shell: echo "dis chs({{ item.name }})" | runmqsc {{ qmgr }}
+      shell: "echo 'dis chs({{ item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
       loop: "{{ channels }}"
       register: verify
       retries: 6
@@ -90,7 +49,7 @@
       until: "'RUNNING' in verify.stdout"
       changed_when: false
 
-    # --- REPORTING SECTION ---
+# --- REPORTING SECTION ---
 
     - name: Generate Individual Server Report for Step 4
       set_fact:

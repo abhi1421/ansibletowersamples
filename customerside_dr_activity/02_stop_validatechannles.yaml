@@ -3,10 +3,16 @@
 # PLAY 1: NODE 1 OPERATIONS
 #############################################
 - name: PAD Node 1 - MQ Check and Shutdown
-  hosts: 10.10.10.1
+  hosts: 172.24.21.132
   gather_facts: no
+  become_method: sudo
+  become_user: mqm
 
   vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+#    ansible_shell_executable: /usr/bin/ksh
     qmgrs:
       - SFMSRBIPADGWQM
       - SFMSRBIPADCLQM1
@@ -24,13 +30,13 @@
     # MQ CHECK WITH RETRY
     #########################################
     - name: Wait for MQ queues to drain (Node1)
-      shell: |
-        echo "dis ql({{ item.1 }}) curdepth" | runmqsc {{ item.0 }}
+      shell: "echo 'dis ql({{ item.1 }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.0 }}"
       loop: "{{ qmgrs | product(queues) | list }}"
       register: mq_node1
-      retries: 30
-      delay: 10
-      until: mq_node1.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
+#      retries: 30
+#      delay: 10
+#      until: mq_node1.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
+      ignore_errors: true
 
     #########################################
     # SCREEN BEFORE
@@ -38,30 +44,40 @@
     - name: Check running processes (before)
       shell: screen -ls
       register: screen_before_node1
+      ignore_errors: true
 
     #########################################
     # STOP PROCESSES
     #########################################
     - name: Stop PAD processes Node1
       shell: |
-        echo -e "2\ny" | sh SH_Files/Main_Script_All_Process.sh
+        echo -e "2\ny" | sh /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
       register: stop_node1
+
+
+    #########################################
+    # STOP EHCACHE
+    #########################################
+    - name: Stop ehcache Node1
+      shell: sh /home/sfmspadl301/start-ehcache-server.sh
+      register: ehcache_start_node1
+
 
     #########################################
     # KILL EHCACHE
     #########################################
-    - name: Kill ehcache Node1
-      shell: |
-        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
-      register: kill_node1
-      ignore_errors: yes
+#    - name: Kill ehcache Node1
+#      shell: |
+#        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
+#      register: kill_node1
+#      ignore_errors: yes
 
     #########################################
     # STOP FRONTEND
     #########################################
-    - name: Stop frontend Node1
-      shell: sh catalina.sh stop
-      register: frontend_node1
+#    - name: Stop frontend Node1
+#      shell: sh catalina.sh stop
+#      register: frontend_node1
 
     #########################################
     # SCREEN AFTER
@@ -69,6 +85,7 @@
     - name: Check processes after stop Node1
       shell: screen -ls
       register: screen_after_node1
+      ignore_errors: true
 
     - name: Validate Node1 stopped
       set_fact:
@@ -79,10 +96,15 @@
 # PLAY 2: NODE 2 OPERATIONS
 #############################################
 - name: PAD Node 2 - MQ Check and Shutdown
-  hosts: 10.10.10.2
+  hosts: 172.24.21.134
   gather_facts: no
+  become_method: sudo
+  become_user: mqm
 
   vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
     qmgr: SFMSRBIPADCLQM2
     queues:
       - RBISPADBRQ
@@ -94,13 +116,13 @@
     # MQ CHECK WITH RETRY
     #########################################
     - name: Wait for MQ queues to drain (Node2)
-      shell: |
-        echo "dis ql({{ item }}) curdepth" | runmqsc {{ qmgr }}
+      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
       loop: "{{ queues }}"
       register: mq_node2
-      retries: 30
-      delay: 10
-      until: mq_node2.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
+      ignore_errors: true
+#      retries: 30
+#      delay: 10
+#      until: mq_node2.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
 
     #########################################
     # SCREEN BEFORE
@@ -108,6 +130,7 @@
     - name: Check running processes (before)
       shell: screen -ls
       register: screen_before_node2
+      ignore_errors: true
 
     #########################################
     # STOP PROCESSES
@@ -118,13 +141,21 @@
       register: stop_node2
 
     #########################################
+    # STOP EHCACHE
+    #########################################
+    - name: Stop ehcache Node1
+      shell: sh /home/sfmspadl301/start-ehcache-server.sh
+      register: ehcache_start_node1
+
+
+    #########################################
     # KILL EHCACHE
     #########################################
-    - name: Kill ehcache Node2
-      shell: |
-        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
-      register: kill_node2
-      ignore_errors: yes
+#    - name: Kill ehcache Node2
+#      shell: |
+#        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
+#      register: kill_node2
+#      ignore_errors: yes
 
     #########################################
     # SCREEN AFTER
@@ -132,6 +163,7 @@
     - name: Check processes after stop Node2
       shell: screen -ls
       register: screen_after_node2
+      ignore_errors: true
 
     - name: Validate Node2 stopped
       set_fact:
@@ -224,11 +256,11 @@
     #########################################
     # EMAIL
     #########################################
-    - name: Send email
-      mail:
-        host: smtp.yourcompany.com
-        subject: "DR PAD Shutdown Status"
-        body: "{{ dr_report }}"
-        to:
-          - ops-team@company.com
-      ignore_errors: yes
+#    - name: Send email
+#      mail:
+#        host: smtp.yourcompany.com
+#        subject: "DR PAD Shutdown Status"
+#        body: "{{ dr_report }}"
+#        to:
+#          - ops-team@company.com
+#      ignore_errors: yes

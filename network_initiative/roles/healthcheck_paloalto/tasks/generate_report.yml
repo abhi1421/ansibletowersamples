@@ -1,0 +1,85 @@
+---
+# tasks/generate_report.yml
+
+- name: Ensure target backup system directory exists on the firewall
+  ansible.builtin.file:
+    path: /var/backup
+    state: directory
+    mode: '0755'
+
+- name: Save complete raw command trail locally on the server
+  ansible.builtin.copy:
+    content: |
+      ======================================================================
+      DETAILED INFRASTRUCTURE HEALTH CHECK AUDIT TRAIL
+      ======================================================================
+      Target Firewall Host: {{ inventory_hostname }}
+      Execution Timestamp:  {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+      ----------------------------------------------------------------------
+      
+      [COMMAND 1]: show system software status
+      ----------------------------------------------------------------------
+      {{ software_raw_out | default('No output captured') }}
+      
+      [COMMAND 2]: show system environmentals
+      ----------------------------------------------------------------------
+      {{ env_raw_out | default('No output captured') }}
+      
+      [COMMAND 3]: show system raid detail
+      ----------------------------------------------------------------------
+      {{ raid_raw_out | default('No output captured') }}
+      
+      [COMMAND 4]: show system resources
+      ----------------------------------------------------------------------
+      {{ resource_raw_out | default('No output captured') }}
+      
+      [COMMAND 5]: show high-availability all
+      ----------------------------------------------------------------------
+      {{ ha_raw_out | default('No output captured') }}
+      
+      [COMMAND 6]: show log system receive_time in last-24-hrs | match high/critical
+      ----------------------------------------------------------------------
+      CRITICAL LOG ENTRIES:
+      {{ critical_logs.stdout | default('None') }}
+      
+      HIGH LOG ENTRIES:
+      {{ high_logs.stdout | default('None') }}
+      ======================================================================
+    dest: "/var/backup/detailed_health_audit_{{ ansible_date_time.date }}.txt"
+    mode: '0644'
+
+- name: Construct management dashboard status cross-matrix
+  ansible.builtin.set_fact:
+    consolidated_management_matrix: |
+      <h3>Executive Firewall Fleet Health Status Overview</h3>
+      <table border="1" cellpadding="10" cellspacing="0" style="border-collapse: collapse; font-family: 'Segoe UI', Arial, sans-serif; width: 100%; font-size: 13px; border: 1px solid #cccccc;">
+        <thead>
+          <tr style="background-color: #2c3e50; color: #ffffff; text-align: center; font-weight: bold;">
+            <th style="padding: 12px; border: 1px solid #cccccc; text-align: left;">System Name</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">Software Status</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">Environments</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">RAID Detail</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">Resources</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">HA Status</th>
+            <th style="padding: 12px; border: 1px solid #cccccc;">System Log</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for host in ans_play_hosts_all %}
+            <tr style="text-align: center;">
+              <td style="font-weight: bold; background-color: #f9f9f9; padding: 12px; border: 1px solid #cccccc; text-align: left;">{{ host }}</td>
+              
+              {% for check_var in ['check_software_status', 'check_env_status', 'check_raid_status', 'check_resource_status', 'check_ha_status', 'check_logs_status'] %}
+                {% set status = hostvars[host][check_var] | default('Good') %}
+                <td style="border: 1px solid #cccccc; font-weight: {{ 'bold' if status != 'Good' else 'normal' }};
+                           background-color: {{ '#ffebee' if status == 'CRITICAL' else ('#fff3e0' if status == 'HIGH' else '#e8f5e9') }};
+                           color: {{ '#b71c1c' if status == 'CRITICAL' else ('#e65100' if status == 'HIGH' else '#1b5e20') }};">
+                  {{ status }}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+  delegate_to: localhost
+  run_once: true

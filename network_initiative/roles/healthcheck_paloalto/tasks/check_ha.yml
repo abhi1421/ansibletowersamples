@@ -1,0 +1,40 @@
+---
+# tasks/check_ha.yml
+
+- name: Capture Raw Text Cluster High Availability Diagnostics
+  paloaltonetworks.panos.panos_cli:
+    command: "show high-availability all"
+  register: ha_raw_text
+
+- name: Save Raw HA Text and Initialize Status
+  ansible.builtin.set_fact:
+    ha_raw_out: "{{ ha_raw_text.stdout }}"
+    check_ha_status: "Good"
+
+- name: Retrieve Cluster High Availability Diagnostics XML
+  paloaltonetworks.panos.panos_cli:
+    command: "show high-availability all | display xml"
+  register: ha_raw_xml
+
+- name: Parse Cluster High Availability XML Block
+  ansible.netcommon.cli_parse:
+    text: "{{ ha_raw_xml.stdout }}"
+    parser:
+      name: ansible.netcommon.xml
+  register: ha_parsed
+
+- name: Map cluster tracking structures
+  ansible.builtin.set_fact:
+    ha_metrics: "{{ ha_parsed.parsed.response.result.group }}"
+
+- name: Validate Threat Database Match Consistency
+  ansible.builtin.set_fact:
+    check_ha_status: "HIGH"
+  when: ha_metrics['version-compatibility']['threat-content'] | default('Match') != 'Match'
+
+- name: Validate Config Sync State and Peer Connection State
+  ansible.builtin.set_fact:
+    check_ha_status: "CRITICAL"
+  when: >
+    (ha_metrics['running-configuration'] | default('synchronized') != 'synchronized') or
+    (ha_metrics['peer-info']['connection-status'] | default('up') != 'up' )

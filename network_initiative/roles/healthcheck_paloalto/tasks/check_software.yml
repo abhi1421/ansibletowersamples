@@ -1,0 +1,32 @@
+---
+# tasks/check_software.yml
+
+- name: Capture Raw Text System Software Status
+  paloaltonetworks.panos.panos_cli:
+    command: "show system software status"
+  register: software_raw_text
+
+- name: Save Raw Software Text and Initialize Status
+  ansible.builtin.set_fact:
+    software_raw_out: "{{ software_raw_text.stdout }}"
+    check_software_status: "Good"
+
+- name: Retrieve System Software Status XML
+  paloaltonetworks.panos.panos_cli:
+    command: "show system software status | display xml"
+  register: software_raw_xml
+
+- name: Parse Software Status XML block
+  ansible.netcommon.cli_parse:
+    text: "{{ software_raw_xml.stdout }}"
+    parser:
+      name: ansible.netcommon.xml
+  register: software_parsed
+
+- name: Check Software Groups and Daemons Operational State
+  ansible.builtin.set_fact:
+    check_software_status: "CRITICAL"
+  loop: >-
+    {{ software_parsed.parsed.response.result['software-status'].group + 
+       software_parsed.parsed.response.result['software-status'].process }}
+  when: item.state | default('running') != 'running'

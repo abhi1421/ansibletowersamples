@@ -1,0 +1,29 @@
+---
+# tasks/check_resources.yml
+
+- name: Capture Raw Text System Resource Load Profiles
+  paloaltonetworks.panos.panos_cli:
+    command: "show system resources"
+  register: resources_raw_text
+
+- name: Save Raw Resources Text and Initialize Status
+  ansible.builtin.set_fact:
+    resource_raw_out: "{{ resources_raw_text.stdout }}"
+    check_resource_status: "Good"
+
+- name: Retrieve System Core Resource Load Profiles XML
+  paloaltonetworks.panos.panos_cli:
+    command: "show system resources | display xml"
+  register: resources_raw_xml
+
+- name: Parse System Resource Metrics
+  ansible.netcommon.cli_parse:
+    text: "{{ resources_raw_xml.stdout }}"
+    parser:
+      name: ansible.netcommon.xml
+  register: resources_parsed
+
+- name: Validate Management Plane Processor 15-Minute Load Average
+  ansible.builtin.set_fact:
+    check_resource_status: "HIGH"
+  when: (resources_parsed.parsed.response.result.resource['load-average'].split(',')[2] | trim | float) > 4.00

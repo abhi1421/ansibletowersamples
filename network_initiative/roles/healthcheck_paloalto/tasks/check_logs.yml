@@ -1,0 +1,26 @@
+---
+# tasks/check_logs.yml
+
+- name: Initialize Logs Status Fact
+  ansible.builtin.set_fact:
+    check_logs_status: "Good"
+
+- name: Audit system logs for CRITICAL severity events in past 24 hours
+  paloaltonetworks.panos.panos_cli:
+    command: "show log system receive_time in last-24-hrs | match critical"
+  register: critical_logs
+
+- name: Audit system logs for HIGH severity events in past 24 hours
+  paloaltonetworks.panos.panos_cli:
+    command: "show log system receive_time in last-24-hrs | match high"
+  register: high_logs
+
+- name: Mark System Logs status as HIGH if patterns are matched
+  ansible.builtin.set_fact:
+    check_logs_status: "HIGH"
+  when: high_logs.stdout is defined and high_logs.stdout | trim | length > 0
+
+- name: Mark System Logs status as CRITICAL if patterns are matched
+  ansible.builtin.set_fact:
+    check_logs_status: "CRITICAL"
+  when: critical_logs.stdout is defined and critical_logs.stdout | trim | length > 0

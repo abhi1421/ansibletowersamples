@@ -1,0 +1,39 @@
+---
+# tasks/check_environment.yml
+
+- name: Capture Raw Text System Environmentals
+  paloaltonetworks.panos.panos_cli:
+    command: "show system environmentals"
+  register: env_raw_text
+
+- name: Save Raw Environmental Text and Initialize Status
+  ansible.builtin.set_fact:
+    env_raw_out: "{{ env_raw_text.stdout }}"
+    check_env_status: "Good"
+
+- name: Retrieve System Environmental Hardware Metrics XML
+  paloaltonetworks.panos.panos_cli:
+    command: "show system environmentals | display xml"
+  register: env_raw_xml
+
+- name: Parse Environmental Status XML block
+  ansible.netcommon.cli_parse:
+    text: "{{ env_raw_xml.stdout }}"
+    parser:
+      name: ansible.netcommon.xml
+  register: env_parsed
+
+- name: Check Thermal Sensors Alarm State
+  ansible.builtin.set_fact:
+    check_env_status: "HIGH"
+  loop: "{{ env_parsed.parsed.response.result.environmental.thermal.entry }}"
+  when: item.alarm | default('False') | bool
+
+- name: Check Fans, Voltage Rails, and Power Supply Alarms
+  ansible.builtin.set_fact:
+    check_env_status: "CRITICAL"
+  loop: >-
+    {{ env_parsed.parsed.response.result.environmental.fans.entry +
+       env_parsed.parsed.response.result.environmental.power.entry +
+       env_parsed.parsed.response.result.environmental['power-supplies'].entry }}
+  when: item.alarm | default('False') | bool
