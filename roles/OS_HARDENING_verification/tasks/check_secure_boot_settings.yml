@@ -125,43 +125,75 @@
     - secure_boot_settings
     - grub_password
 
-- name: Check for X Window System removal
-  ansible.builtin.package:
-    name: xorg-x11-server-Xorg
-    state: absent
-  register: x_window_system_check
-  check_mode: true # Use check_mode to avoid actual changes
-  tags:
-    - secure_boot_settings
-    - x_window_system
+#- name: Check for X Window System removal
+#  ansible.builtin.package:
+#    name: xorg-x11-server-Xorg
+#    state: absent
+#  register: x_window_system_check
+#  check_mode: true # Use check_mode to avoid actual changes
+#  tags:
+#    - secure_boot_settings
+#    - x_window_system
+#
+#- name: Set fact for X Window System removal compliance
+#  ansible.builtin.set_fact:
+#    x_window_system_compliant: "{{ x_window_system_check.changed == false }}"
+#  # If check_mode shows no change, it means the package is already absent.
+#  tags:
+#    - secure_boot_settings
+#    - x_window_system
+#
+#- name: Define X Window System removal compliance item
+#  ansible.builtin.set_fact:
+#    x_window_system_compliance_item:
+#      category: 'Secure Boot Settings'
+#      item: 'X Window System removal'
+#      status: '{{ "COMPLIANT" if x_window_system_compliant else "NON_COMPLIANT" }}'
+#      expected: 'X Window System is removed.'
+#      actual: '{{ "Removed" if x_window_system_compliant else "Present" }}'
+#      message: '{{ "X Window System (xorg-x11-server-Xorg) is not installed." if x_window_system_compliant else "X Window System (xorg-x11-server-Xorg) is present and should be removed." }}'
+#  tags:
+#    - secure_boot_settings
+#    - x_window_system
+#
+#- name: Report X Window System removal compliance
+#  ansible.builtin.set_fact:
+#    compliance_report_results: "{{ compliance_report_results + [x_window_system_compliance_item] }}"
+#  tags:
+#    - secure_boot_settings
+#    - x_window_system
 
-- name: Set fact for X Window System removal compliance
+#######NEW CODE######################
+- name: Check if X11 Forwarding is disabled
   ansible.builtin.set_fact:
-    x_window_system_compliant: "{{ x_window_system_check.changed == false }}"
-  # If check_mode shows no change, it means the package is already absent.
+    ssh_x11_forwarding_disabled: "{{ sshd_config_lines | select('match', '^\\s*X11Forwarding\\s+no$') | list | length > 0 }}"
+  # Check if 'X11Forwarding no' is explicitly set in sshd_config.
   tags:
-    - secure_boot_settings
-    - x_window_system
+    - remote_admin_ssh
+    - ssh_x11_forwarding
 
-- name: Define X Window System removal compliance item
+- name: Define SSH X11 Forwarding compliance item
   ansible.builtin.set_fact:
-    x_window_system_compliance_item:
-      category: 'Secure Boot Settings'
-      item: 'X Window System removal'
-      status: '{{ "COMPLIANT" if x_window_system_compliant else "NON_COMPLIANT" }}'
-      expected: 'X Window System is removed.'
-      actual: '{{ "Removed" if x_window_system_compliant else "Present" }}'
-      message: '{{ "X Window System (xorg-x11-server-Xorg) is not installed." if x_window_system_compliant else "X Window System (xorg-x11-server-Xorg) is present and should be removed." }}'
+    ssh_x11_forwarding_compliance_item:
+      category: 'Remote Administration Via SSH'
+      item: 'Disable SSH X11 Forwarding'
+      status: '{{ "COMPLIANT" if ssh_x11_forwarding_disabled else "NON_COMPLIANT" }}'
+      expected: 'X11Forwarding is set to no.'
+      actual: '{{ "Disabled" if ssh_x11_forwarding_disabled else "Enabled or missing" }}'
+      message: '{{ "SSH X11 Forwarding is correctly disabled." if ssh_x11_forwarding_disabled else "CRITICAL: X11Forwarding is enabled or not explicitly set to no in sshd_config. This allows remote graphical streaming risks." }}'
   tags:
-    - secure_boot_settings
-    - x_window_system
+    - remote_admin_ssh
+    - ssh_x11_forwarding
 
-- name: Report X Window System removal compliance
+- name: Report SSH X11 Forwarding compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [x_window_system_compliance_item] }}"
+    compliance_report_results: "{{ compliance_report_results + [ssh_x11_forwarding_compliance_item] }}"
   tags:
-    - secure_boot_settings
-    - x_window_system
+    - remote_admin_ssh
+    - ssh_x11_forwarding
+
+#######NEW CODE######################
+
 
 - name: Check X font server disabled
   ansible.builtin.service_facts:
