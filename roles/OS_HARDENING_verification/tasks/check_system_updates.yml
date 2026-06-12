@@ -106,7 +106,7 @@
     - release_version
 
 - name: Check Red Hat GPG key and gpgcheck enablement
-  ansible.builtin.command: dnf config-manager --dump | grep gpgcheck
+  ansible.builtin.shell: dnf config-manager --dump | grep gpgcheck
   register: gpgcheck_status
   changed_when: false
   failed_when: false
