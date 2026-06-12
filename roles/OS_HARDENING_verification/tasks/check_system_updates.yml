@@ -128,7 +128,8 @@
 - name: Set fact for GPG key and gpgcheck compliance
   ansible.builtin.set_fact:
     gpg_check_compliant: >-
-      {{ gpgcheck_status.rc == 0 and 'gpgcheck=1' in gpgcheck_status.stdout and
+      {{ gpgcheck_status.rc == 0 and 
+         (gpgcheck_status.stdout | regex_search('gpgcheck\s*=\s*1')) and
          rh_gpg_key_present.matched > 0 }}
   # Both gpgcheck must be enabled and the key must be present.
   tags:
