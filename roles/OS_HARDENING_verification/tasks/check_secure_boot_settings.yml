@@ -158,41 +158,10 @@
 #
 #- name: Report X Window System removal compliance
 #  ansible.builtin.set_fact:
-#    compliance_report_results: "{{ compliance_report_results + [x_window_system_compliance_item] }}"
+#    compliance_report_results: "{{ compliance_report_results + [x_window_system_compliance_item] }}"s
 #  tags:
 #    - secure_boot_settings
 #    - x_window_system
-
-#######NEW CODE######################
-- name: Check if X11 Forwarding is disabled
-  ansible.builtin.set_fact:
-    ssh_x11_forwarding_disabled: "{{ sshd_config_lines | select('match', '^\\s*X11Forwarding\\s+no$') | list | length > 0 }}"
-  # Check if 'X11Forwarding no' is explicitly set in sshd_config.
-  tags:
-    - remote_admin_ssh
-    - ssh_x11_forwarding
-
-- name: Define SSH X11 Forwarding compliance item
-  ansible.builtin.set_fact:
-    ssh_x11_forwarding_compliance_item:
-      category: 'Remote Administration Via SSH'
-      item: 'Disable SSH X11 Forwarding'
-      status: '{{ "COMPLIANT" if ssh_x11_forwarding_disabled else "NON_COMPLIANT" }}'
-      expected: 'X11Forwarding is set to no.'
-      actual: '{{ "Disabled" if ssh_x11_forwarding_disabled else "Enabled or missing" }}'
-      message: '{{ "SSH X11 Forwarding is correctly disabled." if ssh_x11_forwarding_disabled else "CRITICAL: X11Forwarding is enabled or not explicitly set to no in sshd_config. This allows remote graphical streaming risks." }}'
-  tags:
-    - remote_admin_ssh
-    - ssh_x11_forwarding
-
-- name: Report SSH X11 Forwarding compliance
-  ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [ssh_x11_forwarding_compliance_item] }}"
-  tags:
-    - remote_admin_ssh
-    - ssh_x11_forwarding
-
-#######NEW CODE######################
 
 
 - name: Check X font server disabled
