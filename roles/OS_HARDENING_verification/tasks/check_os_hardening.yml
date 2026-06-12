@@ -215,3 +215,41 @@
   tags:
     - os_hardening
     - daemon_umask
+
+########## NEW CODE############################
+- name: Check if /etc/cron.allow exists
+  ansible.builtin.stat:
+    path: /etc/cron.allow
+  register: cron_allow_stat
+  # Verify if cron services are restricted via the cron.allow file.
+  tags:
+    - os_hardening
+    - cron_restriction
+
+- name: Set fact for cron restriction compliance
+  ansible.builtin.set_fact:
+    cron_restriction_compliant: "{{ cron_allow_stat.stat.exists == true }}"
+  tags:
+    - os_hardening
+    - cron_restriction
+
+- name: Define cron restriction compliance item
+  ansible.builtin.set_fact:
+    cron_restriction_compliance_item:
+      category: 'OS Hardening'
+      item: 'Restrict Use of Cron Services'
+      status: '{{ "COMPLIANT" if cron_restriction_compliant else "NON_COMPLIANT" }}'
+      expected: '/etc/cron.allow file exists to restrict cron access to authorized users.'
+      actual: '{{ "File present" if cron_restriction_compliant else "File missing" }}'
+      message: '{{ "/etc/cron.allow is present, ensuring scoped cron execution rights." if cron_restriction_compliant else "CRITICAL: /etc/cron.allow is missing. Access to cron services is not strictly restricted via an allow list." }}'
+  tags:
+    - os_hardening
+    - cron_restriction
+
+- name: Report cron restriction compliance
+  ansible.builtin.set_fact:
+    compliance_report_results: "{{ compliance_report_results + [cron_restriction_compliance_item] }}"
+  tags:
+    - os_hardening
+    - cron_restriction
+########## NEW CODE############################
