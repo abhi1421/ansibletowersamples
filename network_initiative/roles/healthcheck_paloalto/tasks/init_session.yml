@@ -3,4 +3,4 @@
 - name: Turn off CLI paging to prevent text streaming blocks
   paloaltonetworks.panos.panos_cli:
     command: "set cli pager off"
-  register: cli_pager_output
+  register: cli_pager_output  

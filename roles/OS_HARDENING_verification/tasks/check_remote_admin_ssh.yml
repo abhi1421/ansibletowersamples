@@ -2,6 +2,15 @@
 # os_hardening_verification/tasks/check_remote_admin_ssh.yml
 # This file contains tasks to verify remote administration via SSH hardening points.
 
+#######NEW CODE######################
+- name: Gather package facts if not already present
+  ansible.builtin.package_facts:
+    manager: auto
+  when: ansible_facts.packages is not defined
+  tags:
+    - remote_admin_ssh
+#######NEW CODE######################
+
 - name: Read SSHD configuration
   ansible.builtin.slurp:
     src: /etc/ssh/sshd_config
@@ -19,10 +28,19 @@
     - remote_admin_ssh
     - ssh_config
 
-- name: Check SSH protocol to 2
+
+#######NEW CODE######################
+
+- name: Verify installed OpenSSH and OpenSSL package versions
   ansible.builtin.set_fact:
-    ssh_protocol_compliant: "{{ sshd_config_lines | select('match', '^\\s*Protocol\\s+2$') | list | length > 0 }}"
-  # Check if 'Protocol 2' is explicitly set.
+    ssh_protocol_compliant: >-
+      {{ 
+        ansible_facts.packages['openssh-server'] is defined and 
+        ansible_facts.packages['openssh-server'][0].version is version('8.0', '>=') and
+        ansible_facts.packages['openssl'] is defined and 
+        ansible_facts.packages['openssl'][0].version is version('1.0', '>=')
+      }}
+  # Verifies that modern, secure defaults are active based on package inventory.
   tags:
     - remote_admin_ssh
     - ssh_protocol
@@ -33,9 +51,19 @@
       category: 'Remote Administration Via SSH'
       item: 'SSH protocol set to 2'
       status: '{{ "COMPLIANT" if ssh_protocol_compliant else "NON_COMPLIANT" }}'
-      expected: 'SSH protocol is set to 2.'
-      actual: '{{ "Protocol 2" if ssh_protocol_compliant else "Protocol not explicitly 2 or missing" }}'
-      message: '{{ "SSH protocol is correctly set to 2." if ssh_protocol_compliant else "SSH protocol is not explicitly set to 2 in sshd_config. This is a critical security setting." }}'
+      expected: 'OpenSSH version >= 8.0 and OpenSSL >= 1.0 (Protocol 2 enforced by default).'
+      actual: >-
+        {% if ssh_protocol_compliant %}
+        OpenSSH: {{ ansible_facts.packages['openssh-server'][0].version }}, OpenSSL: {{ ansible_facts.packages['openssl'][0].version }}
+        {% else %}
+        Outdated or missing packages. OpenSSH: {{ ansible_facts.packages['openssh-server'][0].version | default('Not Found') }}, OpenSSL: {{ ansible_facts.packages['openssl'][0].version | default('Not Found') }}
+        {% endif %}
+      message: >-
+        {% if ssh_protocol_compliant %}
+        System runs a modern OpenSSH suite. Protocol 2 is implicitly and exclusively enforced by default.
+        {% else %}
+        CRITICAL: The system is running an older or unrecognized version of OpenSSH/OpenSSL where Protocol 1 might still be allowed.
+        {% endif %}
   tags:
     - remote_admin_ssh
     - ssh_protocol
@@ -46,6 +74,35 @@
   tags:
     - remote_admin_ssh
     - ssh_protocol
+#######NEW CODE######################
+
+#- name: Check SSH protocol to 2
+#  ansible.builtin.set_fact:
+#    ssh_protocol_compliant: "{{ sshd_config_lines | select('match', '^\\s*Protocol\\s+2$') | list | length > 0 }}"
+#  # Check if 'Protocol 2' is explicitly set.
+#  tags:
+#    - remote_admin_ssh
+#    - ssh_protocol
+#
+#- name: Define SSH protocol compliance item
+#  ansible.builtin.set_fact:
+#    ssh_protocol_compliance_item:
+#      category: 'Remote Administration Via SSH'
+#      item: 'SSH protocol set to 2'
+#      status: '{{ "COMPLIANT" if ssh_protocol_compliant else "NON_COMPLIANT" }}'
+#      expected: 'SSH protocol is set to 2.'
+#      actual: '{{ "Protocol 2" if ssh_protocol_compliant else "Protocol not explicitly 2 or missing" }}'
+#      message: '{{ "SSH protocol is correctly set to 2." if ssh_protocol_compliant else "SSH protocol is not explicitly set to 2 in sshd_config. This is a critical security setting." }}'
+#  tags:
+#    - remote_admin_ssh
+#    - ssh_protocol
+#
+#- name: Report SSH protocol compliance
+#  ansible.builtin.set_fact:
+#    compliance_report_results: "{{ compliance_report_results + [ssh_protocol_compliance_item] }}"
+#  tags:
+#    - remote_admin_ssh
+#    - ssh_protocol
 
 - name: Check SSH loglevel to INFO
   ansible.builtin.set_fact:
