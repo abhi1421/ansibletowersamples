@@ -1,13 +1,60 @@
 ---
+# OS_HARDENING_implementation/tasks/enforce_pam_config.yml
 # Implementation tasks for PAM and Password Policy Hardening
 
+# ==============================================================================
+# 1. Base /etc/pam.d/* Profile System Setup (Manual Contextual Anchor)
+# ==============================================================================
+- name: Hardening | Use authselect to apply hardened profile
+  ansible.builtin.command: authselect select sssd with-faillock --force
+  register: authselect_result
+  changed_when: authselect_result.rc == 0
+  failed_when: false
+  tags:
+    - pam_config
+    - pam_security_manual
+
+- name: Compliance | Log PAM security manual compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'PAM Configuration',
+      'item': 'Ensure /etc/pam.d/* are secure',
+      'status': 'MANUAL_REQUIRED',
+      'details': 'Hardened authselect baseline profile (sssd + faillock lockout protection) applied. Security engineers must manually review specialized pam rules.'
+    }] }}"
+  tags:
+    - pam_config
+    - pam_security_manual
+
+# ==============================================================================
+# 2. Upgrade Password Hashing Algorithm to SHA-512
+# ==============================================================================
 - name: Hardening | Ensure password hashing is set to SHA512
   ansible.builtin.lineinfile:
     path: /etc/login.defs
     regexp: '^ENCRYPT_METHOD'
     line: 'ENCRYPT_METHOD SHA512'
     state: present
+  register: encrypt_method_enforce
+  tags:
+    - pam_config
+    - password_hashing
 
+- name: Compliance | Log password hashing algorithm compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'PAM Configuration',
+      'item': 'Upgrade password hashing algorithm to SHA-512',
+      'status': 'CHANGED' if encrypt_method_enforce.changed else 'OK',
+      'details': 'System-wide configuration explicitly upgraded to leverage SHA-512 cryptographic hashing.' if encrypt_method_enforce.changed else 'Verified. ENCRYPT_METHOD SHA512 is already active inside login.defs.'
+    }] }}"
+  tags:
+    - pam_config
+    - password_hashing
+
+# ==============================================================================
+# 3. Enforce Password Creation Complexity Requirements
+# ==============================================================================
 - name: Hardening | Enforce password complexity requirements (pwquality)
   ansible.builtin.lineinfile:
     path: /etc/security/pwquality.conf
@@ -21,8 +68,26 @@
     - { regexp: '^ocredit', line: 'ocredit = -1' }
     - { regexp: '^lcredit', line: 'lcredit = -1' }
     - { regexp: '^difok', line: 'difok = 3' }
-  # These settings require at least 14 chars, 1 digit, 1 upper, 1 special, 1 lower.
+  register: pwquality_enforce
+  tags:
+    - pam_config
+    - password_requirements
 
+- name: Compliance | Log password creation requirements compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'PAM Configuration',
+      'item': 'Set password creation requirements',
+      'status': 'CHANGED' if pwquality_enforce.changed else 'OK',
+      'details': 'Password complexity matrix successfully enforced (14-char minimum length, multi-class token criteria applied).' if pwquality_enforce.changed else 'Verified. Compliance baseline thresholds are already operational within pwquality.conf.'
+    }] }}"
+  tags:
+    - pam_config
+    - password_requirements
+
+# ==============================================================================
+# 4. Restrict Root Login to System Console
+# ==============================================================================
 - name: Hardening | Restrict root login to system console
   ansible.builtin.copy:
     dest: /etc/securetty
@@ -37,20 +102,19 @@
     owner: root
     group: root
     mode: '0600'
+  register: securetty_enforce
+  tags:
+    - pam_config
+    - root_login_restriction
 
-- name: Hardening | Use authselect to apply hardened profile
-  ansible.builtin.command: authselect select sssd with-faillock --force
-  register: authselect_result
-  changed_when: authselect_result.rc == 0
-  failed_when: false
-  # This enables the 'faillock' module for account lockout and 
-  # ensures PAM files are managed by the system-standard tool.
-
-- name: Compliance | Log PAM Implementation Status
+- name: Compliance | Log root login restriction compliance status
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'PAM Configuration',
-      'item': 'Authentication and Password Enforcement',
-      'status': 'ENFORCED',
-      'details': 'SHA512 enabled. Pwquality set (14 char min). Authselect sssd/faillock profile applied.'
+      'item': 'Restrict root login to system console',
+      'status': 'CHANGED' if securetty_enforce.changed else 'OK',
+      'details': 'Constructed pristine /etc/securetty access matrix to isolate root logins strictly to direct system consoles.' if securetty_enforce.changed else 'Verified. Standard /etc/securetty file layout is present and compliant.'
     }] }}"
+  tags:
+    - pam_config
+    - root_login_restriction

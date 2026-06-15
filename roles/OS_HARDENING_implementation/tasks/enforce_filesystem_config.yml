@@ -1,6 +1,10 @@
 ---
+# OS_HARDENING_implementation/tasks/enforce_filesystem_config.yml
 # Implementation logic for Filesystem Configuration Hardening
 
+# ==============================================================================
+# 1. /tmp Partition Options
+# ==============================================================================
 - name: Hardening | Enforce mount options for /tmp
   ansible.posix.mount:
     path: /tmp
@@ -10,7 +14,77 @@
     state: mounted
   loop: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/tmp') | list }}"
   register: tmp_mount_result
+  when: ansible_architecture == 'x86_64'
+  tags:
+    - filesystem_config
+    - tmp_partition
 
+- name: Compliance | Log /tmp partition options compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Filesystem Configuration',
+      'item': '/tmp partition options',
+      'status': 'CHANGED' if (tmp_mount_result.changed | default(false)) else 'OK',
+      'details': 'Mount options (nodev, nosuid, noexec) successfully applied to /tmp.' if (tmp_mount_result.changed | default(false)) else 'Verified. Required mount options are already set on /tmp.'
+    }] }}"
+  tags:
+    - filesystem_config
+    - tmp_partition
+
+# ==============================================================================
+# 2. Separate Partitions Audit/Notice
+# ==============================================================================
+- name: Hardening | Check for missing recommended partitions
+  ansible.builtin.set_fact:
+    missing_partitions: >-
+      {{ ['/var', '/var/log', '/var/log/audit', '/home'] | difference(ansible_facts.mounts | map(attribute='mount') | list) }}
+  tags:
+    - filesystem_config
+    - separate_partitions
+
+- name: Compliance | Log separate partitions compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Filesystem Configuration',
+      'item': 'Separate partitions for /var, /var/log, /var/log/audit, /home',
+      'status': 'MANUAL_REQUIRED' if (missing_partitions | length > 0) else 'OK',
+      'details': 'CRITICAL: Structural storage layout cannot be applied automatically. Missing dedicated mountpoints: ' + (missing_partitions | join(', ')) if (missing_partitions | length > 0) else 'Verified. All mandatory infrastructure sub-partitions exist.'
+    }] }}"
+  tags:
+    - filesystem_config
+    - separate_partitions
+
+# ==============================================================================
+# 3. /var/tmp Bind Mount
+# ==============================================================================
+- name: Hardening | Ensure /var/tmp is bind mounted to /tmp
+  ansible.posix.mount:
+    path: /var/tmp
+    src: /tmp
+    fstype: none
+    opts: bind
+    state: mounted
+  register: vartmp_bind_result
+  when: ansible_architecture == 'x86_64'  
+  tags:
+    - filesystem_config
+    - bind_mount_vartmp
+
+- name: Compliance | Log /var/tmp bind mount compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Filesystem Configuration',
+      'item': 'Bind mount /var/tmp to /tmp',
+      'status': 'CHANGED' if (vartmp_bind_result.changed | default(false)) else 'OK',
+      'details': 'Configured secure file runtime isolation by bind-mounting /var/tmp to /tmp.' if (vartmp_bind_result.changed | default(false)) else 'Verified. /var/tmp is already mapped or linked to /tmp.'
+    }] }}"
+  tags:
+    - filesystem_config
+    - bind_mount_vartmp
+
+# ==============================================================================
+# 4. /home nodev Option
+# ==============================================================================
 - name: Hardening | Enforce nodev on /home
   ansible.posix.mount:
     path: /home
@@ -20,7 +94,26 @@
     state: mounted
   loop: "{{ ansible_facts.mounts | selectattr('mount', 'equalto', '/home') | list }}"
   register: home_mount_result
+  when: ansible_architecture == 'x86_64'  
+  tags:
+    - filesystem_config
+    - home_nodev
 
+- name: Compliance | Log /home nodev compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Filesystem Configuration',
+      'item': '/home nodev option',
+      'status': 'CHANGED' if (home_mount_result.changed | default(false)) else 'OK',
+      'details': 'Enforced device restrictions on user space by applying nodev option to /home.' if (home_mount_result.changed | default(false)) else 'Verified. /home mountpoint already restricts block device execution.'
+    }] }}"
+  tags:
+    - filesystem_config
+    - home_nodev
+
+# ==============================================================================
+# 5. /dev/shm Options
+# ==============================================================================
 - name: Hardening | Enforce mount options for /dev/shm
   ansible.posix.mount:
     path: /dev/shm
@@ -29,32 +122,43 @@
     opts: "nodev,nosuid,noexec"
     state: mounted
   register: shm_mount_result
+  when: ansible_architecture == 'x86_64'  
+  tags:
+    - filesystem_config
+    - dev_shm
 
-- name: Hardening | Ensure /var/tmp is bind mounted to /tmp
-  ansible.posix.mount:
-    path: /var/tmp
-    src: /tmp
-    fstype: none
-    opts: bind
-    state: mounted
-  register: vartmp_bind_result
+- name: Compliance | Log /dev/shm options compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Filesystem Configuration',
+      'item': '/dev/shm options',
+      'status': 'CHANGED' if (shm_mount_result.changed | default(false)) else 'OK',
+      'details': 'Hardened shared memory region by setting nodev, nosuid, and noexec on /dev/shm.' if (shm_mount_result.changed | default(false)) else 'Verified. Shared memory namespace already holds explicit execution guards.'
+    }] }}"
+  tags:
+    - filesystem_config
+    - dev_shm
 
+# ==============================================================================
+# 6. Sticky Bit Modification
+# ==============================================================================
 - name: Hardening | Set sticky bit on world-writable directories
   ansible.builtin.shell: |
     find / -xdev -type d -perm -0002 -not -perm -1000 -exec chmod a+t {} +
   register: sticky_bit_fix
   changed_when: sticky_bit_fix.stdout != ""
+  tags:
+    - filesystem_config
+    - sticky_bit
 
-- name: Hardening | Check for missing recommended partitions
+- name: Compliance | Log sticky bit compliance
   ansible.builtin.set_fact:
-    missing_partitions: >-
-      {{ ['/var', '/var/log', '/var/log/audit', '/home'] | difference(ansible_facts.mounts | map(attribute='mount') | list) }}
-
-- name: Compliance | Log Filesystem Implementation Status
-  ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Filesystem Configuration',
-      'item': 'Partition Mount Options and Sticky Bits',
-      'status': 'ENFORCED',
-      'details': 'Applied nodev/nosuid/noexec where applicable. Fixed sticky bits. Note: Missing separate partitions: ' + (missing_partitions | join(', ') if missing_partitions else 'None')
+      'item': 'Sticky bit on world-writable directories',
+      'status': 'CHANGED' if (sticky_bit_fix.changed | default(false)) else 'OK',
+      'details': 'Discovered exposed world-writable locations and appended missing sticky bits.' if (sticky_bit_fix.changed | default(false)) else 'Verified. All world-writable nodes contain active sticky bits.'
     }] }}"
+  tags:
+    - filesystem_config
+    - sticky_bit

@@ -1,4 +1,5 @@
 ---
+# OS_HARDENING_implementation/tasks/enforce_files_directory_permissions.yml
 # Implementation tasks for File and Directory Permissions Hardening
 
 - name: Hardening | Enforce permissions and ownership for /etc/passwd
@@ -8,6 +9,7 @@
     group: root
     mode: '0644'
     state: file
+  register: passwd_enforce_result
 
 - name: Hardening | Enforce permissions and ownership for /etc/shadow
   ansible.builtin.file:
@@ -16,8 +18,10 @@
     group: root
     mode: '0000'
     state: file
-  # Note: Some environments prefer 0400, but 0000 is the strictest standard.
+  register: shadow_enforce_result
 
+# Keeping these as functional system tasks since they were in your draft,
+# but aligning the reporting blocks strictly to what your verification file expects.
 - name: Hardening | Enforce permissions and ownership for /etc/group
   ansible.builtin.file:
     path: /etc/group
@@ -42,8 +46,6 @@
   loop:
     - pwck -r
     - grpck -r
-  # The -r flag runs these in read-only mode to report inconsistencies 
-  # in /etc/passwd and /etc/group without manual prompts.
 
 - name: Hardening | Notice for manual account review
   ansible.builtin.debug:
@@ -51,11 +53,34 @@
       - "ACTION REQUIRED: Manually review /etc/sudoers and /etc/sudoers.d/ for unauthorized privilege escalation."
       - "ACTION REQUIRED: Verify no legacy or unused accounts exist in /etc/passwd."
 
-- name: Compliance | Log File Permissions Implementation
+# ==============================================================================
+# ALIGNED COMPLIANCE LOGGING
+# Maps directly 1-to-1 with verification file items
+# ==============================================================================
+
+- name: Compliance | Log Integrity Checking Status (Manual)
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Files/Directory Permissions/Access',
-      'item': 'System Identity File Security',
-      'status': 'ENFORCED',
-      'details': 'Enforced 0644 on passwd/group and 0000 on shadow/gshadow. Integrity tools (pwck/grpck) executed.'
+      'item': 'Integrity checking of system accounts, group memberships, and privileges',
+      'status': 'MANUAL_REQUIRED',
+      'details': 'Read-only checks (pwck/grpck) run. System administrators must manually complete verification of sudoers and account usage.'
+    }] }}"
+
+- name: Compliance | Log /etc/passwd Permissions Status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Files/Directory Permissions/Access',
+      'item': '/etc/passwd permissions',
+      'status': 'CHANGED' if passwd_enforce_result.changed else 'OK',
+      'details': 'Permissions corrected to 0644 and ownership fixed to root:root.' if passwd_enforce_result.changed else 'System was already compliant. 0644 permissions and root:root ownership verified.'
+    }] }}"
+
+- name: Compliance | Log /etc/shadow Permissions Status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Files/Directory Permissions/Access',
+      'item': '/etc/shadow permissions',
+      'status': 'CHANGED' if shadow_enforce_result.changed else 'OK',
+      'details': 'Permissions hardened to 0000 and ownership locked to root:root.' if shadow_enforce_result.changed else 'System was already compliant. Strictest 0000 state verified.'
     }] }}"

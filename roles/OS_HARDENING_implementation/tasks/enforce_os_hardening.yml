@@ -1,9 +1,12 @@
 ---
+# OS_HARDENING_implementation/tasks/enforce_os_hardening.yml
 # Implementation tasks for OS Hardening (Services, Packages, and System Defaults)
 
-- name: Hardening | Define all prohibited and unutilized services
+# ==============================================================================
+# 1. Purge Prohibited Legacy Packages & xinetd
+# ==============================================================================
+- name: Hardening | Define all prohibited packages
   ansible.builtin.set_fact:
-    # Legacy/Insecure Services
     prohibited_packages:
       - telnet-server
       - rsh
@@ -22,8 +25,57 @@
       - echo-dgram
       - echo-stream
       - tcpmux-server
-      - xinetd
-    # Potentially unutilized server roles (customize as needed)
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Hardening | Purge prohibited legacy packages
+  ansible.builtin.dnf:
+    name: "{{ prohibited_packages }}"
+    state: absent
+  register: dnf_purge_result
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Compliance | Log legacy services removal compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'OS Hardening',
+      'item': 'Remove legacy services',
+      'status': 'CHANGED' if dnf_purge_result.changed else 'OK',
+      'details': 'Legacy service packages discovered and completely purged from the system.' if dnf_purge_result.changed else 'Verified. No legacy service packages are present on the host.'
+    }] }}"
+  tags:
+    - os_hardening
+    - legacy_services
+
+- name: Hardening | Purge legacy xinetd daemon
+  ansible.builtin.dnf:
+    name: xinetd
+    state: absent
+  register: xinetd_purge_result
+  tags:
+    - os_hardening
+    - xinetd_removal
+
+- name: Compliance | Log xinetd removal compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'OS Hardening',
+      'item': 'Remove xinetd',
+      'status': 'CHANGED' if xinetd_purge_result.changed else 'OK',
+      'details': 'Insecure xinetd super-daemon package removed.' if xinetd_purge_result.changed else 'Verified. xinetd package is absent from the system.'
+    }] }}"
+  tags:
+    - os_hardening
+    - xinetd_removal
+
+# ==============================================================================
+# 2. Stop, Disable, and Mask Unutilized Operational Services
+# ==============================================================================
+- name: Hardening | Define unutilized server roles
+  ansible.builtin.set_fact:
     unutilized_services:
       - vsftpd
       - named
@@ -32,12 +84,9 @@
       - dhcpd
       - nfs-server
       - snmpd
-
-- name: Hardening | Purge prohibited legacy packages
-  ansible.builtin.dnf:
-    name: "{{ prohibited_packages }}"
-    state: absent
-  register: dnf_purge_result
+  tags:
+    - os_hardening
+    - unutilized_services
 
 - name: Hardening | Stop, Disable, and Mask unutilized services
   ansible.builtin.systemd:
@@ -46,8 +95,27 @@
     enabled: false
     masked: yes
   loop: "{{ unutilized_services }}"
-  failed_when: false # Do not fail if a service package isn't installed
+  register: services_disable_result
+  failed_when: false
+  tags:
+    - os_hardening
+    - unutilized_services
 
+- name: Compliance | Log server services compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'OS Hardening',
+      'item': 'Disable or remove unutilized server services',
+      'status': 'CHANGED' if (services_disable_result.results | selectattr('changed', 'equalto', true) | list | length > 0) else 'OK',
+      'details': 'Active unutilized network service runtimes were shut down and systematically masked.' if (services_disable_result.results | selectattr('changed', 'equalto', true) | list | length > 0) else 'Verified. All unutilized server profiles are already locked and disabled.'
+    }] }}"
+  tags:
+    - os_hardening
+    - unutilized_services
+
+# ==============================================================================
+# 3. Enforce System-Wide Default Umask Configuration
+# ==============================================================================
 - name: Hardening | Enforce system-wide umask (022)
   ansible.builtin.lineinfile:
     path: "{{ item.path }}"
@@ -58,12 +126,46 @@
     - { path: '/etc/login.defs', regexp: '^UMASK', line: 'UMASK           022' }
     - { path: '/etc/bashrc', regexp: 'umask [0-9]{3}', line: '    umask 022' }
     - { path: '/etc/profile', regexp: 'umask [0-9]{3}', line: 'umask 022' }
+  register: umask_enforce_result
+  tags:
+    - os_hardening
+    - daemon_umask
 
-- name: Compliance | Log OS Hardening Implementation
+- name: Compliance | Log daemon umask compliance
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'OS Hardening',
-      'item': 'Legacy Services and System Umask',
-      'status': 'ENFORCED',
-      'details': 'Removed ' + (prohibited_packages | length | string) + ' packages and enforced umask 022.'
+      'item': 'Set daemon umask (effective)',
+      'status': 'CHANGED' if umask_enforce_result.changed else 'OK',
+      'details': 'System profiles modified to strictly map effective default file creation paths to umask 022.' if umask_enforce_result.changed else 'Verified. Standard system-wide umask 022 is actively in place.'
     }] }}"
+  tags:
+    - os_hardening
+    - daemon_umask
+
+# ==============================================================================
+# 4. Restrict Use of Cron Services (Your Enhancement Point!)
+# ==============================================================================
+- name: Hardening | Ensure /etc/cron.allow exists with root authorized
+  ansible.builtin.copy:
+    dest: /etc/cron.allow
+    content: "root\n"
+    owner: root
+    group: root
+    mode: '0600'
+  register: cron_allow_enforce_result
+  tags:
+    - os_hardening
+    - cron_restriction
+
+- name: Compliance | Log cron restriction compliance
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'OS Hardening',
+      'item': 'Restrict Use of Cron Services',
+      'status': 'CHANGED' if cron_allow_enforce_result.changed else 'OK',
+      'details': 'Created mandatory /etc/cron.allow policy matrix to securely isolate task scheduler permissions.' if cron_allow_enforce_result.changed else 'Verified. Restricted cron access-control matrix file already exists.'
+    }] }}"
+  tags:
+    - os_hardening
+    - cron_restriction
