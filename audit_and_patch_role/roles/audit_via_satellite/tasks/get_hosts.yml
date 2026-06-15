@@ -1,13 +1,37 @@
 ---
-- name: Fetch hosts registered under the organization
+#- name: Fetch hosts filtered by BOTH Organization and Content View
+#  ansible.builtin.uri:
+#    url: "{{ satellite_url }}/api/hosts?organization_id={{ org_id }}&per_page=250&search=content_view%20%3D%20%22{{ satellite_content_view_name | urlencode }}%22"
+#    method: GET
+#    user: "{{ satellite_username }}"
+#    password: "{{ satellite_password }}"
+#    force_basic_auth: true
+#    validate_certs: "{{ validate_certs }}"
+#    return_content: true
+#  register: org_hosts
+#
+#- name: Initialize patch report structure
+#  ansible.builtin.set_fact:
+#    patch_report: []
+
+
+---
+- name: Fetch hosts filtered by BOTH Organization and Content View
   ansible.builtin.uri:
-    url: "{{ satellite_url }}/api/hosts?organization_id={{ org_id }}&per_page=250"
+    # Keep the base URL clean and free of search parameters
+    url: "{{ satellite_url }}/api/hosts"
     method: GET
     user: "{{ satellite_username }}"
     password: "{{ satellite_password }}"
     force_basic_auth: true
     validate_certs: "{{ validate_certs }}"
     return_content: true
+    # Force Ansible to handle the parameter encoding out-of-band
+    body_format: form-urlencoded
+    body:
+      organization_id: "{{ org_id }}"
+      per_page: "250"
+      search: 'content_view = "{{ satellite_content_view_name }}"'
   register: org_hosts
 
 - name: Initialize patch report structure
