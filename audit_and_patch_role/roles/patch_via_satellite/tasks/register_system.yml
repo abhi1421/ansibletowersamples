@@ -26,3 +26,18 @@
   ansible.builtin.command: "subscription-manager release --set {{ ansible_distribution_version }}"
   changed_when: true
   tags: [registration]
+
+
+---
+- name: Clean stale data if no system identity is found
+  ansible.builtin.command: subscription-manager clean
+  # Triggers ONLY if "system identity:" is missing from the command output
+  when: "'system identity:' not in system_identity_check.stdout"
+  tags: [registration]
+
+- name: Register system to Satellite if not registered
+  ansible.builtin.command: >
+    subscription-manager register
+    --org={{ satellite_org_id }} --activationkey={{ satellite_activation_key }} --force
+  when: "'system identity:' not in system_identity_check.stdout"
+  tags: [registration]

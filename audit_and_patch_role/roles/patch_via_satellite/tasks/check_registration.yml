@@ -4,3 +4,12 @@
   register: subscription_status_check
   changed_when: false
   tags: [registration_check]
+
+
+---
+- name: Check if system has a Satellite identity
+  ansible.builtin.shell: subscription-manager identity
+  register: system_identity_check
+  failed_when: false
+  changed_when: false
+  tags: [registration_check]
