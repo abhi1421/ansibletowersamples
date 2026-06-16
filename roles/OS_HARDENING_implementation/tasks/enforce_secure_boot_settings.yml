@@ -1,6 +1,9 @@
 ---
 # Implementation tasks for Secure Boot and GRUB Hardening
 
+# ==============================================================================
+# 1. /boot/grub2 Directory Permissions
+# ==============================================================================
 - name: Hardening | Set permissions for /boot/grub2 directory
   ansible.builtin.file:
     path: /boot/grub2
@@ -8,7 +11,26 @@
     group: root
     mode: '0700'
     state: directory
+  register: grub2_dir_res
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
 
+- name: Compliance | Log /boot/grub2 directory permissions compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Secure Boot Settings',
+      'item': '/boot/grub2 directory permissions',
+      'status': 'CHANGED' if grub2_dir_res.changed else 'OK',
+      'details': 'Secured GRUB2 configuration path with explicit 0700 root permissions.' if grub2_dir_res.changed else 'Verified. /boot/grub2 directory permissions are already compliant.'
+    }] }}"
+  tags:
+    - secure_boot_settings
+    - grub2_dir_permissions
+
+# ==============================================================================
+# 2. /boot/grub2/grub.cfg Permissions
+# ==============================================================================
 - name: Hardening | Set permissions for grub.cfg
   ansible.builtin.file:
     path: /boot/grub2/grub.cfg
@@ -16,36 +38,85 @@
     group: root
     mode: '0600'
   register: grub_cfg_perms
+  tags:
+    - secure_boot_settings
+    - grub_permissions
 
+- name: Compliance | Log grub.cfg permissions compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Secure Boot Settings',
+      'item': '/boot/grub2/grub.cfg permissions',
+      'status': 'CHANGED' if grub_cfg_perms.changed else 'OK',
+      'details': 'Hardened bootloader core configuration permissions to strict 0600 level.' if grub_cfg_perms.changed else 'Verified. /boot/grub2/grub.cfg permissions are already compliant.'
+    }] }}"
+  tags:
+    - secure_boot_settings
+    - grub_permissions
+
+# ==============================================================================
+# 3. Boot Loader Password Guard
+# ==============================================================================
+- name: Hardening | Check if GRUB password is set
+  ansible.builtin.shell: grep -E '^set superusers|^password_pbkdf2' /boot/grub2/grub.cfg || true
+  register: grub_pass_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - secure_boot_settings
+    - grub_password
+
+- name: Hardening | Implementation Notice for GRUB Password
+  ansible.builtin.debug:
+    msg: "WARNING: GRUB password must be set via 'grub2-setpassword' or by providing a hash to a template. Manual intervention recommended if not using a vault-encrypted variable."
+  when: grub_pass_check.stdout | length == 0
+  tags:
+    - secure_boot_settings
+    - grub_password
+
+- name: Compliance | Log boot loader password compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Secure Boot Settings',
+      'item': 'Boot loader password',
+      'status': 'OK' if (grub_pass_check.stdout | length > 0) else 'MANUAL_REQUIRED',
+      'details': 'Verified. Active PBKDF2 bootloader password protection is enabled inside grub.cfg.' if (grub_pass_check.stdout | length > 0) else 'CRITICAL: No boot loader password found. This setting must be manually created using grub2-setpassword.'
+    }] }}"
+  tags:
+    - secure_boot_settings
+    - grub_password
+
+# ==============================================================================
+# 4. X Font Server Restriction
+# ==============================================================================
 - name: Hardening | Ensure X Window System is removed
   ansible.builtin.dnf:
     name: xorg-x11-server-Xorg
     state: absent
   register: xorg_removal
+  tags:
+    - secure_boot_settings
+    - x_font_server
 
 - name: Hardening | Ensure X font server is stopped and disabled
   ansible.builtin.systemd:
     name: xfs
     state: stopped
     enabled: no
-  failed_when: false # Service might not exist if X11 was never installed
-
-- name: Hardening | Check if GRUB password is set
-  ansible.builtin.shell: grep -E '^password_pbkdf2' /boot/grub2/grub.cfg
-  register: grub_pass_check
-  changed_when: false
+  register: xfs_service_res
   failed_when: false
+  tags:
+    - secure_boot_settings
+    - x_font_server
 
-- name: Hardening | Implementation Notice for GRUB Password
-  ansible.builtin.debug:
-    msg: "WARNING: GRUB password must be set via 'grub2-setpassword' or by providing a hash to a template. Manual intervention recommended if not using a vault-encrypted variable."
-  when: grub_pass_check.rc != 0
-
-- name: Compliance | Log Secure Boot Implementation
+- name: Compliance | Log X font server compliance status
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Secure Boot Settings',
-      'item': 'Bootloader and X11 Security',
-      'status': 'ENFORCED',
-      'details': 'GRUB permissions set to 0600. X11 packages removed. Manual GRUB password check: ' + ('Found' if grub_pass_check.rc == 0 else 'Missing')
+      'item': 'X font server disabled',
+      'status': 'CHANGED' if (xorg_removal.changed or xfs_service_res.changed) else 'OK',
+      'details': 'Decommissioned underlying graphical layers and cleanly disabled the X font service.' if (xorg_removal.changed or xfs_service_res.changed) else 'Verified. The legacy X font server daemon is completely absent or disabled.'
     }] }}"
+  tags:
+    - secure_boot_settings
+    - x_font_server

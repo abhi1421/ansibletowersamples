@@ -1,15 +1,21 @@
 ---
 # Implementation tasks for Warning Banners Hardening
 
+# ==============================================================================
+# 1. Local and Network Login Banners (/etc/issue & /etc/issue.net)
+# ==============================================================================
 - name: Hardening | Define the University Warning Banner text
   ansible.builtin.set_fact:
     university_banner_text: |
       ******************************************************************************
-      * UNIVERSITY WARNING BANNER                            *
+      * UNIVERSITY WARNING BANNER                                                  *
       * *
       * This system is for authorized use only. User activities are monitored and  *
       * recorded. Unauthorized access is prohibited and subject to prosecution.    *
       ******************************************************************************
+  tags:
+    - warning_banners
+    - network_banner
 
 - name: Hardening | Enforce warning banner for local and network logins
   ansible.builtin.copy:
@@ -21,6 +27,10 @@
   loop:
     - /etc/issue
     - /etc/issue.net
+  register: banner_files_res
+  tags:
+    - warning_banners
+    - network_banner
 
 - name: Hardening | Enforce SSH Banner configuration
   ansible.builtin.lineinfile:
@@ -30,22 +40,49 @@
     state: present
     validate: '/usr/sbin/sshd -t -f %s'
   register: ssh_banner_config
+  tags:
+    - warning_banners
+    - network_banner
 
 - name: Hardening | Restart SSH if banner was configured
   ansible.builtin.service:
     name: sshd
     state: restarted
   when: ssh_banner_config.changed
+  tags:
+    - warning_banners
+    - network_banner
 
+- name: Compliance | Log network/physical warning banner compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Warning Banners',
+      'item': 'Network or physical access services warning banner',
+      'status': 'CHANGED' if (banner_files_res.changed or ssh_banner_config.changed) else 'OK',
+      'details': 'Deployed pristine University Warning Banner structures and connected validation links into active SSH runtimes.' if (banner_files_res.changed or ssh_banner_config.changed) else 'Verified. Mandatory security notification strings are already present across console and remote targets.'
+    }] }}"
+  tags:
+    - warning_banners
+    - network_banner
+
+# ==============================================================================
+# 2. Graphical Login Warning Banner (Manual Track Coordination)
+# ==============================================================================
 - name: Hardening | Notice regarding GUI banners
   ansible.builtin.debug:
     msg: "GUI Warning Banner skipped as X11 packages were removed in previous hardening steps."
+  tags:
+    - warning_banners
+    - gui_banner_manual
 
-- name: Compliance | Log Warning Banner Implementation
+- name: Compliance | Log graphical user interface warning banner compliance status
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Warning Banners',
-      'item': 'Legal Notice and Login Banners',
-      'status': 'ENFORCED',
-      'details': 'Applied University Warning Banner to /etc/issue and /etc/issue.net. Linked banner to SSHD.'
+      'item': 'Graphical user interface warning banner',
+      'status': 'MANUAL_REQUIRED',
+      'details': 'X11 graphical environment components verified absent. Display manager (GDM/KDM) pre-login banner presence must be validated manually if custom display environments are built.'
     }] }}"
+  tags:
+    - warning_banners
+    - gui_banner_manual

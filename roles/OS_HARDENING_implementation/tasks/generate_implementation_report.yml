@@ -4,63 +4,87 @@
 - name: Prepare Implementation Report Content
   ansible.builtin.set_fact:
     impl_report_content: |
-      # Hardening Implementation Report: {{ ansible_hostname }}
-      ## Status: ENFORCED
-      ## Date: {{ ansible_date_time.iso8601 }}
+      # Hardening Implementation Report: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+      ## Status: COMPLETED | Execution Date: {{ ansible_date_time.iso8601 }}
 
-      This host has undergone automated hardening enforcement. Below is the summary of actions taken.
+      This host has undergone automated hardening remediation enforcement. Below is the summary of infrastructure actions taken.
 
       ### Execution Summary:
-      - **Actions Applied:** {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED') | list | length }}
-      - **Manual Actions Logged:** {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED_MANUAL') | list | length }}
+      - **System Configurations Changed (Remediated):** {{ enforcement_report_results | selectattr('status', 'equalto', 'CHANGED') | list | length }} items
+      - **Systems Already Compliant (Skipped/OK):** {{ enforcement_report_results | selectattr('status', 'equalto', 'OK') | list | length }} items
+      - **Manual Interventions Logged (Out-of-Scope):** {{ enforcement_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }} items
 
       ### Detailed Enforcement Log:
 
-      {% for category in compliance_report_results | map(attribute='category') | unique | sort %}
+      {% for category in enforcement_report_results | map(attribute='category') | unique | sort %}
       #### {{ category }}
 
-      | Security Item | Status | Action Details |
+      | Security Item | Remediation Status | Action Details / Contextual Evidence |
       |---|---|---|
-      {% for item in compliance_report_results | selectattr('category', 'equalto', category) %}
+      {% for item in enforcement_report_results | selectattr('category', 'equalto', category) %}
       | {{ item.item }} | **{{ item.status }}** | {{ item.details }} |
       {% endfor %}
 
       {% endfor %}
+  tags:
+    - always
+    - report_generation
 
 - name: Define Report Filename
   ansible.builtin.set_fact:
-    impl_report_filename: "/tmp/hardening_enforcement_{{ ansible_hostname }}_{{ ansible_date_time.date | replace('-', '') }}.md"
+    impl_report_filename: "/tmp/hardening_enforcement_{{ ansible_facts.default_ipv4.address | replace('.', '-') }}_{{ ansible_date_time.date | replace('-', '') }}.md"
+  tags:
+    - always
+    - report_generation
 
 - name: Save Implementation Report to Target
-  ansible.builtin.copy:
+  ansible.copy:
     content: "{{ impl_report_content }}"
     dest: "{{ impl_report_filename }}"
     mode: '0600'
     owner: root
+  tags:
+    - always
+    - report_generation
 
-- name: Fetch Enforcement Report to Shared Storage
+- name: Create destination directory on control node for enforcement tracking
+  ansible.builtin.file:
+    path: "/home/ansible/reports/jobs/hardeningenforce/{{ ansible_facts.default_ipv4.address | replace('.', '-') }}/"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: no
+  run_once: true
+  tags:
+    - always
+    - report_generation
+
+- name: Fetch Enforcement Report to Shared Storage / Control Node
   ansible.builtin.fetch:
     src: "{{ impl_report_filename }}"
     dest: "/var/tmp/implementation_logs/"
     flat: yes
+  tags:
+    - always
+    - report_generation
 
 - name: Hardening | Capture Implementation Summary as Fact
   ansible.builtin.set_fact:
     hardening_summary_output:
       - "HARDENING COMPLETE for {{ ansible_hostname }}"
-      - "Total Enforcement Actions: {{ compliance_report_results | length }}"
-      - "Status Summary:"
-      - "  - Enforced: {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED') | list | length }}"
-      - "  - Manual Requirements: {{ compliance_report_results | selectattr('status', 'equalto', 'ENFORCED_MANUAL') | list | length }}"
-      - "Report saved to: {{ impl_report_filename }}"
+      - "Total Remediation Guard Points Tracked: {{ enforcement_report_results | length }}"
+      - "Status Summary Matrix:"
+      - "  - Configuration Remediated (CHANGED): {{ enforcement_report_results | selectattr('status', 'equalto', 'CHANGED') | list | length }}"
+      - "  - Pre-Compliant Intact (OK):          {{ enforcement_report_results | selectattr('status', 'equalto', 'OK') | list | length }}"
+      - "  - Manual Processes Required:          {{ enforcement_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }}"
+      - "Report saved securely to: {{ impl_report_filename }}"
+  tags:
+    - always
+    - report_generation
 
 - name: Implementation Summary (Console Output)
   ansible.builtin.debug:
     msg: "{{ hardening_summary_output }}"
-
-- name: Implementation Summary (Console Output)
-  ansible.builtin.debug:
-    msg: 
-      - "HARDENING COMPLETE for {{ ansible_hostname }}"
-      - "Total Enforcement Actions: {{ compliance_report_results | length }}"
-      - "Report saved to: {{ impl_report_filename }}"
+  tags:
+    - always
+    - report_generation

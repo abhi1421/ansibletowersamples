@@ -1,15 +1,16 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # tasks file for OS_HARDENING_implementation
+# This file orchestrates the systematic execution of all hardening enforcement mechanisms
+# and handles final implementation report compiler generation.
 
-- name: Initialize compliance report structure
+- name: Initialize enforcement report structure
   ansible.builtin.set_fact:
-    # Initialize an empty list to store results of all compliance checks.
-    # Each check will append a dictionary containing its status and details.
-    compliance_report_results: []
-  # Ensure this fact is reset at the beginning of each run.
+    enforcement_report_results: []
+  tags:
+    - always
 
-- name: Gather system facts for verification
+- name: Gather system facts for remediation validation
   ansible.builtin.setup:
     gather_subset:
       - network
@@ -20,93 +21,75 @@
       - pkg_mgr
       - mounts
       - service_mgr
-  # This task gathers various facts about the target system,
-  # which are often necessary for performing compliance checks.
-  # We specify a subset to optimize fact gathering.
   tags:
-    - facts_gathering # Tag for fact gathering, useful if you want to skip it for some reason
+    - facts_gathering
 
-- name: Include preparation and installation checks
+- name: Include preparation and installation hardening enforcement
   ansible.builtin.include_tasks: enforce_preparation_installation.yml
-  # This task includes a separate file for verifying BIOS/firmware and boot order settings.
   tags:
-    - preparation_installation # Category tag
+    - preparation_installation
 
-- name: Include filesystem configuration checks
+- name: Include filesystem configuration hardening enforcement
   ansible.builtin.include_tasks: enforce_filesystem_config.yml
-  # This task includes a separate file for verifying filesystem mount options and permissions.
   tags:
-    - filesystem_config # Category tag
+    - filesystem_config
 
-- name: Include system updates checks
+- name: Include system updates hardening enforcement
   ansible.builtin.include_tasks: enforce_system_updates.yml
-  # This task includes a separate file for verifying update mechanisms and GPG key settings.
   tags:
-    - system_updates # Category tag
+    - system_updates
 
-- name: Include secure boot settings checks
+- name: Include secure boot settings hardening enforcement
   ansible.builtin.include_tasks: enforce_secure_boot_settings.yml 
-  # This task includes a separate file for verifying GRUB and X Window system settings.
   tags:
-    - secure_boot_settings # Category tag
+    - secure_boot_settings
 
-- name: Include process hardening checks
+- name: Include process hardening enforcement
   ansible.builtin.include_tasks: enforce_process_hardening.yml
-  # This task includes a separate file for verifying core dump and memory randomization settings.
   tags:
-    - process_hardening # Category tag
+    - process_hardening
 
-- name: Include OS hardening checks
+- name: Include OS hardening enforcement
   ansible.builtin.include_tasks: enforce_os_hardening.yml
-  # This task includes a separate file for verifying removal/disabling of legacy and unutilized services.
   tags:
-    - os_hardening # Category tag
+    - os_hardening
 
-- name: Include network security and firewall configuration checks
+- name: Include network security and firewall configuration enforcement
   ansible.builtin.include_tasks: enforce_network_security_firewall.yml 
-  # This task includes a separate file for verifying network kernel parameters and firewall rules.
   tags:
-    - network_security_firewall # Category tag
+    - network_security_firewall
 
-- name: Include remote administration via SSH checks
+- name: Include remote administration via SSH hardening enforcement
   ansible.builtin.include_tasks: enforce_remote_admin_ssh.yml 
-  # This task includes a separate file for verifying SSH server configuration.
   tags:
-    - remote_admin_ssh # Category tag
+    - remote_admin_ssh
 
-- name: Include system integrity and intrusion detection checks
+- name: Include system integrity and intrusion detection hardening enforcement
   ansible.builtin.include_tasks: enforce_system_integrity_intrusion.yml
-  # This task includes a separate file for verifying AIDE, SELinux, OSsec, NTP, and auditd settings.
   tags:
-    - system_integrity_intrusion # Category tag
+    - system_integrity_intrusion
 
-- name: Include files/directory permissions/access checks
+- name: Include files/directory permissions/access hardening enforcement
   ansible.builtin.include_tasks: enforce_files_directory_permissions.yml
-  # This task includes a separate file for verifying system account and directory permissions.
   tags:
-    - files_permissions # Category tag
+    - files_permissions
 
-- name: Include PAM configuration checks
+- name: Include PAM configuration hardening enforcement
   ansible.builtin.include_tasks: enforce_pam_config.yml
-  # This task includes a separate file for verifying PAM password policies and root login restrictions.
   tags:
-    - pam_config # Category tag
+    - pam_config
 
-- name: Include warning banners checks
+- name: Include warning banners hardening enforcement
   ansible.builtin.include_tasks: enforce_warning_banners.yml 
-  # This task includes a separate file for verifying the presence of warning banners.
   tags:
-    - warning_banners # Category tag
+    - warning_banners
 
-- name: Include device security checks
+- name: Include device security hardening enforcement
   ansible.builtin.include_tasks: enforce_device_security.yml
-  # This new task includes a separate file for verifying device-related security settings like USB access.
   tags:
     - device_security
 
-- name: Generate final compliance report
+- name: Generate final hardening enforcement report
   ansible.builtin.include_tasks: generate_implementation_report.yml 
-  # This final task compiles all collected results and generates a human-readable report.
   tags:
-    - report_generation # Tag for report generation
-
+    - report_generation

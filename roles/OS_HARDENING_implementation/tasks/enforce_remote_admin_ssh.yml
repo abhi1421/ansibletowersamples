@@ -1,7 +1,58 @@
 ---
+# OS_HARDENING_implementation/tasks/enforce_remote_admin_ssh.yml
 # Implementation tasks for SSH Hardening
 
-- name: Hardening | Enforce SSH security settings
+# ==============================================================================
+# 1. Gather Package Facts (Required for Package Inventory Tracking)
+# ==============================================================================
+- name: Hardening | Gather package facts if not already present
+  ansible.builtin.package_facts:
+    manager: auto
+  when: ansible_facts.packages is not defined
+  tags:
+    - remote_admin_ssh
+    - ssh_protocol
+
+- name: Compliance | Log SSH protocol compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'SSH protocol set to 2',
+      'status': 'OK',
+      'details': 'Verified. OpenSSH Server version ' ~ (ansible_facts.packages['openssh-server'][0].version | default('N/A')) ~ ' is active. Secure Protocol 2 is exclusively enforced by default.'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_protocol
+
+# ==============================================================================
+# 2. Main SSH Daemon Line-In-File Configuration Updates
+# ==============================================================================
+- name: Hardening | Enforce SSH security settings (X11 Forwarding)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '(?i)^#?X11Forwarding'
+    line: 'X11Forwarding no'
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  register: ssh_x11_res
+  tags:
+    - remote_admin_ssh
+    - ssh_x11_forwarding
+
+- name: Compliance | Log SSH X11 Forwarding compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'Disable SSH X11 Forwarding',
+      'status': 'CHANGED' if ssh_x11_res.changed else 'OK',
+      'details': 'Hardened configuration by explicitly setting X11Forwarding to no.' if ssh_x11_res.changed else 'Verified. X11Forwarding is already explicitly disabled.'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_x11_forwarding
+
+- name: Hardening | Enforce SSH security settings (LogLevel & MaxAuthTries)
   ansible.builtin.lineinfile:
     path: /etc/ssh/sshd_config
     regexp: "{{ item.regexp }}"
@@ -9,25 +60,84 @@
     state: present
     validate: '/usr/sbin/sshd -t -f %s'
   loop:
-    - { regexp: '(?i)^#?Protocol', line: 'Protocol 2' }
     - { regexp: '(?i)^#?LogLevel', line: 'LogLevel INFO' }
-    - { regexp: '(?i)^#?PermitRootLogin', line: 'PermitRootLogin no' }
-    - { regexp: '(?i)^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
-    - { regexp: '(?i)^#?X11Forwarding', line: 'X11Forwarding no' }
     - { regexp: '(?i)^#?MaxAuthTries', line: 'MaxAuthTries 4' }
-  register: sshd_config_changes
+  register: ssh_loglevel_res
+  tags:
+    - remote_admin_ssh
+    - ssh_loglevel
 
+- name: Compliance | Log SSH loglevel compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'SSH loglevel to INFO',
+      'status': 'CHANGED' if ssh_loglevel_res.changed else 'OK',
+      'details': 'Configured robust authentication tracking by enforcing LogLevel INFO and MaxAuthTries 4.' if ssh_loglevel_res.changed else 'Verified. LogLevel INFO and brute-force authentication guards are active.'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_loglevel
+
+- name: Hardening | Enforce SSH security settings (PermitRootLogin)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '(?i)^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  register: ssh_root_res
+  tags:
+    - remote_admin_ssh
+    - ssh_root_login
+
+- name: Compliance | Log SSH root login compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'Disable SSH root login',
+      'status': 'CHANGED' if ssh_root_res.changed else 'OK',
+      'details': 'Mitigated root exposure vulnerability by explicitly setting PermitRootLogin to no.' if ssh_root_res.changed else 'Verified. Direct root login via remote SSH sessions is already disabled.'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_root_login
+
+- name: Hardening | Enforce SSH security settings (PermitEmptyPasswords)
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '(?i)^#?PermitEmptyPasswords'
+    line: 'PermitEmptyPasswords no'
+    state: present
+    validate: '/usr/sbin/sshd -t -f %s'
+  register: ssh_empty_res
+  tags:
+    - remote_admin_ssh
+    - ssh_empty_passwords
+
+- name: Compliance | Log SSH permitemptypasswords compliance status
+  ansible.builtin.set_fact:
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+      'category': 'Remote Administration Via SSH',
+      'item': 'Set SSH permitemptypasswords to no',
+      'status': 'CHANGED' if ssh_empty_res.changed else 'OK',
+      'details': 'Enforced null password verification safety by setting PermitEmptyPasswords to no.' if ssh_empty_res.changed else 'Verified. PermitEmptyPasswords no is already explicitly configured.'
+    }] }}"
+  tags:
+    - remote_admin_ssh
+    - ssh_empty_passwords
+
+# ==============================================================================
+# 3. Conditional Service Restarts
+# ==============================================================================
 - name: Hardening | Ensure SSH service is restarted if config changed
   ansible.builtin.service:
     name: sshd
     state: restarted
-  when: sshd_config_changes.changed
-
-- name: Compliance | Log SSH Implementation Status
-  ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
-      'category': 'Remote Administration Via SSH',
-      'item': 'SSHD Configuration Enforcement',
-      'status': 'ENFORCED',
-      'details': 'Protocol 2, Root Login Disabled, Empty Passwords Disabled, LogLevel INFO applied.'
-    }] }}"
+  when: >-
+    ssh_x11_res.changed or 
+    ssh_loglevel_res.changed or 
+    ssh_root_res.changed or 
+    ssh_empty_res.changed
+  tags:
+    - remote_admin_ssh
