@@ -1,21 +1,4 @@
 ---
-#- name: Fetch hosts filtered by BOTH Organization and Content View
-#  ansible.builtin.uri:
-#    url: "{{ satellite_url }}/api/hosts?organization_id={{ org_id }}&per_page=250&search=content_view%20%3D%20%22{{ satellite_content_view_name | urlencode }}%22"
-#    method: GET
-#    user: "{{ satellite_username }}"
-#    password: "{{ satellite_password }}"
-#    force_basic_auth: true
-#    validate_certs: "{{ validate_certs }}"
-#    return_content: true
-#  register: org_hosts
-#
-#- name: Initialize patch report structure
-#  ansible.builtin.set_fact:
-#    patch_report: []
-
-
----
 - name: Fetch hosts filtered by BOTH Organization and Content View
   ansible.builtin.uri:
     # Keep the base URL clean and free of search parameters
@@ -33,6 +16,51 @@
       per_page: "250"
       search: 'content_view = "{{ satellite_content_view_name }}"'
   register: org_hosts
+
+- name: Initialize patch report structure
+  ansible.builtin.set_fact:
+    patch_report: []
+
+
+---
+
+- name: Lookup Host Collection ID by its Name string
+  ansible.builtin.uri:
+    url: "{{ satellite_url }}/api/host_collections"
+    method: GET
+    user: "{{ satellite_username }}"
+    password: "{{ satellite_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ validate_certs }}"
+    body:
+      organization_id: "{{ org_id }}"
+      search: 'name = "{{ satellite_host_collection_name }}"'
+  register: collection_lookup
+
+- name: Save discovered Collection ID
+  ansible.builtin.set_fact:
+    satellite_host_collection_id: "{{ collection_lookup.json.results[0].id }}"
+
+- name: Fetch hosts belonging to the designated Host Collection
+  ansible.builtin.uri:
+    # We hit the explicit host collection endpoint rather than the broad /api/hosts filter
+    url: "{{ satellite_url }}/api/host_collections/{{ satellite_host_collection_id }}/hosts"
+    method: GET
+    user: "{{ satellite_username }}"
+    password: "{{ satellite_password }}"
+    force_basic_auth: true
+    validate_certs: "{{ validate_certs }}"
+    return_content: true
+    body_format: form-urlencoded
+    body:
+      organization_id: "{{ org_id }}"
+      per_page: "250"
+  register: host_collection_response
+
+- name: Format API response to match existing patch report parser
+  ansible.builtin.set_fact:
+    # Extracting the host array out of the response dictionary
+    org_hosts: "{{ host_collection_response.json }}"
 
 - name: Initialize patch report structure
   ansible.builtin.set_fact:
