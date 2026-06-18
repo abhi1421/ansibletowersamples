@@ -38,7 +38,7 @@
     - report_generation
 
 - name: Save Implementation Report to Target
-  ansible.copy:
+  ansible.builtin.copy:
     content: "{{ impl_report_content }}"
     dest: "{{ impl_report_filename }}"
     mode: '0600'
