@@ -39,21 +39,21 @@
   tags:
     - system_updates
 
-#- name: Include secure boot settings hardening enforcement
-#  ansible.builtin.include_tasks: enforce_secure_boot_settings.yml 
-#  tags:
-#    - secure_boot_settings
+- name: Include secure boot settings hardening enforcement
+  ansible.builtin.include_tasks: enforce_secure_boot_settings.yml 
+  tags:
+    - secure_boot_settings
+
+- name: Include process hardening enforcement
+  ansible.builtin.include_tasks: enforce_process_hardening.yml
+  tags:
+    - process_hardening
 #
-#- name: Include process hardening enforcement
-#  ansible.builtin.include_tasks: enforce_process_hardening.yml
-#  tags:
-#    - process_hardening
-#
-#- name: Include OS hardening enforcement
-#  ansible.builtin.include_tasks: enforce_os_hardening.yml
-#  tags:
-#    - os_hardening
-#
+- name: Include OS hardening enforcement
+  ansible.builtin.include_tasks: enforce_os_hardening.yml
+  tags:
+    - os_hardening
+
 #- name: Include network security and firewall configuration enforcement
 #  ansible.builtin.include_tasks: enforce_network_security_firewall.yml 
 #  tags:
