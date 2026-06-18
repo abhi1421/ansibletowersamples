@@ -29,11 +29,11 @@
   tags:
     - preparation_installation
 
-#- name: Include filesystem configuration hardening enforcement
-#  ansible.builtin.include_tasks: enforce_filesystem_config.yml
-#  tags:
-#    - filesystem_config
-#
+- name: Include filesystem configuration hardening enforcement
+  ansible.builtin.include_tasks: enforce_filesystem_config.yml
+  tags:
+    - filesystem_config
+
 #- name: Include system updates hardening enforcement
 #  ansible.builtin.include_tasks: enforce_system_updates.yml
 #  tags:
