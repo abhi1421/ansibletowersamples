@@ -55,36 +55,60 @@
     - grub_permissions
 
 # ==============================================================================
-# 3. Boot Loader Password Guard
+# 3. Boot Loader Password Guard - Make it Manual
 # ==============================================================================
-- name: Hardening | Check if GRUB password is set
-  ansible.builtin.shell: grep -E '^set superusers|^password_pbkdf2' /boot/grub2/grub.cfg || true
-  register: grub_pass_check
-  changed_when: false
-  failed_when: false
-  tags:
-    - secure_boot_settings
-    - grub_password
+#- name: Hardening | Check if GRUB password is set
+#  ansible.builtin.shell: grep -E '^set superusers|^password_pbkdf2' /boot/grub2/grub.cfg || true
+#  register: grub_pass_check
+#  changed_when: false
+#  failed_when: false
+#  tags:
+#    - secure_boot_settings
+#    - grub_password
+#
+#- name: Hardening | Implementation Notice for GRUB Password
+#  ansible.builtin.debug:
+#    msg: "WARNING: GRUB password must be set via 'grub2-setpassword' or by providing a hash to a template. Manual intervention recommended if not using a vault-encrypted variable."
+#  when: grub_pass_check.stdout | length == 0
+#  tags:
+#    - secure_boot_settings
+#    - grub_password
+#
+#- name: Compliance | Log boot loader password compliance status
+#  ansible.builtin.set_fact:
+#    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+#      'category': 'Secure Boot Settings',
+#      'item': 'Boot loader password',
+#      'status': 'OK' if (grub_pass_check.stdout | length > 0) else 'MANUAL_REQUIRED',
+#      'details': 'Verified. Active PBKDF2 bootloader password protection is enabled inside grub.cfg.' if (grub_pass_check.stdout | length > 0) else 'CRITICAL: No boot loader password found. This setting must be manually created using grub2-setpassword.'
+#    }] }}"
+#  tags:
+#    - secure_boot_settings
+#    - grub_password
 
-- name: Hardening | Implementation Notice for GRUB Password
+
+# ==============================================================================
+# 3. Boot Loader Password Guard (Manual Track)
+# ==============================================================================
+- name: Hardening | Notice regarding GRUB Password
   ansible.builtin.debug:
-    msg: "WARNING: GRUB password must be set via 'grub2-setpassword' or by providing a hash to a template. Manual intervention recommended if not using a vault-encrypted variable."
-  when: grub_pass_check.stdout | length == 0
+    msg: "NOTICE: Bootloader access credentials cannot be automated safely without risking lockouts. Manual execution of 'grub2-setpassword' is required on this host."
   tags:
     - secure_boot_settings
     - grub_password
 
-- name: Compliance | Log boot loader password compliance status
+- name: Compliance | Log boot loader password manual requirement status
   ansible.builtin.set_fact:
     enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Secure Boot Settings',
       'item': 'Boot loader password',
-      'status': 'OK' if (grub_pass_check.stdout | length > 0) else 'MANUAL_REQUIRED',
-      'details': 'Verified. Active PBKDF2 bootloader password protection is enabled inside grub.cfg.' if (grub_pass_check.stdout | length > 0) else 'CRITICAL: No boot loader password found. This setting must be manually created using grub2-setpassword.'
+      'status': 'MANUAL_REQUIRED',
+      'details': 'Bootloader configuration skipped to prevent credentials leakage. Platform administrators must manually execute grub2-setpassword to restrict unauthorized runtime parameter modification.'
     }] }}"
   tags:
     - secure_boot_settings
     - grub_password
+
 
 # ==============================================================================
 # 4. X Font Server Restriction

@@ -2,7 +2,7 @@
 # Implementation tasks for System Updates - Builtin Modules Only
 
 # ==============================================================================
-# 1. Satellite / Red Hat Subscription Manager Registration
+# 1. Satellite / Red Hat Subscription Manager Registration - Follow the registration part
 # ==============================================================================
 - name: Hardening | Check Satellite/RHSM registration status
   ansible.builtin.command: subscription-manager identity

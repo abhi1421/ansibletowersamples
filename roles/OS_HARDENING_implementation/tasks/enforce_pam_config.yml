@@ -53,7 +53,7 @@
     - password_hashing
 
 # ==============================================================================
-# 3. Enforce Password Creation Complexity Requirements
+# 3. Enforce Password Creation Complexity Requirements - Manual
 # ==============================================================================
 - name: Hardening | Enforce password complexity requirements (pwquality)
   ansible.builtin.lineinfile:
@@ -93,12 +93,7 @@
     dest: /etc/securetty
     content: |
       console
-      tty1
-      tty2
-      tty3
-      tty4
-      tty5
-      tty6
+      tty
     owner: root
     group: root
     mode: '0600'

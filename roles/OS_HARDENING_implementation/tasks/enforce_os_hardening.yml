@@ -144,9 +144,9 @@
     - daemon_umask
 
 # ==============================================================================
-# 4. Restrict Use of Cron Services (Your Enhancement Point!)
+# 4. Restrict Use of Cron Services (Your Enhancement Point!) - Manual - We need additional details of what to enter in the cron.allow file
 # ==============================================================================
-- name: Hardening | Ensure /etc/cron.allow exists with root authorized
+- name: Hardening | Ensure /etc/cron.allow exists with root authorized - We need additional details of what to enter in the cron.allow file
   ansible.builtin.copy:
     dest: /etc/cron.allow
     content: "root\n"

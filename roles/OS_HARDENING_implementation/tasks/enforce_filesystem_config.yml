@@ -27,6 +27,7 @@
       'status': 'CHANGED' if (tmp_mount_result.changed | default(false)) else 'OK',
       'details': 'Mount options (nodev, nosuid, noexec) successfully applied to /tmp.' if (tmp_mount_result.changed | default(false)) else 'Verified. Required mount options are already set on /tmp.'
     }] }}"
+  when: ansible_architecture == 'x86_64'
   tags:
     - filesystem_config
     - tmp_partition
@@ -38,6 +39,7 @@
   ansible.builtin.set_fact:
     missing_partitions: >-
       {{ ['/var', '/var/log', '/var/log/audit', '/home'] | difference(ansible_facts.mounts | map(attribute='mount') | list) }}
+  when: ansible_architecture == 'x86_64'
   tags:
     - filesystem_config
     - separate_partitions
@@ -50,6 +52,7 @@
       'status': 'MANUAL_REQUIRED' if (missing_partitions | length > 0) else 'OK',
       'details': 'CRITICAL: Structural storage layout cannot be applied automatically. Missing dedicated mountpoints: ' + (missing_partitions | join(', ')) if (missing_partitions | length > 0) else 'Verified. All mandatory infrastructure sub-partitions exist.'
     }] }}"
+  when: ansible_architecture == 'x86_64'
   tags:
     - filesystem_config
     - separate_partitions
@@ -107,6 +110,7 @@
       'status': 'CHANGED' if (home_mount_result.changed | default(false)) else 'OK',
       'details': 'Enforced device restrictions on user space by applying nodev option to /home.' if (home_mount_result.changed | default(false)) else 'Verified. /home mountpoint already restricts block device execution.'
     }] }}"
+  when: ansible_architecture == 'x86_64'
   tags:
     - filesystem_config
     - home_nodev
@@ -135,6 +139,7 @@
       'status': 'CHANGED' if (shm_mount_result.changed | default(false)) else 'OK',
       'details': 'Hardened shared memory region by setting nodev, nosuid, and noexec on /dev/shm.' if (shm_mount_result.changed | default(false)) else 'Verified. Shared memory namespace already holds explicit execution guards.'
     }] }}"
+  when: ansible_architecture == 'x86_64'
   tags:
     - filesystem_config
     - dev_shm
@@ -142,22 +147,33 @@
 # ==============================================================================
 # 6. Sticky Bit Modification
 # ==============================================================================
-- name: Hardening | Set sticky bit on world-writable directories
+- name: Hardening | Scan for world-writable directories missing sticky bit
   ansible.builtin.shell: |
-    find / -xdev -type d -perm -0002 -not -perm -1000 -exec chmod a+t {} +
-  register: sticky_bit_fix
-  changed_when: sticky_bit_fix.stdout != ""
+    find / -xdev -type d -perm -0002 -not -perm -1000 2>/dev/null
+  register: open_world_writable_dirs
+  changed_when: false
+  failed_when: false
   tags:
     - filesystem_config
     - sticky_bit
 
-- name: Compliance | Log sticky bit compliance
+- name: Hardening | Set sticky bit on discovered world-writable directories
+  ansible.builtin.shell: |
+    chmod +t {{ item | quote }}
+  loop: "{{ open_world_writable_dirs.stdout_lines }}"
+  when: open_world_writable_dirs.stdout_lines | length > 0
+  register: sticky_bit_remediation
+  tags:
+    - filesystem_config
+    - sticky_bit
+
+- name: Compliance | Log sticky bit compliance status
   ansible.builtin.set_fact:
     enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Filesystem Configuration',
       'item': 'Sticky bit on world-writable directories',
-      'status': 'CHANGED' if (sticky_bit_fix.changed | default(false)) else 'OK',
-      'details': 'Discovered exposed world-writable locations and appended missing sticky bits.' if (sticky_bit_fix.changed | default(false)) else 'Verified. All world-writable nodes contain active sticky bits.'
+      'status': 'CHANGED' if (sticky_bit_remediation.changed | default(false)) else 'OK',
+      'details': 'Discovered ' ~ (open_world_writable_dirs.stdout_lines | length | string) ~ ' exposed world-writable locations and appended missing sticky bits (+t).' if (sticky_bit_remediation.changed | default(false)) else 'Verified. All world-writable directories safely contain active sticky bit guards.'
     }] }}"
   tags:
     - filesystem_config

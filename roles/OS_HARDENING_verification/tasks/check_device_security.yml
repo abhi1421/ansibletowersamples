@@ -9,6 +9,7 @@
   changed_when: false
   failed_when: false
   # Check if usb-storage module is blacklisted or prevented from loading.
+  when: ansible_architecture == 'x86_64'),
   tags:
     - device_security
     - usb_access
@@ -19,6 +20,7 @@
   changed_when: false
   failed_when: false
   # Check if the usb-storage module is currently loaded in the kernel.
+  when: ansible_architecture == 'x86_64'),
   tags:
     - device_security
     - usb_access
@@ -29,6 +31,7 @@
       {{ (usb_storage_blacklist_check.stdout | length > 0) and
          (usb_storage_loaded_check.stdout | length == 0) }}
   # USB access is compliant if the module is blacklisted/prevented AND not currently loaded.
+  when: ansible_architecture == 'x86_64'),
   tags:
     - device_security
     - usb_access
@@ -49,6 +52,7 @@
         Blacklist/Install rule present: {{ (usb_storage_blacklist_check.stdout | length > 0) | string }}.
         Module currently loaded: {{ (usb_storage_loaded_check.stdout | length > 0) | string }}.
         {% endif %}
+  when: ansible_architecture == 'x86_64'),      
   tags:
     - device_security
     - usb_access
@@ -56,6 +60,7 @@
 - name: Report USB access compliance
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [usb_access_compliance_item] }}"
+  when: ansible_architecture == 'x86_64'),
   tags:
     - device_security
     - usb_access

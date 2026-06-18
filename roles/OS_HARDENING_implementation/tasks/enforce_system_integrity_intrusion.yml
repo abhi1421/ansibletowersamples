@@ -9,6 +9,7 @@
     name: aide
     state: present
   register: aide_package_res
+  when: ansible_architecture == 'x86_64'
   tags:
     - system_integrity_intrusion
     - aide
@@ -17,6 +18,7 @@
   ansible.builtin.stat:
     path: /var/lib/aide/aide.db.gz
   register: aide_db_exists
+  when: ansible_architecture == 'x86_64'
   tags:
     - system_integrity_intrusion
     - aide
@@ -27,6 +29,7 @@
   register: aide_init
   changed_when: aide_init.rc == 0
   failed_when: false
+  when: ansible_architecture == 'x86_64'
   tags:
     - system_integrity_intrusion
     - aide
@@ -42,6 +45,7 @@
     aide_init is defined and 
     aide_init.changed
   register: aide_copy_res
+  when: ansible_architecture == 'x86_64'
   tags:
     - system_integrity_intrusion
     - aide
@@ -54,6 +58,7 @@
       'status': 'CHANGED' if (aide_package_res.changed or (aide_copy_res.changed | default(false))) else 'OK',
       'details': 'AIDE security agent package deployed and database workspace initialized.' if (aide_package_res.changed or (aide_copy_res.changed | default(false))) else 'Verified. AIDE file monitoring platform and database are already compliant.'
     }] }}"
+  when: ansible_architecture == 'x86_64'
   tags:
     - system_integrity_intrusion
     - aide
@@ -85,35 +90,35 @@
 # ==============================================================================
 # 3. OSSEC Host-Based Intrusion Detection (HIDS)
 # ==============================================================================
-- name: Hardening | Check if OSsec HIDS agent binary exists
-  ansible.builtin.stat:
-    path: /var/ossec/bin/ossec-agentd
-  register: ossec_binary_enforce
-  tags:
-    - system_integrity_intrusion
-    - ossec
-
-- name: Hardening | Implementation Notice for OSSEC
-  ansible.builtin.debug:
-    msg: "NOTICE: OSSEC HIDS requires a manager/server configuration. Ensure the agent is manually pointed to your OSSEC manager if not already configured."
-  tags:
-    - system_integrity_intrusion
-    - ossec
-
-- name: Compliance | Log OSsec HIDS compliance status
-  ansible.builtin.set_fact:
-    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
-      'category': 'System Integrity and Intrusion Detection',
-      'item': 'Install and configure OSsec HIDS',
-      'status': 'OK' if ossec_binary_enforce.stat.exists else 'MANUAL_REQUIRED',
-      'details': 'Verified. Core active server connection agentd daemon is operational.' if ossec_binary_enforce.stat.exists else 'OSSEC HIDS endpoint components must be manually provisioned via centralized agent connection templates.'
-    }] }}"
-  tags:
-    - system_integrity_intrusion
-    - ossec
+#- name: Hardening | Check if OSsec HIDS agent binary exists
+#  ansible.builtin.stat:
+#    path: /var/ossec/bin/ossec-agentd
+#  register: ossec_binary_enforce
+#  tags:
+#    - system_integrity_intrusion
+#    - ossec
+#
+#- name: Hardening | Implementation Notice for OSSEC
+#  ansible.builtin.debug:
+#    msg: "NOTICE: OSSEC HIDS requires a manager/server configuration. Ensure the agent is manually pointed to your OSSEC manager if not already configured."
+#  tags:
+#    - system_integrity_intrusion
+#    - ossec
+#
+#- name: Compliance | Log OSsec HIDS compliance status
+#  ansible.builtin.set_fact:
+#    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+#      'category': 'System Integrity and Intrusion Detection',
+#      'item': 'Install and configure OSsec HIDS',
+#      'status': 'OK' if ossec_binary_enforce.stat.exists else 'MANUAL_REQUIRED',
+#      'details': 'Verified. Core active server connection agentd daemon is operational.' if ossec_binary_enforce.stat.exists else 'OSSEC HIDS endpoint components must be manually provisioned via centralized agent connection templates.'
+#    }] }}"
+#  tags:
+#    - system_integrity_intrusion
+#    - ossec
 
 # ==============================================================================
-# 4. Network Time Protocol (NTP / Chrony)
+# 4. Network Time Protocol (NTP / Chrony) - Manual
 # ==============================================================================
 - name: Hardening | Ensure Time Synchronization (chrony)
   ansible.builtin.dnf:
