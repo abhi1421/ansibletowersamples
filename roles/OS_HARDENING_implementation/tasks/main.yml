@@ -34,11 +34,11 @@
   tags:
     - filesystem_config
 
-#- name: Include system updates hardening enforcement
-#  ansible.builtin.include_tasks: enforce_system_updates.yml
-#  tags:
-#    - system_updates
-#
+- name: Include system updates hardening enforcement
+  ansible.builtin.include_tasks: enforce_system_updates.yml
+  tags:
+    - system_updates
+
 #- name: Include secure boot settings hardening enforcement
 #  ansible.builtin.include_tasks: enforce_secure_boot_settings.yml 
 #  tags:
