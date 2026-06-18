@@ -1,6 +1,9 @@
 ---
 # Implementation tasks for Device Security (USB Hardening)
 
+# ==============================================================================
+# 1. USB Storage Subsystem Blacklisting
+# ==============================================================================
 - name: Hardening | Prevent usb-storage module from loading
   ansible.builtin.copy:
     dest: /etc/modprobe.d/usb-storage.conf
@@ -12,6 +15,8 @@
     group: root
     mode: '0644'
   register: usb_modprobe_config
+  tags:
+    - device_security
 
 - name: Hardening | Unload usb-storage module if currently loaded
   ansible.builtin.shell: |
@@ -19,18 +24,23 @@
   register: unload_usb_result
   failed_when: false
   changed_when: unload_usb_result.rc == 0
-  # We try to unload it; if it's not loaded or in use, we move on.
+  tags:
+    - device_security
 
 - name: Hardening | Ensure modprobe configuration is updated
   ansible.builtin.command: depmod -ae
   when: usb_modprobe_config.changed
   changed_when: false
+  tags:
+    - device_security
 
 - name: Compliance | Log Device Security Implementation
   ansible.builtin.set_fact:
-    compliance_report_results: "{{ compliance_report_results + [{
+    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Device Security',
       'item': 'Disable USB Mass Storage',
-      'status': 'ENFORCED',
-      'details': 'USB storage module blacklisted and set to /bin/true to prevent manual loading.'
+      'status': 'CHANGED' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'OK',
+      'details': 'USB storage module blacklisted and set to /bin/true. Device sub-dependencies updated via depmod.' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'Verified. Kernel modprobe rules already explicitly block the USB storage module.'
     }] }}"
+  tags:
+    - device_security
