@@ -4,43 +4,67 @@
 # ==============================================================================
 # 1. USB Storage Subsystem Blacklisting
 # ==============================================================================
-- name: Hardening | Prevent usb-storage module from loading
-  ansible.builtin.copy:
-    dest: /etc/modprobe.d/usb-storage.conf
-    content: |
-      # USB mass storage is disabled per security hardening policy
-      blacklist usb-storage
-      install usb-storage /bin/true
-    owner: root
-    group: root
-    mode: '0644'
-  register: usb_modprobe_config
+#- name: Hardening | Prevent usb-storage module from loading
+#  ansible.builtin.copy:
+#    dest: /etc/modprobe.d/usb-storage.conf
+#    content: |
+#      # USB mass storage is disabled per security hardening policy
+#      blacklist usb-storage
+#      install usb-storage /bin/true
+#    owner: root
+#    group: root
+#    mode: '0644'
+#  register: usb_modprobe_config
+#  tags:
+#    - device_security
+#
+#- name: Hardening | Unload usb-storage module if currently loaded
+#  ansible.builtin.shell: |
+#    modprobe -r usb-storage
+#  register: unload_usb_result
+#  failed_when: false
+#  changed_when: unload_usb_result.rc == 0
+#  tags:
+#    - device_security
+#
+#- name: Hardening | Ensure modprobe configuration is updated
+#  ansible.builtin.command: depmod -ae
+#  when: usb_modprobe_config.changed
+#  changed_when: false
+#  tags:
+#    - device_security
+#
+#- name: Compliance | Log Device Security Implementation
+#  ansible.builtin.set_fact:
+#    enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
+#      'category': 'Device Security',
+#      'item': 'Disable USB Mass Storage',
+#      'status': 'CHANGED' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'OK',
+#      'details': 'USB storage module blacklisted and set to /bin/true. Device sub-dependencies updated via depmod.' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'Verified. Kernel modprobe rules already explicitly block the USB storage module.'
+#    }] }}"
+#  tags:
+#    - device_security
+
+
+---
+# Implementation tasks for Device Security (USB Hardening - Manual Track)
+
+# ==============================================================================
+# 1. USB Storage Subsystem Blacklisting (Manual Track)
+# ==============================================================================
+- name: Hardening | Notice regarding USB Mass Storage Restriction
+  ansible.builtin.debug:
+    msg: "NOTICE: Physical USB port blocking and mass-storage module blacklisting must be verified manually or handled via localized hardware baseline images."
   tags:
     - device_security
 
-- name: Hardening | Unload usb-storage module if currently loaded
-  ansible.builtin.shell: |
-    modprobe -r usb-storage
-  register: unload_usb_result
-  failed_when: false
-  changed_when: unload_usb_result.rc == 0
-  tags:
-    - device_security
-
-- name: Hardening | Ensure modprobe configuration is updated
-  ansible.builtin.command: depmod -ae
-  when: usb_modprobe_config.changed
-  changed_when: false
-  tags:
-    - device_security
-
-- name: Compliance | Log Device Security Implementation
+- name: Compliance | Log Device Security Manual Requirement Status
   ansible.builtin.set_fact:
     enforcement_report_results: "{{ enforcement_report_results | default([]) + [{
       'category': 'Device Security',
       'item': 'Disable USB Mass Storage',
-      'status': 'CHANGED' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'OK',
-      'details': 'USB storage module blacklisted and set to /bin/true. Device sub-dependencies updated via depmod.' if (usb_modprobe_config.changed or unload_usb_result.changed) else 'Verified. Kernel modprobe rules already explicitly block the USB storage module.'
+      'status': 'MANUAL_REQUIRED',
+      'details': 'Automated kernel modification for USB storage skipped. Platform security administrators must manually verify that /etc/modprobe.d/usb-storage.conf blocks the storage driver to mitigate physical data exfiltration vectors.'
     }] }}"
   tags:
     - device_security
