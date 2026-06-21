@@ -68,6 +68,21 @@
     - always
     - report_generation
 
+#- name: Hardening | Capture Implementation Summary as Fact
+#  ansible.builtin.set_fact:
+#    hardening_summary_output:
+#      - "HARDENING COMPLETE for {{ ansible_hostname }}"
+#      - "Total Remediation Guard Points Tracked: {{ enforcement_report_results | length }}"
+#      - "Status Summary Matrix:"
+#      - "  - Configuration Remediated (CHANGED): {{ enforcement_report_results | selectattr('status', 'equalto', 'CHANGED') | list | length }}"
+#      - "  - Pre-Compliant Intact (OK):          {{ enforcement_report_results | selectattr('status', 'equalto', 'OK') | list | length }}"
+#      - "  - Manual Processes Required:          {{ enforcement_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }}"
+#      - "Report saved securely to: {{ impl_report_filename }}"
+#  tags:
+#    - always
+#    - report_generation
+
+
 - name: Hardening | Capture Implementation Summary as Fact
   ansible.builtin.set_fact:
     hardening_summary_output:
@@ -77,10 +92,12 @@
       - "  - Configuration Remediated (CHANGED): {{ enforcement_report_results | selectattr('status', 'equalto', 'CHANGED') | list | length }}"
       - "  - Pre-Compliant Intact (OK):          {{ enforcement_report_results | selectattr('status', 'equalto', 'OK') | list | length }}"
       - "  - Manual Processes Required:          {{ enforcement_report_results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }}"
+      - "  - System Failures (NON_COMPLIANT):     {{ enforcement_report_results | selectattr('status', 'equalto', 'NON_COMPLIANT') | list | length }}"
       - "Report saved securely to: {{ impl_report_filename }}"
   tags:
     - always
     - report_generation
+
 
 - name: Implementation Summary (Console Output)
   ansible.builtin.debug:
