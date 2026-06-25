@@ -1,0 +1,6 @@
+---
+- name: Initiating Network devices health check
+  hosts: all
+  become: yes
+  roles:
+    - healthcheck_paloalto
