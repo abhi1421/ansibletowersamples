@@ -1,5 +1,76 @@
-# ---- PDC MODE ----
-- name: Add PDC host entries
+## ---- PDC MODE ----
+#- name: Add PDC host entries
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA PDC"
+#    block: |
+#      {% for entry in pdc_host_entries %}
+#      {{ entry }}
+#      {% endfor %}
+#  when: target_mode == "PDC"
+#  notify: restart instana
+#
+#- name: Remove ODC host entries (PDC mode)
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA ODC"
+#    state: absent
+#  when: target_mode == "PDC"
+#  notify: restart instana
+#
+#
+## ---- ODC MODE ----
+#- name: Add ODC host entries
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA ODC"
+#    block: |
+#      {% for entry in odc_host_entries %}
+#      {{ entry }}
+#      {% endfor %}
+#  when: target_mode == "ODC"
+#  notify: restart instana
+#
+#- name: Remove PDC host entries (ODC mode)
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA PDC"
+#    state: absent
+#  when: target_mode == "ODC"
+#  notify: restart instana
+#
+#
+## ---- BOTH MODE ----
+#- name: Ensure PDC entries exist (BOTH mode)
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA PDC"
+#    block: |
+#      {% for entry in pdc_host_entries %}
+#      {{ entry }}
+#      {% endfor %}
+#  when: target_mode == "BOTH"
+#  notify: restart instana
+#
+#- name: Ensure ODC entries exist (BOTH mode)
+#  blockinfile:
+#    path: /etc/hosts
+#    marker: "# {mark} INSTANA ODC"
+#    block: |
+#      {% for entry in odc_host_entries %}
+#      {{ entry }}
+#      {% endfor %}
+#  when: target_mode == "BOTH"
+#  notify: restart instana
+
+
+# ---- DETECT NETWORK REGION BASED ON 2nd OCTET ----
+- name: Extract second octet from host IP address
+  set_fact:
+    host_second_octet: "{{ ansible_default_ipv4.address.split('.')[1] | int }}"
+
+# ---- PDC REGION RULES (Second Octet == 22) ----
+- name: Add PDC host entries (Region 22)
   blockinfile:
     path: /etc/hosts
     marker: "# {mark} INSTANA PDC"
@@ -7,20 +78,20 @@
       {% for entry in pdc_host_entries %}
       {{ entry }}
       {% endfor %}
-  when: target_mode == "PDC"
+  when: host_second_octet == 22
   notify: restart instana
 
-- name: Remove ODC host entries (PDC mode)
+- name: Clean up ODC host entries if present in PDC region (Region 22)
   blockinfile:
     path: /etc/hosts
     marker: "# {mark} INSTANA ODC"
     state: absent
-  when: target_mode == "PDC"
+  when: host_second_octet == 22
   notify: restart instana
 
 
-# ---- ODC MODE ----
-- name: Add ODC host entries
+# ---- ODC REGION RULES (Second Octet == 23) ----
+- name: Add ODC host entries (Region 23)
   blockinfile:
     path: /etc/hosts
     marker: "# {mark} INSTANA ODC"
@@ -28,37 +99,13 @@
       {% for entry in odc_host_entries %}
       {{ entry }}
       {% endfor %}
-  when: target_mode == "ODC"
+  when: host_second_octet == 23
   notify: restart instana
 
-- name: Remove PDC host entries (ODC mode)
+- name: Clean up PDC host entries if present in ODC region (Region 23)
   blockinfile:
     path: /etc/hosts
     marker: "# {mark} INSTANA PDC"
     state: absent
-  when: target_mode == "ODC"
-  notify: restart instana
-
-
-# ---- BOTH MODE ----
-- name: Ensure PDC entries exist (BOTH mode)
-  blockinfile:
-    path: /etc/hosts
-    marker: "# {mark} INSTANA PDC"
-    block: |
-      {% for entry in pdc_host_entries %}
-      {{ entry }}
-      {% endfor %}
-  when: target_mode == "BOTH"
-  notify: restart instana
-
-- name: Ensure ODC entries exist (BOTH mode)
-  blockinfile:
-    path: /etc/hosts
-    marker: "# {mark} INSTANA ODC"
-    block: |
-      {% for entry in odc_host_entries %}
-      {{ entry }}
-      {% endfor %}
-  when: target_mode == "BOTH"
+  when: host_second_octet == 23
   notify: restart instana
