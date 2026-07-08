@@ -1,16 +1,3 @@
-# tasks/apply_security.yml
-# Task to apply security patches
-
-#- name: Apply Security Patches
-#  ansible.builtin.yum:
-#    name: "*"
-#    security: true # Apply only security updates
-#    state: latest
-#  when: apply_security_patches | bool
-#  tags:
-#    - patching
-#    - security_patches
-
 - name: Apply Security Patches
   ansible.builtin.yum:
     name: "*"
