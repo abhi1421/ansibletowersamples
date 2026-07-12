@@ -68,7 +68,7 @@
       expected: '/etc/passwd has 0644 permissions and is owned by root:root.'
       actual: '{{ "Compliant" if passwd_perms_compliant else "Non-compliant" }}'
       message: '{{ "Permissions and ownership for /etc/passwd are correct." if passwd_perms_compliant else "Permissions or ownership for /etc/passwd are incorrect. Actual mode: " + (passwd_stat.stat.mode | default("N/A")) + ", Actual UID: " + (passwd_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (passwd_stat.stat.gid | default("N/A") | string) }}'
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -112,7 +112,7 @@
       expected: '/etc/shadow has 0000 or 0400 permissions and is owned by root:root.'
       actual: '{{ "Compliant" if shadow_perms_compliant else "Non-compliant" }}'
       message: '{{ "Permissions and ownership for /etc/shadow are correct." if shadow_perms_compliant else "Permissions or ownership for /etc/shadow are incorrect. Actual mode: " + (shadow_stat.stat.mode | default("N/A")) + ", Actual UID: " + (shadow_stat.stat.uid | default("N/A") | string) + ", Actual GID: " + (shadow_stat.stat.gid | default("N/A") | string) }}'
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
