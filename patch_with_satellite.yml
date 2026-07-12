@@ -25,7 +25,6 @@
           rebooted: "{{ reboot_after_patching | default(false) }}"
           status: "Completed"
     
-    # ----------------------------------------------------------------------
     
     - name: Build consolidated summary table
       ansible.builtin.set_fact:
@@ -68,6 +67,7 @@
       run_once: true
       delegate_to: localhost
 
+### ADDED HTML PART
 
     - name: Build consolidated HTML summary table
       ansible.builtin.set_fact:
