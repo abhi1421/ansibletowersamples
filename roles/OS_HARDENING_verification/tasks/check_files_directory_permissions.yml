@@ -11,7 +11,7 @@
       expected: 'Integrity checking of system accounts, group memberships, and their associated privileges is enabled and tested.'
       actual: 'N/A (requires manual verification)'
       message: 'Automated verification of all aspects of account/group integrity and privileges is complex and often requires manual review or specialized tools beyond basic Ansible modules.'
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - account_integrity_manual
@@ -24,7 +24,7 @@
       Description: This involves reviewing /etc/passwd, /etc/shadow, /etc/group, and sudoers files, and potentially using tools like `pwck`, `grpck`, or `aide` for integrity checks.
       Expected: Integrity checking is enabled and tested.
       Note: Automated verification of all aspects of account/group integrity and privileges is complex and often requires manual review or specialized tools beyond basic Ansible modules."
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - account_integrity_manual
@@ -32,7 +32,7 @@
 - name: Report integrity checking compliance
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [account_integrity_compliance_item] }}"
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - account_integrity_manual
@@ -41,7 +41,7 @@
   ansible.builtin.stat:
     path: /etc/passwd
   register: passwd_stat
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -54,7 +54,7 @@
          passwd_stat.stat.gid == 0 and
          passwd_stat.stat.mode == "0644"
       }}
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -76,7 +76,7 @@
 - name: Report /etc/passwd permissions compliance
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [passwd_perms_compliance_item] }}"
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -85,7 +85,7 @@
   ansible.builtin.stat:
     path: /etc/shadow
   register: shadow_stat
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -98,7 +98,7 @@
          shadow_stat.stat.gid == 0 and
          (shadow_stat.stat.mode == "0000" or shadow_stat.stat.mode == "0400")
       }}
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
@@ -120,7 +120,7 @@
 - name: Report /etc/shadow permissions compliance
   ansible.builtin.set_fact:
     compliance_report_results: "{{ compliance_report_results + [shadow_perms_compliance_item] }}"
-  when: ansible_architecture == 'x86_64'),
+  when: ansible_architecture == 'x86_64'
   tags:
     - files_permissions
     - passwd_shadow_perms
