@@ -1,3 +1,4 @@
+---
 - name: Patch packages via Satellite server
   hosts: all
   become: yes
@@ -6,82 +7,11 @@
 
   tasks:
 
-#    - name: Register patch summary for consolidated report
-#      ansible.builtin.set_fact:
-#        patch_summary_entry:
-#          hostname: "{{ inventory_hostname }}"
-#          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
-#          kernel: "{{ ansible_kernel }}"
-#          security: "{{ apply_security_patches | default(false) }}"
-#          bugfix: "{{ apply_bugfix_patches | default(false) }}"
-#          kernel_patch: "{{ apply_kernel_patches | default(false) }}"
-#          enhancement: "{{ apply_enhancement_patches | default(false) }}"
-#          rebooted: "{{ reboot_after_patching | default(false) }}"
-#          status: "Completed"
-#
-#    - name: Build summary table from all hosts from the inventory
-#      ansible.builtin.set_fact:
-#        consolidated_report: |
-#          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
-#          -------------------------------------------------------------------
-#          {% for host in hostvars.keys() | reject('equalto', 'localhost') | sort %}
-#          Hostname: {{ host }}
-#          OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
-#          Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
-#          Security: {{ hostvars[host].patch_summary_entry.security | default(false) }}
-#          Bugfix: {{ hostvars[host].patch_summary_entry.bugfix | default(false) }}
-#          Kernel Patches: {{ hostvars[host].patch_summary_entry.kernel_patch | default(false) }}
-#          Enhancement: {{ hostvars[host].patch_summary_entry.enhancement | default(false) }}
-#          Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
-#          Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
-#          -------------------------------------------------------------------
-#          {% endfor %}
-#      run_once: true
-#      delegate_to: localhost
-
-
-## BELOW SECTION GIVES A COUNT
-#
-#    - name: Register patch summary for consolidated report
-#      ansible.builtin.set_fact:
-#        patch_summary_entry:
-#          hostname: "{{ inventory_hostname }}"
-#          os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
-#          kernel: "{{ ansible_kernel }}"
-#          security: "{{ security_packages_count | default(0) }}"
-#          bugfix: "{{ bugfix_packages_count | default(0) }}"
-#          kernel_patch: "{{ kernel_packages_count | default(0) }}"
-#          enhancement: "{{ enhancement_packages_count | default(0) }}"
-#          rebooted: "{{ reboot_after_patching | default(false) }}"
-#          status: "Completed"
-#    
-#    
-#    - name: Build consolidated summary table
-#      ansible.builtin.set_fact:
-#        consolidated_report: |
-#          Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
-#          -------------------------------------------------------------------
-#          {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
-#          Hostname: {{ host }}
-#          OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
-#          Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
-#          Security Packages Updated: {{ hostvars[host].patch_summary_entry.security | default(0) }}
-#          Bugfix Packages Updated: {{ hostvars[host].patch_summary_entry.bugfix | default(0) }}
-#          Kernel Packages Updated: {{ hostvars[host].patch_summary_entry.kernel_patch | default(0) }}
-#          Enhancement Packages Updated: {{ hostvars[host].patch_summary_entry.enhancement | default(0) }}
-#          Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
-#          Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
-#          -------------------------------------------------------------------
-#          {% endfor %}
-#      run_once: true
-#      delegate_to: localhost
-#----------------------------------------------------------------------------
-
-
     - name: Register patch summary for consolidated report
       ansible.builtin.set_fact:
         patch_summary_entry:
-          hostname: "{{ inventory_hostname }}"
+          hostname: "{{ ansible_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
           os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
           kernel: "{{ ansible_kernel }}"
           security_enabled: "{{ apply_security_patches | default(false) }}"
@@ -139,58 +69,179 @@
       delegate_to: localhost
 
 
-
-#- name: Build consolidated summary table (with failed node tracking)
-#  ansible.builtin.set_fact:
-#    consolidated_report: |
-#      Consolidated Patching Summary ({{ ansible_date_time.iso8601 }})
-#      -------------------------------------------------------------------
-#      {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
-#      Hostname: {{ host }}
-#      OS Version: {{ hostvars[host].patch_summary_entry.os_version | default('Unknown') }}
-#      Kernel: {{ hostvars[host].patch_summary_entry.kernel | default('Unknown') }}
-#
-#      Security Packages Updated: {{
-#        (hostvars[host].patch_summary_entry.security_count|string + ' packages updated')
-#        if hostvars[host].patch_summary_entry.security_enabled
-#        else 'Not Applied'
-#      }}
-#
-#      Bugfix Packages Updated: {{
-#        (hostvars[host].patch_summary_entry.bugfix_count|string + ' packages updated')
-#        if hostvars[host].patch_summary_entry.bugfix_enabled
-#        else 'Not Applied'
-#      }}
-#
-#      Kernel Packages Updated: {{
-#        (hostvars[host].patch_summary_entry.kernel_count|string + ' packages updated')
-#        if hostvars[host].patch_summary_entry.kernel_enabled
-#        else 'Not Applied'
-#      }}
-#
-#      Enhancement Packages Updated: {{
-#        (hostvars[host].patch_summary_entry.enhancement_count|string + ' packages updated')
-#        if hostvars[host].patch_summary_entry.enhancement_enabled
-#        else 'Not Applied'
-#      }}
-#
-#      Rebooted: {{ hostvars[host].patch_summary_entry.rebooted | default(false) }}
-#      Status: {{ hostvars[host].patch_summary_entry.status | default('N/A') }}
-#      -------------------------------------------------------------------
-#      {% endfor %}
-#
-#      {% set failed_hosts = ansible_play_hosts_all | difference(ansible_play_hosts) %}
-#      {% if failed_hosts | length > 0 %}
-#      Failed or Unreachable Systems:
-#      -------------------------------------------------------------------
-#      {% for host in failed_hosts %}
-#      Hostname: {{ host }}
-#      Status: FAILED or UNREACHABLE
-#      -------------------------------------------------------------------
-#      {% endfor %}
-#      {% else %}
-#      All systems patched successfully. 🎉
-#      -------------------------------------------------------------------
-#      {% endif %}
-#  run_once: true
-#  delegate_to: localhost
+    - name: Build consolidated HTML summary table
+      ansible.builtin.set_fact:
+        consolidated_report_html: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+          <meta charset="UTF-8">
+          <style>
+          body {
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 14px;
+              color: #333333;
+              background-color: #ffffff;
+          }
+    
+          h2 {
+              color: #1F4E78;
+              margin-bottom: 5px;
+          }
+    
+          p {
+              margin-top: 0;
+          }
+    
+          table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+          }
+    
+          th {
+              background-color: #1F4E78;
+              color: white;
+              border: 1px solid #cccccc;
+              padding: 10px;
+              text-align: center;
+          }
+    
+          td {
+              border: 1px solid #cccccc;
+              padding: 8px;
+              text-align: center;
+              vertical-align: middle;
+          }
+    
+          tr:nth-child(even) {
+              background-color: #f8f9fa;
+          }
+    
+          .success {
+              background-color: #d4edda;
+              color: #155724;
+              font-weight: bold;
+          }
+    
+          .warning {
+              background-color: #fff3cd;
+              color: #856404;
+              font-weight: bold;
+          }
+    
+          .info {
+              background-color: #d1ecf1;
+              color: #0c5460;
+              font-weight: bold;
+          }
+    
+          .failed {
+              background-color: #f8d7da;
+              color: #721c24;
+              font-weight: bold;
+          }
+    
+          </style>
+          </head>
+    
+          <body>
+    
+          <h2>Consolidated Patching Summary</h2>
+    
+          <p>
+          <strong>Generated On:</strong> {{ ansible_date_time.iso8601 }}
+          </p>
+    
+          <table>
+    
+          <tr>
+              <th>Hostname</th>
+              <th>IP Address</th>
+              <th>OS Version</th>
+              <th>Kernel</th>
+              <th>Security Patches</th>
+              <th>Bugfix Patches</th>
+              <th>Kernel Patches</th>
+              <th>Enhancement Patches</th>
+              <th>Rebooted</th>
+              <th>Status</th>
+          </tr>
+    
+          {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
+          {% set summary = hostvars[host].patch_summary_entry | default({}) %}
+    
+          <tr>
+    
+              <td>{{ summary.hostname | default(hostvars[host].ansible_hostname | default(host)) }}</td>
+    
+              <td>{{ summary.ip_address | default(hostvars[host].ansible_default_ipv4.address | default(hostvars[host].ansible_host | default(host))) }}</td>
+    
+              <td>{{ summary.os_version | default('Unknown') }}</td>
+    
+              <td>{{ summary.kernel | default('Unknown') }}</td>
+    
+              <td class="{% if summary.security_enabled | default(false) %}success{% else %}warning{% endif %}">
+              {% if summary.security_enabled | default(false) %}
+              {{ summary.security_count | default(0) }} Updated
+              {% else %}
+              Not Applied
+              {% endif %}
+              </td>
+    
+              <td class="{% if summary.bugfix_enabled | default(false) %}success{% else %}warning{% endif %}">
+              {% if summary.bugfix_enabled | default(false) %}
+              {{ summary.bugfix_count | default(0) }} Updated
+              {% else %}
+              Not Applied
+              {% endif %}
+              </td>
+    
+              <td class="{% if summary.kernel_enabled | default(false) %}success{% else %}warning{% endif %}">
+              {% if summary.kernel_enabled | default(false) %}
+              {{ summary.kernel_count | default(0) }} Updated
+              {% else %}
+              Not Applied
+              {% endif %}
+              </td>
+    
+              <td class="{% if summary.enhancement_enabled | default(false) %}success{% else %}warning{% endif %}">
+              {% if summary.enhancement_enabled | default(false) %}
+              {{ summary.enhancement_count | default(0) }} Updated
+              {% else %}
+              Not Applied
+              {% endif %}
+              </td>
+    
+              <td class="{% if summary.rebooted | default(false) %}info{% else %}warning{% endif %}">
+              {% if summary.rebooted | default(false) %}
+              Yes
+              {% else %}
+              No
+              {% endif %}
+              </td>
+    
+              <td class="{% if summary.status | default('Failed') == 'Completed' %}success{% else %}failed{% endif %}">
+              {{ summary.status | default('Failed') }}
+              </td>
+    
+          </tr>
+    
+          {% endfor %}
+    
+          </table>
+    
+          <br>
+    
+          <p style="font-size:12px;color:#666666;">
+          <strong>Legend:</strong><br>
+          🟩 Green - Operation completed successfully / Patches applied<br>
+          🟨 Yellow - Patch category not selected or not applicable<br>
+          🟦 Blue - Reboot status<br>
+          🟥 Red - Failed operation
+          </p>
+    
+          </body>
+          </html>
+      run_once: true
+      delegate_to: localhost
