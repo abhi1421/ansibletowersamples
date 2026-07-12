@@ -1,0 +1,188 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Execute and Archive Red Hat Satellite Backup via AAP
+  hosts: satellite_servers
+  gather_facts: true
+  become: true
+
+  vars:
+    backup_dir: "/var/backup_directory"
+    tsm_mgmt_class: "ANSIBLE_WLY_PV_MGMT"
+    keep_local_backups: 2
+    # satellite_backup_mode must be 'full' or 'incremental' (passed by AAP)
+
+  tasks:
+    - name: Validate that backup mode variable was passed from AAP
+      ansible.builtin.assert:
+        that:
+          - satellite_backup_mode is defined
+          - satellite_backup_mode in ['full', 'incremental']
+        fail_msg: "Variable 'satellite_backup_mode' must be set to either 'full' or 'incremental'."
+
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    # --- 1. MONTHLY OFFLINE FULL BACKUP ---
+    - name: Execute Monthly Offline Full Satellite Backup
+      ansible.builtin.shell: >
+        satellite-maintain backup offline --assumeyes {{ backup_dir }}
+      register: full_backup_result
+      when: satellite_backup_mode == "full"
+
+    # --- 2. WEEKLY ONLINE INCREMENTAL BACKUP ---
+    - name: Find the last backup directory for incremental reference
+      ansible.builtin.shell: >
+        ls -td -- {{ backup_dir }}/*/ | head -n 1
+      register: last_backup_dir
+      changed_when: false
+      when: satellite_backup_mode == "incremental"
+
+    - name: Execute Weekly Online Incremental Satellite Backup
+      ansible.builtin.shell: >
+        satellite-maintain backup online --assumeyes --incremental "{{ last_backup_dir.stdout | trim }}" {{ backup_dir }}
+      register: incremental_backup_result
+      when: satellite_backup_mode == "incremental"
+
+    # --- 3. DYNAMIC TARGET SELECTION FOR TSM ---
+    - name: Find the newly created backup directory
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        file_type: directory
+        patterns: "satellite-backup-*"
+      register: found_backups
+
+    - name: Identify the exact target backup directory string
+      ansible.builtin.set_fact:
+        target_backup: "{{ (found_backups.files | sort(attribute='mtime', reverse=true) | first).path }}"
+      when: found_backups.matched > 0
+
+    # --- 4. ENTERPRISE ARCHIVING TO TSM ---
+    - name: Archive specific Satellite backup directory to IBM Storage Protect
+      ansible.builtin.shell: >
+        /opt/tivoli/tsm/client/ba/bin/dsmc arch
+        {{ target_backup }}
+        -subdir=yes
+        -archmc={{ tsm_mgmt_class }}
+      register: tsm_archive_result
+
+    - name: Validate TSM archive success
+      ansible.builtin.fail:
+        msg: "TSM archive failed. Output: {{ tsm_archive_result.stdout }}"
+      when: "'finished without failure' not in tsm_archive_result.stdout"
+
+    # --- 5. SAFE HOUSEKEEPING (Keeping latest 2) ---
+    - name: Clean up local directory keeping only the latest 2 backups
+      ansible.builtin.shell: |
+        ls -1dt {{ backup_dir }}/satellite-backup-* | tail -n +{{ keep_local_backups + 1 }} | xargs rm -rf
+      register: cleanup_result
+      changed_when: cleanup_result.stdout != ""
+
+    # --- 6. REPORT GENERATION ---
+    - name: Get backup directory size stats
+      ansible.builtin.shell: "du -sb {{ target_backup }} | cut -f1"
+      register: backup_size_bytes
+      changed_when: false
+
+    - name: Build consolidated report
+      ansible.builtin.set_fact:
+        backup_report: |
+          Red Hat Satellite Backup Report
+          ===============================
+          Host            : {{ ansible_hostname }}
+          Backup Type     : {{ satellite_backup_mode | uppercase }}
+          Backup Location : {{ target_backup }}
+          Backup Date     : {{ ansible_date_time.date }}
+          Backup Status   : {{ 'SUCCESS' if (full_backup_result is succeeded or incremental_backup_result is succeeded) else 'FAILED' }}
+          TSM Archive     : {{ 'SUCCESS' if 'finished without failure' in tsm_archive_result.stdout else 'FAILED' }}
+          File Size       : {{ (backup_size_bytes.stdout | float / 1024 / 1024) | round(2) }} MB
+
+    - name: Display backup report summary
+      ansible.builtin.debug:
+        var: backup_report
+        
+        
+
+        
+        
+#SPDX-License-Identifier: MIT-0
+---
+- name: Execute and Archive Instana PDC Cluster Backup
+  hosts: pdc_instana_servers
+  gather_facts: true
+  become: true
+  become_user: root
+  become_method: su
+
+
+  vars:
+    backup_dir: "/var/backups/instana"
+    tsm_mgmt_class: "ANSIBLE_WLY_PV_MGMT"
+    keep_local_backups: 2
+
+  tasks:
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Execute Instana PDC cluster backup as root
+      ansible.builtin.shell: >
+        stanctl cluster backup
+      args:
+        chdir: "{{ backup_dir }}"
+      register: backup_result
+
+    - name: Find only the newly created backup file
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        patterns: "stanctl-backup-*.tar.gz"
+      register: found_backups
+
+    - name: Identify the exact target backup file
+      ansible.builtin.set_fact:
+        target_backup_file: "{{ (found_backups.files | sort(attribute='mtime', reverse=true) | first).path }}"
+      when: found_backups.matched > 0
+
+    - name: Archive specific backup to IBM Storage Protect
+      ansible.builtin.shell: >
+        /opt/tivoli/tsm/client/ba/bin/dsmc arch
+        {{ target_backup_file }}
+        -subdir=yes
+        -archmc={{ tsm_mgmt_class }}
+      register: tsm_archive_result
+
+    - name: Validate TSM archive success
+      ansible.builtin.fail:
+        msg: "TSM archive failed. Output: {{ tsm_archive_result.stdout }}"
+      when: "'finished without failure' not in tsm_archive_result.stdout"
+
+    - name: Clean up local directory keeping only the latest 2 backups
+      ansible.builtin.shell: |
+        ls -1t {{ backup_dir }}/stanctl-backup-*.tar.gz | tail -n +{{ keep_local_backups + 1 }} | xargs rm -f
+      register: cleanup_result
+      changed_when: cleanup_result.stdout != ""
+
+    - name: Get backup file stats
+      ansible.builtin.stat:
+        path: "{{ target_backup_file }}"
+      register: backup_stat
+
+    - name: Build consolidated report
+      ansible.builtin.set_fact:
+        backup_report: |
+          Instana PDC Backup Report
+          =========================
+          Host            : {{ ansible_hostname }}
+          Backup Location : {{ target_backup_file }}
+          Backup Date     : {{ ansible_date_time.date }}
+          Backup Status   : {{ 'SUCCESS' if backup_result is succeeded else 'FAILED' }}
+          TSM Archive     : {{ 'SUCCESS' if 'finished without failure' in tsm_archive_result.stdout else 'FAILED' }}
+          File Size       : {{ (backup_stat.stat.size / 1024 / 1024) | round(2) }} MB
+
+    - name: Display backup report summary
+      ansible.builtin.debug:
+        var: backup_report
