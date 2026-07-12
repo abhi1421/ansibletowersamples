@@ -106,7 +106,8 @@
     - always
     - report_generation
 
-- name: Hardening | Build HTML Execution Summary
+
+- name: Hardening | Build Consolidated HTML Execution Summary
   ansible.builtin.set_fact:
     hardening_summary_html: |
       <!DOCTYPE html>
@@ -119,10 +120,16 @@
           font-family: Arial, Helvetica, sans-serif;
           font-size: 14px;
           color: #333333;
+          background-color: #ffffff;
       }
 
       h2 {
           color: #1F4E78;
+          margin-bottom: 5px;
+      }
+
+      p {
+          margin-top: 0;
       }
 
       table {
@@ -143,6 +150,7 @@
           border: 1px solid #cccccc;
           padding: 8px;
           text-align: center;
+          vertical-align: middle;
       }
 
       tr:nth-child(even) {
@@ -197,40 +205,47 @@
           <th>Report Location</th>
       </tr>
 
+      {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
+      {% set results = hostvars[host].enforcement_report_results | default([]) %}
+
       <tr>
 
-          <td>{{ ansible_hostname }}</td>
+          <td>{{ hostvars[host].ansible_hostname | default(host) }}</td>
 
-          <td>{{ ansible_default_ipv4.address }}</td>
+          <td>{{ hostvars[host].ansible_default_ipv4.address | default(hostvars[host].ansible_host | default(host)) }}</td>
 
-          <td>{{ enforcement_report_results | length }}</td>
+          <td>{{ results | length }}</td>
 
           <td class="changed">
-              {{ enforcement_report_results | selectattr('status','equalto','CHANGED') | list | length }}
+              {{ results | selectattr('status', 'equalto', 'CHANGED') | list | length }}
           </td>
 
           <td class="ok">
-              {{ enforcement_report_results | selectattr('status','equalto','OK') | list | length }}
+              {{ results | selectattr('status', 'equalto', 'OK') | list | length }}
           </td>
 
           <td class="manual">
-              {{ enforcement_report_results | selectattr('status','equalto','MANUAL_REQUIRED') | list | length }}
+              {{ results | selectattr('status', 'equalto', 'MANUAL_REQUIRED') | list | length }}
           </td>
 
           <td class="failed">
-              {{ enforcement_report_results | selectattr('status','equalto','NON_COMPLIANT') | list | length }}
+              {{ results | selectattr('status', 'equalto', 'NON_COMPLIANT') | list | length }}
           </td>
 
           <td style="text-align:left;">
-              {{ impl_report_filename }}
+              {{ hostvars[host].impl_report_filename | default('N/A') }}
           </td>
 
       </tr>
+
+      {% endfor %}
 
       </table>
 
       </body>
       </html>
+  run_once: true
+  delegate_to: localhost
   tags:
     - always
     - report_generation
