@@ -14,14 +14,12 @@
         path: "{{ output_dir }}"
         state: directory
 
-
 #############################################
 # PLAY 1: SFMS-PAD Execution
 #############################################
 - name: Run PAD EOD Script
   hosts: pad
   gather_facts: no
-
   vars:
     pad_script: /path/to/EOD_Recon_ISO.sql
 
@@ -47,14 +45,12 @@
         dest: "{{ output_dir }}/pad_output.log"
         flat: yes
 
-
 #############################################
 # PLAY 2: SFMS-NEFT Execution
 #############################################
 - name: Run NEFT EOD Script
   hosts: neft
   gather_facts: no
-
   vars:
     neft_script: /path/to/EOD_NEFT_post12_new.sql
 
@@ -80,19 +76,16 @@
         dest: "{{ output_dir }}/neft_output.log"
         flat: yes
 
-
 #############################################
-# PLAY 3: Comparison + Report
+# PLAY 3: Comparison, Logic Gates & Notifications
 #############################################
 - name: Compare Outputs and Generate Report
   hosts: localhost
   gather_facts: no
-
   vars:
     output_dir: "./outputs"
 
   tasks:
-
     #########################################
     # Read Outputs
     #########################################
@@ -153,29 +146,22 @@
             else 'FAIL'
           }}
 
-    #########################################
-    # Execution Time
-    #########################################
     - name: Capture execution time
       set_fact:
         execution_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
 
-    #########################################
-    # Report
-    #########################################
     - name: Build reconciliation report
       set_fact:
         recon_report: |
           DR EOD RECONCILIATION REPORT
           ========================================
-
           Execution Time : {{ execution_time }}
 
           INPUT DETAILS
           ----------------------------------------
-          Batch Time (PAD) : {{ batch_time }}
-          Transaction Date : {{ txn_date }}
-          Partition        : {{ partition }}
+          Batch Time (PAD) : {{ batch_time | default('N/A') }}
+          Transaction Date : {{ txn_date | default('N/A') }}
+          Partition        : {{ partition | default('N/A') }}
 
           RECONCILIATION STATUS
           ----------------------------------------
@@ -196,31 +182,46 @@
           Mismatch detected. Immediate investigation required.
           {% endif %}
 
-    #########################################
-    # Output
-    #########################################
     - name: Display report
       debug:
         msg: "{{ recon_report }}"
 
-    #########################################
-    # Email
-    #########################################
-    - name: Send email notification
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "01_eod_recon"
+          dr_failure_reason: "EOD Reconciliation data mismatch between PAD and NEFT."
+          dr_detailed_log: "{{ recon_report }}"
+        per_host: no
+      when: reconciliation_status == "FAIL"
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "EOD Reconciliation mismatch. Halting workflow progression."
+      when: reconciliation_status == "FAIL"
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_01_status: "✅ PASSED (Reconciliation values matched cleanly)"
+        per_host: no
+
+    - name: Dispatch Scattered Success Email for Step 01
       mail:
         host: smtp.yourcompany.com
         port: 25
-        subject: "DR EOD Recon Status - {{ reconciliation_status }}"
-        body: "{{ recon_report }}"
-        to:
-          - ops-team@yourcompany.com
-        from: noreply@yourcompany.com
+        subject: "📢 DR UPDATE: Stage [01_eod_recon] PASSED"
+        body: |
+          Step 01 has completed successfully.
+          
+          Summary Details:
+          {{ recon_report }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
       ignore_errors: yes
-
-    #########################################
-    # Fail on mismatch
-    #########################################
-    - name: Fail if reconciliation failed
-      fail:
-        msg: "EOD Reconciliation Failed"
-      when: reconciliation_status == "FAIL"

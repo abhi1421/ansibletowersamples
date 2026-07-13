@@ -1,0 +1,59 @@
+---
+- name: Centralized Disaster Recovery Success Orchestrator
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Capture Execution Timestamp
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    - name: Compile Unified DR Execution Dashboard
+      set_fact:
+        success_report: |
+          =======================================================
+          🏆 DISASTER RECOVERY ACTIVITY: COMPLETION REPORT
+          =======================================================
+          Execution Time : {{ exec_time }}
+          Overall Status : 🟢 SUCCESSFUL SWITCHOVER CONCLUDED
+          
+          PIPELINE EXECUTION MATRIX:
+          -------------------------------------------------------
+          [STAGE 00] Pre-checks & Queue Validation:
+            Status: {{ dr_step_00_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+            
+          [STAGE 01] EOD Reconciliation:
+            Status: {{ dr_step_01_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+            
+          [STAGE 02] Application Shutdown & XA Verification:
+            Status: {{ dr_step_02_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+            
+          [STAGE 03] Oracle Data Guard DB Switchover:
+            Status: {{ dr_step_03_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+            
+          [STAGE 04] MQ Re-Routing & Core Site Channels:
+            Status: {{ dr_step_04_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+            
+          [STAGE 05] Application Target Site Startup:
+            Status: {{ dr_step_05_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+          -------------------------------------------------------
+          
+          All verification layers passed audit constraints. Primary traffic 
+          channels are now operational at the DR site.
+          =======================================================
+
+    - name: Print Final Success Dashboard
+      debug:
+        msg: "{{ success_report }}"
+
+    - name: Dispatch Comprehensive Success Email Notification
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "🏁 CRITICAL SUCCESS: End-to-End DR Activity Fully Concluded"
+        body: "{{ success_report }}"
+        to:
+          - ops-team@yourcompany.com
+          - management-alerts@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes

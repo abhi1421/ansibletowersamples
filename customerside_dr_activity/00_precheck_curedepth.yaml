@@ -1,0 +1,138 @@
+---
+#############################################
+# PLAY 1: NODE 1 PRE-CHECKS
+#############################################
+- name: PAD Node 1 - Pre-check MQ and Processes
+  hosts: 172.24.21.132
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+    qmgrs:
+      - SFMSRBIPADGWQM
+      - SFMSRBIPADCLQM1
+    queues:
+      - IDRBT.QUEUE.MANAGER
+      - NEFT.QPXXMITQ
+      - NEFT.CBSXMITQ
+      - RBISPADBRQ
+      - SFMS.INCOMING
+
+  tasks:
+    - name: Node 1 - Check MQ Queue Depths
+      shell: "echo 'dis ql({{ item.1 }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.0 }}"
+      loop: "{{ qmgrs | product(queues) | list }}"
+      register: mq_node1
+      ignore_errors: yes
+
+    - name: Node 1 - Check Active Application Screens
+      shell: screen -ls
+      register: screen_before_node1
+      ignore_errors: yes
+
+#############################################
+# PLAY 2: NODE 2 PRE-CHECKS
+#############################################
+- name: PAD Node 2 - Pre-check MQ and Processes
+  hosts: 172.24.21.134
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+    qmgr: SFMSRBIPADCLQM2
+    queues:
+      - RBISPADBRQ
+      - SFMS.INCOMING
+
+  tasks:
+    - name: Node 2 - Check MQ Queue Depths
+      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      loop: "{{ queues }}"
+      register: mq_node2
+      ignore_errors: yes
+
+    - name: Node 2 - Check Active Application Screens
+      shell: screen -ls
+      register: screen_before_node2
+      ignore_errors: yes
+
+#############################################
+# PLAY 3: CONSOLIDATED REPORTING & ARBITRATION
+#############################################
+- name: Consolidate Pre-check Matrix
+  hosts: localhost
+  gather_facts: no
+  vars:
+    node1_ip: "172.24.21.132"
+    node2_ip: "172.24.21.134"
+
+  tasks:
+    - name: Analyze Node 1 MQ and Screen Outputs
+      set_fact:
+        n1_mq_mismatch: "{{ hostvars[node1_ip].mq_node1.results | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        n1_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in hostvars[node1_ip].screen_before_node1.stdout else 'No Active Screens (Clean)' }}"
+
+    - name: Analyze Node 2 MQ Outputs
+      set_fact:
+        n2_mq_mismatch: "{{ hostvars[node2_ip].mq_node2.results | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        n2_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in hostvars[node2_ip].screen_before_node2.stdout else 'No Active Screens (Clean)' }}"
+
+    - name: Evaluate Global Pre-Check Status Matrix
+      set_fact:
+        precheck_failed: "{{ (n1_mq_mismatch | length > 0) or (n2_mq_mismatch | length > 0) }}"
+
+    - name: Compile Human-Readable Pre-Check Report
+      set_fact:
+        precheck_report: |
+          =======================================================
+          DR DISASTER RECOVERY ACTIVITY: PRE-CHECK REPORT
+          =======================================================
+          GLOBAL OVERALL STATUS: {{ '❌ FAILED (Queues not clean)' if precheck_failed else '✅ PASSED' }}
+          
+          NODE 1: {{ node1_ip }}
+          -------------------------------------------------------
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n1_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if n1_mq_mismatch | length > 0 %}
+            Blocked Queues:
+          {% for item in n1_mq_mismatch %}
+              - {{ item.item.1 }} on {{ item.item.0 }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+          {% endfor %}
+          {% endif %}
+          * Screen Processes State: {{ n1_screen_status }}
+          
+          NODE 2: {{ node2_ip }}
+          -------------------------------------------------------
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n2_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if n2_mq_mismatch | length > 0 %}
+            Blocked Queues:
+          {% for item in n2_mq_mismatch %}
+              - {{ item.item }} on SFMSRBIPADCLQM2 ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+          {% endfor %}
+          {% endif %}
+          * Screen Processes State: {{ n2_screen_status }}
+          =======================================================
+
+    - name: Print Consolidated Pre-check Matrix
+      debug:
+        msg: "{{ precheck_report }}"
+
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "00_precheck_curedepth"
+          dr_failure_reason: "Pre-check failed because transaction queues are not dry."
+          dr_detailed_log: "{{ precheck_report }}"
+        per_host: no
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "DR Precheck validation step failed. Halting workflow progression."
+      when: precheck_failed

@@ -1,0 +1,32 @@
+---
+- name: Centralized Disaster Recovery Failure Orchestrator
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Parse Injected Step Failure Metadata
+      debug:
+        msg: |
+          🚨 DR RUNTIME FAILURE ALERT 🚨
+          ==================================================
+          Failed Playbook Node : {{ dr_failed_step | default('Unknown Pipeline Stage') }}
+          Root Cause Exception : {{ dr_failure_reason | default('No reason explicitly logged by runtime.') }}
+          ==================================================
+          
+          TECHNICAL DETAILS & STATE ENVIRONMENT:
+          {{ dr_detailed_log | default('No diagnostic dump available.') }}
+
+    - name: Dispatch Emergency System Escalation Notice
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "CRITICAL: DR Process Stalled At Step [{{ dr_failed_step | default('UNKNOWN') }}]"
+        body: |
+          Disaster Recovery automation encountered a blocking condition.
+          
+          Reason: {{ dr_failure_reason | default('Unspecified failure exception') }}
+          
+          Diagnostic Log:
+          {{ dr_detailed_log | default('N/A') }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
