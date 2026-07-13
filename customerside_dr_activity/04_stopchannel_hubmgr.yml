@@ -1,0 +1,124 @@
+---
+- name: Process cleanup and channel stopping from hub manager
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    hub_channel: RBISBR.TO.HUB
+    hub_qmgr: SFMSRBIPADGWQM
+    mqm_binary: /usr/mqm/bin
+
+  tasks:
+    - name: Check HUB channel status
+      shell: "echo 'dis chs({{ hub_channel }})' | {{ mqm_binary }}/runmqsc {{ hub_qmgr }}"
+      register: hub_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Stop HUB channel if running
+      shell: "echo 'stop channel({{ hub_channel }})' | {{ mqm_binary }}/runmqsc {{ hub_qmgr }}"
+      when: hub_status.stdout is defined and 'RUNNING' in hub_status.stdout
+      register: hub_stop
+      changed_when: "'STOPPED' in hub_stop.stdout or 'STOPPING' in hub_stop.stdout"
+      ignore_errors: yes
+
+    - name: Wait until HUB channel stops
+      shell: "echo 'dis chs({{ hub_channel }})' | {{ mqm_binary }}/runmqsc {{ hub_qmgr }}"
+      register: hub_verify
+      retries: 5
+      delay: 5
+      until: "'RUNNING' not in hub_verify.stdout"
+      changed_when: false
+      ignore_errors: yes
+
+    #########################################
+    # CONSOLIDATED REPORTING SECTION
+    #########################################
+    - name: Generate Summary for Host
+      set_fact:
+        step2_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * HUB Channel Status ({{ hub_channel }}):
+            - Final State: {{ 'STOPPED' if (hub_verify.stdout is defined and 'RUNNING' not in hub_verify.stdout) else 'FAILED TO STOP / UNKNOWN' }}
+
+    - name: Determine if Host Encountered Failures
+      set_fact:
+        host_has_failures: "{{ hub_verify.stdout is not defined or 'RUNNING' in hub_verify.stdout }}"
+
+    - name: Consolidate Step 2 Reports
+      set_fact:
+        email_body_step2: "{{ ansible_play_hosts | map('extract', hostvars, 'step2_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Evaluate Global Cluster Status Matrix
+      set_fact:
+        hub_teardown_failed: "{{ ansible_play_hosts | map('extract', hostvars, 'host_has_failures') | map('bool') | select('equalto', true) | list | length > 0 }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Debug Step 2 Report
+      debug:
+        var: email_body_step2
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "04_hub_channel_teardown"
+          dr_failure_reason: "The main gateway hub channel [{{ hub_channel }}] refused to transition out of a RUNNING state."
+          dr_detailed_log: "{{ email_body_step2 }}"
+        per_host: no
+      when: hub_teardown_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "HUB gateway channel isolation process failed. Halting workflow progression."
+      when: hub_teardown_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_03_status: "✅ PASSED (Hub gateway integration channel stopped successfully)"
+        per_host: no
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Dispatch Scattered Success Email for Step 04
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "📢 DR UPDATE: Stage [04_hub_channel_teardown] PASSED"
+        body: |
+          Step 04 has completed successfully. The HUB connection link has been cleanly unmapped.
+          
+          Summary Details:
+          {{ email_body_step2 }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
+      run_once: true
+      delegate_to: localhost
+      become: no
