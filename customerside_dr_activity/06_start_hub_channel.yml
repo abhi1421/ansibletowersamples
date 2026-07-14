@@ -1,0 +1,132 @@
+---
+- name: Step 3 - Start RBISBR.TO.HUB Channel
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    qmgr: SFMSRBIPADGWQM
+    channel: RBISBR.TO.HUB
+    conn_name: "172.23.xxxx.xx(xxx)"  # Update with your target DR connection details
+    mqm_binary: /usr/mqm/bin
+
+  tasks:
+    - name: Check channel status before alteration
+      shell: "echo 'dis chs({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      register: ch_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Alter channel connection targeting DR site
+      shell: |
+        echo "alter channel({{ channel }}) chltype(sdr) conname('{{ conn_name }}')" | {{ mqm_binary }}/runmqsc {{ qmgr }}
+      register: alter_output
+      changed_when: "'AMQ8016' in alter_output.stdout or 'altered' in alter_output.stdout | lower"
+
+    - name: Start channel if not running
+      shell: "echo 'start channel({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      when: ch_status.stdout is not defined or 'RUNNING' not in ch_status.stdout
+      register: start_output
+      ignore_errors: yes
+
+    - name: Wait until channel transitions to RUNNING
+      shell: "echo 'dis chs({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      register: ch_verify
+      retries: 6
+      delay: 10
+      until: ch_verify.stdout is defined and 'RUNNING' in ch_verify.stdout
+      changed_when: false
+      ignore_errors: yes
+
+    #########################################
+    # REPORTING SECTION
+    #########################################
+    - name: Generate Individual Server Report for Step 3
+      set_fact:
+        step3_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * Channel Name: {{ channel }}
+          * Target Connection Name: {{ conn_name }}
+          * Connection Name Altered: {{ 'Yes' if (alter_output is defined and alter_output.changed) else 'No/Verified' }}
+          * Final Channel Status: {{ 'RUNNING' if (ch_verify.stdout is defined and 'RUNNING' in ch_verify.stdout) else 'FAILED TO START' }}
+
+    - name: Determine if Host Channel Failed to Start
+      set_fact:
+        host_has_failures: "{{ ch_verify.stdout is not defined or 'RUNNING' not in ch_verify.stdout }}"
+
+    - name: Consolidate Step 3 Reports
+      set_fact:
+        email_body_step3: "{{ ansible_play_hosts | map('extract', hostvars, 'step3_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Evaluate Global Hub Status Matrix
+      set_fact:
+        hub_start_failed: "{{ ansible_play_hosts | map('extract', hostvars, 'host_has_failures') | map('bool') | select('equalto', true) | list | length > 0 }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Debug Step 3 Report
+      debug:
+        var: email_body_step3
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "06_start_hub_channel"
+          dr_failure_reason: "The main gateway hub channel [{{ channel }}] failed to reach a RUNNING status after DR IP redirection."
+          dr_detailed_log: "{{ email_body_step3 }}"
+        per_host: no
+      when: hub_start_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "HUB gateway channel reconfiguration failed. Halting workflow progression."
+      when: hub_start_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_05_status: "✅ PASSED (Hub gateway channel successfully altered and running)"
+        per_host: no
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Dispatch Scattered Success Email for Step 06
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "📢 DR UPDATE: Stage [06_start_hub_channel] PASSED"
+        body: |
+          Step 06 has completed successfully. The integration gateway channel to the target DR Hub is active.
+          
+          Summary Details:
+          {{ email_body_step3 }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
+      run_once: true
+      delegate_to: localhost
+      become: no

@@ -1,0 +1,144 @@
+---
+- name:  Start SFMS Channels (QPX & CBS)
+  hosts: mq_servers
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+    qmgr: SFMSRBIPADGWQM
+
+    channels:
+      - name: SFMS.TO.QPX
+        conn: "172.23.xx.xx(xxxx)"  # Update with your target DR destination details
+      - name: SFMS.TO.CBS
+        conn: "172.23.xx.xx(xxxx)"  # Update with your target DR destination details
+
+  tasks:
+    - name: Check channel status before alteration
+      shell: "echo 'dis chs({{ item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      loop: "{{ channels }}"
+      register: ch_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Alter channel connection targeting DR site
+      shell: |
+        echo "alter channel({{ item.item.name }}) chltype(sdr) conname('{{ item.item.conn }}')" | {{ mqm_binary }}/runmqsc {{ qmgr }}
+      loop: "{{ ch_status.results }}"
+      register: alter_output
+      changed_when: "'AMQ8016' in alter_output.stdout or 'altered' in alter_output.stdout | lower"
+      ignore_errors: yes
+
+    - name: Start channels if not running
+      shell: "echo 'start channel({{ item.item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      loop: "{{ ch_status.results }}"
+      when: item.stdout is not defined or 'RUNNING' not in item.stdout
+      register: start_output
+      ignore_errors: yes
+
+    - name: Wait until channels transition to RUNNING
+      shell: "echo 'dis chs({{ item.name }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      loop: "{{ channels }}"
+      register: verify
+      retries: 6
+      delay: 10
+      until: verify.stdout is defined and 'RUNNING' in verify.stdout
+      changed_when: false
+      ignore_errors: yes
+
+    #########################################
+    # REPORTING SECTION
+    #########################################
+    - name: Generate Individual Server Report for Step 4
+      set_fact:
+        step4_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * Queue Manager: {{ qmgr }}
+          * Channel Verifications:
+          {% for res in verify.results %}
+            - Channel: {{ res.item.name }}
+              Connection Name: {{ res.item.conn }}
+              Final Status: {{ 'RUNNING' if (res.stdout is defined and 'RUNNING' in res.stdout) else 'FAILED TO START' }}
+          {% endfor %}
+
+    - name: Determine if Host Channels Encountered Failures
+      set_fact:
+        host_has_failures: "{{ verify.results | selectattr('stdout', 'undefined') | list | length > 0 or verify.results | rejectattr('stdout', 'search', 'RUNNING') | list | length > 0 }}"
+
+    - name: Consolidate Step 4 Reports
+      set_fact:
+        email_body_step4: "{{ ansible_play_hosts | map('extract', hostvars, 'step4_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Evaluate Global Channels Status Matrix
+      set_fact:
+        channels_start_failed: "{{ ansible_play_hosts | map('extract', hostvars, 'host_has_failures') | map('bool') | select('equalto', true) | list | length > 0 }}"
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Debug Step 4 Report
+      debug:
+        var: email_body_step4
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "07_start_qpx_cbs_channels"
+          dr_failure_reason: "One or more core messaging integration channels (QPX/CBS) failed to reach a RUNNING state after DR address alteration."
+          dr_detailed_log: "{{ email_body_step4 }}"
+        per_host: no
+      when: channels_start_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "Core platform channels fail validation checks. Halting workflow progression."
+      when: channels_start_failed
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_06_status: "✅ PASSED (Core SFMS QPX and CBS channels altered and verified running)"
+        per_host: no
+      run_once: true
+      delegate_to: localhost
+      become: no
+
+    - name: Dispatch Scattered Success Email for Step 07
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "📢 DR UPDATE: Stage [07_start_qpx_cbs_channels] PASSED"
+        body: |
+          Step 07 has completed successfully. Core platform traffic routes targeting QPX and CBS dependencies are active.
+          
+          Summary Details:
+          {{ email_body_step4 }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
+      run_once: true
+      delegate_to: localhost
+      become: no
