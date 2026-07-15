@@ -1,0 +1,168 @@
+---
+#############################################
+# PLAY 1: TWO-PHASE COMMIT & QUEUE CHECKS
+#############################################
+- name: Step 05b - Two-Phase Commit Validation and DR Queue Verification
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+
+    # Host definitions to align with node-specific constraints
+    node1_host: "172.24.21.132"
+    node2_host: "172.24.21.134"
+
+    # Node 1 Specific Matrix
+    qmgr_n1: "SFMSRBIPADCLQM1"
+    queues_n1:
+      - "RBISPADBRQ"
+      - "SFMS.INCOMING"
+
+    # Node 2 Specific Matrix
+    qmgr_n2: "SFMSRBIPADCLQM2"
+    queues_n2:
+      - "RBISPADBRQ"
+      - "SFMS.INCOMING"
+
+  tasks:
+    # ----------------------------------------------------
+    # NODE 1 OPERATIONS
+    # ----------------------------------------------------
+    - name: Node 1 - Execute Java Two-Phase Commit XA Test
+      shell: "echo SFMSRBIPADCLQM1 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      register: xa_node1
+      become_user: mqm
+      when: inventory_hostname == node1_host
+      ignore_errors: yes
+
+    - name: Node 1 - Verify DR Queue Manager Depths are Zero
+      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr_n1 }}"
+      loop: "{{ queues_n1 }}"
+      register: mq_depth_node1
+      become_user: mqm
+      when: inventory_hostname == node1_host
+      ignore_errors: yes
+
+    # ----------------------------------------------------
+    # NODE 2 OPERATIONS
+    # ----------------------------------------------------
+    - name: Node 2 - Execute Java Two-Phase Commit XA Test
+      shell: "echo SFMSRBIPADCLQM2 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      register: xa_node2
+      become_user: mqm
+      when: inventory_hostname == node2_host
+      ignore_errors: yes
+
+    - name: Node 2 - Verify DR Queue Manager Depths are Zero
+      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr_n2 }}"
+      loop: "{{ queues_n2 }}"
+      register: mq_depth_node2
+      become_user: mqm
+      when: inventory_hostname == node2_host
+      ignore_errors: yes
+
+
+#############################################
+# PLAY 2: CENTRAL ARBITRATION & REPORTING
+#############################################
+- name: Final Validation and Technical Report Compilation
+  hosts: localhost
+  gather_facts: no
+  become: no  # Bypasses local file-permission ownership faults on AAP
+  vars:
+    node1_ip: "172.24.21.132"
+    node2_ip: "172.24.21.134"
+
+  tasks:
+    - name: Evaluate Phase Execution State Matrix
+      set_fact:
+        n1_xa_passed: "{{ 'Two phase commit tested successfully!!!' in hostvars[node1_ip].xa_node1.stdout | default('') }}"
+        n2_xa_passed: "{{ 'Two phase commit tested successfully!!!' in hostvars[node2_ip].xa_node2.stdout | default('') }}"
+        
+        # Verify queue outputs do not contain message backlogs (checks for CURDEPTH(0))
+        n1_queues_clean: "{{ hostvars[node1_ip].mq_depth_node1.results | default([]) | rejectattr('stdout', 'search', 'CURDEPTH\\(0\\)') | list | length == 0 }}"
+        n2_queues_clean: "{{ hostvars[node2_ip].mq_depth_node2.results | default([]) | rejectattr('stdout', 'search', 'CURDEPTH\\(0\\)') | list | length == 0 }}"
+
+    - name: Determine Global Success Criteria
+      set_fact:
+        xa_validation_failed: "{{ not n1_xa_passed or not n2_xa_passed or not n1_queues_clean or not n2_queues_clean }}"
+
+    - name: Capture Execution Timestamp
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    - name: Build Comprehensive Verification Audit Log
+      set_fact:
+        dr_report: |
+          =======================================================
+          DR POST-SWITCHOVER XA & QUEUE VERIFICATION REPORT
+          =======================================================
+          Execution Time: {{ exec_time }}
+          Overall Status: {{ '❌ CRITICAL VERIFICATION STATE FAILURE' if xa_validation_failed else '✅ PASSED' }}
+
+          NODE 1: {{ node1_ip }}
+          -------------------------------------------------------
+          * Two-Phase Commit XA Verification: {{ '🟢 SUCCESSFUL' if n1_xa_passed else '❌ FAILED / MISSING' }}
+          * DR Queue Depths Clear (0 Backlog): {{ '🟢 CLEAN' if n1_queues_clean else '⚠️ MESSAGES FOUND IN QUEUE' }}
+          
+          NODE 2: {{ node2_ip }}
+          -------------------------------------------------------
+          * Two-Phase Commit XA Verification: {{ '🟢 SUCCESSFUL' if n2_xa_passed else '❌ FAILED / MISSING' }}
+          * DR Queue Depths Clear (0 Backlog): {{ '🟢 CLEAN' if n2_queues_clean else '⚠️ MESSAGES FOUND IN QUEUE' }}
+          =======================================================
+
+    - name: Output Compiled Verification Status to Console
+      debug:
+        msg: "{{ dr_report }}"
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "05b_two_phase_commit"
+          dr_failure_reason: "Java Two-Phase Commit XA assertions rejected or message backlogs detected on DR queues."
+          dr_detailed_log: "{{ dr_report }}"
+        per_host: no
+      when: xa_validation_failed
+      vars:
+        ansible_connection: local
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "DR Two-Phase Commit validation failed core constraints. Halting workflow progression."
+      when: xa_validation_failed
+      vars:
+        ansible_connection: local
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_05b_status: "✅ PASSED (Two-Phase Commit verified successfully and DR queues are empty)"
+        per_host: no
+      vars:
+        ansible_connection: local
+
+    - name: Dispatch Scattered Success Email for Step 05b
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "📢 DR UPDATE: Stage [05b_two_phase_commit] PASSED"
+        body: |
+          Step 05b has completed successfully. Two-Phase Commit validation passed and DR site queues are empty.
+          
+          Summary Details:
+          {{ dr_report }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
+      vars:
+        ansible_connection: local

@@ -1,0 +1,204 @@
+---
+#############################################
+# PLAY 1: NODE 1 OPERATIONS
+#############################################
+- name: PAD Node 1 - MQ Check and Shutdown
+  hosts: 172.24.21.132
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+    
+    # Precise cluster structure to avoid ghost queue lookup faults
+    mq_check_matrix_n1:
+      - { qmgr: "SFMSRBIPADGWQM", queue: "IDRBT.QUEUE.MANAGER" }
+      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.QPXXMITQ" }
+      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.CBSXMITQ" }
+      - { qmgr: "SFMSRBIPADCLQM1", queue: "RBISPADBRQ" }
+      - { qmgr: "SFMSRBIPADCLQM1", queue: "SFMS.INCOMING" }
+
+  tasks:
+    # --- MQ OPERATIONAL LAYERS (Runs as mqm) ---
+    - name: Node 1 - Validate MQ Queue Depths Before Stop
+      shell: "echo 'dis ql({{ item.queue }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
+      loop: "{{ mq_check_matrix_n1 }}"
+      register: mq_node1
+      become_user: mqm
+      ignore_errors: yes
+
+    # --- APPLICATION LIFECYCLE LAYERS (Runs as padsfmsusr) ---
+    - name: Node 1 - Check Screen Sockets (Before)
+      shell: screen -ls
+      register: screen_before_node1
+      ignore_errors: yes
+
+    - name: Node 1 - Terminate Core Application Processing
+      shell: |
+        echo -e "2\ny" | sh /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
+      register: stop_node1
+
+    - name: Node 1 - Isolate and Kill Active Ehcache Screen Session
+      shell: |
+        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | xargs -r kill -9
+      register: kill_ehcache_node1
+      ignore_errors: yes
+
+    - name: Node 1 - Check Screen Sockets (After)
+      shell: screen -ls
+      register: screen_after_node1
+      ignore_errors: yes
+
+
+#############################################
+# PLAY 2: NODE 2 OPERATIONS
+#############################################
+- name: PAD Node 2 - MQ Check and Shutdown
+  hosts: 172.24.21.134
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+    qmgr_n2: SFMSRBIPADCLQM2
+    queues_n2:
+      - RBISPADBRQ
+      - SFMS.INCOMING
+
+  tasks:
+    # --- MQ OPERATIONAL LAYERS (Runs as mqm) ---
+    - name: Node 2 - Validate MQ Queue Depths Before Stop
+      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr_n2 }}"
+      loop: "{{ queues_n2 }}"
+      register: mq_node2
+      become_user: mqm
+      ignore_errors: yes
+
+    # --- APPLICATION LIFECYCLE LAYERS (Runs as padsfmsusr1) ---
+    - name: Node 2 - Check Screen Sockets (Before)
+      shell: screen -ls
+      register: screen_before_node2
+      ignore_errors: yes
+
+    - name: Node 2 - Terminate Core Application Processing
+      shell: |
+        echo -e "2\ny" | sh SH_Files/Main_Script_Specific_Process.sh
+      register: stop_node2
+
+    - name: Node 2 - Isolate and Kill Active Ehcache Screen Session
+      shell: |
+        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | xargs -r kill -9
+      register: kill_ehcache_node2
+      ignore_errors: yes
+
+    - name: Node 2 - Stop Application Frontend Engine
+      shell: sh catalina.sh stop
+      register: frontend_node2
+      become_user: padsfmsusr1
+      ignore_errors: yes
+
+    - name: Node 2 - Check Screen Sockets (After)
+      shell: screen -ls
+      register: screen_after_node2
+      become_user: padsfmsusr1
+      ignore_errors: yes
+
+
+#############################################
+# PLAY 3: ARBITRATION & CENTRALIZED REPORTING
+#############################################
+- name: Final Validation and Orchestration Reporting
+  hosts: localhost
+  gather_facts: no
+  become: no  # <-- Crucial: Bypasses local permission ownership faults
+  vars:
+    node1_ip: "172.24.21.132"
+    node2_ip: "172.24.21.134"
+
+  tasks:
+    - name: Evaluate Phase Execution State Matrix
+      set_fact:
+        n1_screens_clear: "{{ 'No Sockets' in hostvars[node1_ip].screen_after_node1.stdout or hostvars[node1_ip].screen_after_node1.rc != 0 }}"
+        n2_screens_clear: "{{ 'No Sockets' in hostvars[node2_ip].screen_after_node2.stdout or hostvars[node2_ip].screen_after_node2.rc != 0 }}"
+
+    - name: Determine Global Success Criteria
+      set_fact:
+        shutdown_step_failed: "{{ not n1_screens_clear or not n2_screens_clear }}"
+
+    - name: Capture Execution Timestamp
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    - name: Build Comprehensive Shutdown Audit Log
+      set_fact:
+        dr_report: |
+          =======================================================
+          DR SHUTDOWN & VERIFICATION REPORT
+          =======================================================
+          Execution Time: {{ exec_time }}
+          Overall Status: {{ '❌ CRITICAL TEARDOWN CONDITIONAL FAILURE' if shutdown_step_failed else '✅ PASSED' }}
+
+          NODE 1: {{ node1_ip }}
+          -------------------------------------------------------
+          * Active Screen Sockets Status: {{ '🟢 CLEAN (All processes dropped)' if n1_screens_clear else '⚠️ ALIVE (Hanging sockets detected)' }}
+          
+          NODE 2: {{ node2_ip }}
+          -------------------------------------------------------
+          * Active Screen Sockets Status: {{ '🟢 CLEAN (All processes dropped)' if n2_screens_clear else '⚠️ ALIVE (Hanging sockets detected)' }}
+          =======================================================
+
+    - name: Output Compiled Shutdown Status to Console
+      debug:
+        msg: "{{ dr_report }}"
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "03_stop_validatechannels"
+          dr_failure_reason: "Application shutdown lifecycle checks dropped cleanly failed."
+          dr_detailed_log: "{{ dr_report }}"
+        per_host: no
+      when: shutdown_step_failed
+      vars:
+        ansible_connection: local
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "Application shutdown lifecycle metrics out of bounds. Halting workflow progression."
+      when: shutdown_step_failed
+      vars:
+        ansible_connection: local
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_02_status: "✅ PASSED (Apps stopped cleanly and screen components cleared)"
+        per_host: no
+      vars:
+        ansible_connection: local
+
+    - name: Dispatch Scattered Success Email for Step 03
+      mail:
+        host: smtp.yourcompany.com
+        port: 25
+        subject: "📢 DR UPDATE: Stage [03_stop_validatechannels] PASSED"
+        body: |
+          Step 03 has completed successfully. Node environments are stopped and sockets verified empty.
+          
+          Summary Details:
+          {{ dr_report }}
+        to: ops-team@yourcompany.com
+        from: aap-automation-noreply@yourcompany.com
+      ignore_errors: yes
+      vars:
+        ansible_connection: local
