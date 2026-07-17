@@ -42,7 +42,7 @@
 - name: Include task to prepare kernel
   ansible.builtin.import_tasks: prepare_kernel.yml
   when:
-    - kernel_package | default('') | length > 0
+    - kernel_version | default('') | length > 0
   tags:
     - kernel
 
