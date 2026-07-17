@@ -3,8 +3,13 @@
     name: "*"
     security: true
     state: latest
+    nobest: true
+    exclude:
+      - "kernel*"
+      - "glibc*"
+      - "redhat-release*"
   register: security_update_result
-  when: apply_security_patches | bool
+  when: apply_security_patches | bool 
   tags:
     - patching
     - security_patches

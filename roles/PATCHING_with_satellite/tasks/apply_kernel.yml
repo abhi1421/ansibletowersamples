@@ -2,6 +2,11 @@
   ansible.builtin.yum:
     name: "kernel*"
     state: latest
+    nobest: true
+    exclude:
+      - "kernel*"
+      - "glibc*"
+      - "redhat-release*"
   register: kernel_update_result
   when: apply_kernel_patches | bool
 

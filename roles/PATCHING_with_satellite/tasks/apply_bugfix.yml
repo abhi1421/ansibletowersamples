@@ -4,6 +4,11 @@
     name: "*"
     bugfix: true
     state: latest
+    nobest: true
+    exclude:
+      - "kernel*"
+      - "glibc*"
+      - "redhat-release*"
   register: bugfix_update_result
   when: apply_bugfix_patches | bool
 

@@ -9,14 +9,22 @@
   ansible.builtin.debug:
     var: available_kernels.stdout_lines
 
+- name: Construct kernel package name
+  ansible.builtin.set_fact:
+    kernel_package: "kernel-{{ kernel_version }}.x86_64"
 
 - name: Validate requested kernel exists
   ansible.builtin.assert:
     that:
-      - available_kernels.stdout is search(kernel_package | regex_replace('^kernel-', ''))
+      - kernel_version in available_kernels.stdout
     fail_msg: >
-      Requested kernel {{ kernel_package }} is not available in enabled repositories.
+      Requested kernel version {{ kernel_version }} is not available in enabled repositories.
 
+
+- name: Debug the var 
+  debug:
+    var: kernel_package
+  
 
 - name: Install requested kernel
   ansible.builtin.yum:
