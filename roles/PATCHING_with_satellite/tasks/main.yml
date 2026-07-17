@@ -38,6 +38,15 @@
     - pre_patch_info
   when: enable_errata_reporting | bool
 
+
+- name: Include task to prepare kernel
+  ansible.builtin.import_tasks: prepare_kernel.yml
+  when:
+    - kernel_package | default('') | length > 0
+  tags:
+    - kernel
+    
+
 - name: Include task to apply security patches
   ansible.builtin.import_tasks: apply_security.yml
   tags:

@@ -1,0 +1,24 @@
+- name: List available kernel packages
+  ansible.builtin.command:
+    cmd: yum list --showduplicates kernel
+  register: available_kernels
+  changed_when: false
+
+
+- name: Display available kernels
+  ansible.builtin.debug:
+    var: available_kernels.stdout_lines
+
+
+- name: Validate requested kernel exists
+  ansible.builtin.assert:
+    that:
+      - available_kernels.stdout is search(kernel_package | regex_replace('^kernel-', ''))
+    fail_msg: >
+      Requested kernel {{ kernel_package }} is not available in enabled repositories.
+
+
+- name: Install requested kernel
+  ansible.builtin.yum:
+    name: "{{ kernel_package }}"
+    state: present
