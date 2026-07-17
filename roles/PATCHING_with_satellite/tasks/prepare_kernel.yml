@@ -30,3 +30,8 @@
   ansible.builtin.yum:
     name: "{{ kernel_package }}"
     state: present
+
+
+- name: Set kernel version for dracut
+  ansible.builtin.set_fact:
+    kernel_for_dracut: "{{ kernel_version }}"
