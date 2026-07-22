@@ -24,7 +24,7 @@
       shell: |
         echo "alter channel({{ channel }}) chltype(sdr) conname('{{ conn_name }}')" | {{ mqm_binary }}/runmqsc {{ qmgr }}
       register: alter_output
-      changed_when: "'AMQ8016' in alter_output.stdout or 'altered' in alter_output.stdout | lower"
+      changed_when: "'AMQ' in alter_output.stdout or 'altered' in alter_output.stdout | lower"
 
     - name: Start channel if not running
       shell: "echo 'start channel({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
@@ -114,19 +114,19 @@
       delegate_to: localhost
       become: no
 
-    - name: Dispatch Scattered Success Email for Step 06
-      mail:
-        host: smtp.yourcompany.com
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
         port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
         subject: "📢 DR UPDATE: Stage [06_start_hub_channel] PASSED"
         body: |
           Step 06 has completed successfully. The integration gateway channel to the target DR Hub is active.
-          
+
           Summary Details:
           {{ email_body_step3 }}
-        to: ops-team@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
-      run_once: true
       delegate_to: localhost
+      run_once: true
       become: no

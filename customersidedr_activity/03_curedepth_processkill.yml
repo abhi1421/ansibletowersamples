@@ -2,15 +2,15 @@
 #############################################
 # PLAY 1: NODE 1 OPERATIONS
 #############################################
-- name: PAD Node 1 - MQ Check and Shutdown
-  hosts: 172.24.21.132
+- name: PAD Node 1 - MQ Check, Shutdown, and XA Test
+  hosts: 172.23.21.132
   gather_facts: no
-  become: yes
   become_method: sudo
   vars:
     ansible_become_flags: "-H -S"
     ansible_ssh_pipelining: true
     mqm_binary: /usr/mqm/bin
+    ansible_shell_executable: /usr/bin/ksh
     
     # Precise cluster structure to avoid ghost queue lookup faults
     mq_check_matrix_n1:
@@ -21,44 +21,72 @@
       - { qmgr: "SFMSRBIPADCLQM1", queue: "SFMS.INCOMING" }
 
   tasks:
-    # --- MQ OPERATIONAL LAYERS (Runs as mqm) ---
     - name: Node 1 - Validate MQ Queue Depths Before Stop
       shell: "echo 'dis ql({{ item.queue }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
       loop: "{{ mq_check_matrix_n1 }}"
-      register: mq_node1
       become_user: mqm
+      become: yes
+      register: mq_node1
       ignore_errors: yes
 
-    # --- APPLICATION LIFECYCLE LAYERS (Runs as padsfmsusr) ---
     - name: Node 1 - Check Screen Sockets (Before)
       shell: screen -ls
+      become_user: mqm
+      become: yes
       register: screen_before_node1
-      ignore_errors: yes
+      failed_when: screen_before_node1.rc not in [1]
+
 
     - name: Node 1 - Terminate Core Application Processing
       shell: |
-        echo -e "2\ny" | sh /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
+        printf "2\ny\n" | /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
+      become: yes
+      become_user: sfmspadl301
+      args:
+        executable: /bin/bash
+        chdir: /home/sfmspadl301
       register: stop_node1
 
     - name: Node 1 - Isolate and Kill Active Ehcache Screen Session
       shell: |
-        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | xargs -r kill -9
+        PIDS=$(ps -ef | grep -E "start-tc-server\.sh|tc\.jar" | grep -v grep | awk '{print $2}')
+        if [ -n "$PIDS" ]; then
+          for pid in $PIDS; do
+            kill -9 $pid
+            echo "Killed Ehcache process PID - $pid"
+          done
+        else
+          echo "No active Ehcache process found to kill."
+        fi
       register: kill_ehcache_node1
+      become_user: sfmspadl301
       ignore_errors: yes
+  
+    
+    - name: Print teardown summary log
+      debug:
+        msg: "{{ kill_ehcache_node1 }}"
+
+
+#    - name: Node 1 - Isolate and Kill Active Ehcache Screen Session
+#      shell: |
+#        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | while read pid; do [ -n "$pid" ] && kill -9 $pid; done
+#      register: kill_ehcache_node1
+#      ignore_errors: yes
+
 
     - name: Node 1 - Check Screen Sockets (After)
       shell: screen -ls
       register: screen_after_node1
       ignore_errors: yes
-
+      failed_when: screen_after_node1.rc not in [1]
 
 #############################################
 # PLAY 2: NODE 2 OPERATIONS
 #############################################
-- name: PAD Node 2 - MQ Check and Shutdown
-  hosts: 172.24.21.134
+- name: PAD Node 2 - MQ Check, Shutdown, and XA Test
+  hosts: 172.23.21.134
   gather_facts: no
-  become: yes
   become_method: sudo
   vars:
     ansible_become_flags: "-H -S"
@@ -70,42 +98,71 @@
       - SFMS.INCOMING
 
   tasks:
-    # --- MQ OPERATIONAL LAYERS (Runs as mqm) ---
     - name: Node 2 - Validate MQ Queue Depths Before Stop
       shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr_n2 }}"
       loop: "{{ queues_n2 }}"
-      register: mq_node2
       become_user: mqm
+      become: yes
+      register: mq_node2
       ignore_errors: yes
 
-    # --- APPLICATION LIFECYCLE LAYERS (Runs as padsfmsusr1) ---
     - name: Node 2 - Check Screen Sockets (Before)
       shell: screen -ls
       register: screen_before_node2
       ignore_errors: yes
+      failed_when: screen_before_node2.rc not in [1]
 
     - name: Node 2 - Terminate Core Application Processing
       shell: |
-        echo -e "2\ny" | sh SH_Files/Main_Script_Specific_Process.sh
+        printf "2\ny\n" | /home/sfmspadl302/SH_Files/Main_Script_Specific_Process.sh
+      become: yes
+      become_user: sfmspadl302
+      args:
+        executable: /bin/bash
+        chdir: /home/sfmspadl302
       register: stop_node2
+
 
     - name: Node 2 - Isolate and Kill Active Ehcache Screen Session
       shell: |
-        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | xargs -r kill -9
+        PIDS=$(ps -ef | grep -E "start-tc-server\.sh|tc\.jar" | grep -v grep | awk '{print $2}')
+        if [ -n "$PIDS" ]; then
+          for pid in $PIDS; do
+            kill -9 $pid
+            echo "Killed Ehcache process PID - $pid"
+          done
+        else
+          echo "No active Ehcache process found to kill."
+        fi
       register: kill_ehcache_node2
+      become_user: sfmspadl302
       ignore_errors: yes
 
-    - name: Node 2 - Stop Application Frontend Engine
-      shell: sh catalina.sh stop
-      register: frontend_node2
-      become_user: padsfmsusr1
-      ignore_errors: yes
+
+    - name: Print teardown summary log
+      debug:
+        msg: "{{ kill_ehcache_node2 }}"
+
+
+
+#    - name: Node 2 - Isolate and Kill Active Ehcache Screen Session
+#      shell: |
+#        screen -ls | grep -i "ehcache" | awk -F. '{print $1}' | while read pid; do [ -n "$pid" ] && kill -9 $pid; done
+#      register: kill_ehcache_node2
+#      ignore_errors: yes
+
+#    - name: Node 2 - Stop Application Frontend Engine
+#      shell: sh catalina.sh stop
+#      register: frontend_node2
+#      become_user: padsfmsusr1
+#      ignore_errors: yes    
 
     - name: Node 2 - Check Screen Sockets (After)
       shell: screen -ls
       register: screen_after_node2
-      become_user: padsfmsusr1
       ignore_errors: yes
+      failed_when: screen_after_node2.rc not in [1]
+
 
 
 #############################################
@@ -122,8 +179,17 @@
   tasks:
     - name: Evaluate Phase Execution State Matrix
       set_fact:
-        n1_screens_clear: "{{ 'No Sockets' in hostvars[node1_ip].screen_after_node1.stdout or hostvars[node1_ip].screen_after_node1.rc != 0 }}"
-        n2_screens_clear: "{{ 'No Sockets' in hostvars[node2_ip].screen_after_node2.stdout or hostvars[node2_ip].screen_after_node2.rc != 0 }}"
+        n1_screens_clear: >-
+          {{
+            'No Sockets' in (hostvars[node1_ip].screen_after_node1.stdout | default('')) or
+            (hostvars[node1_ip].screen_after_node1.rc | default(1) | int != 0)
+          }}
+        n2_screens_clear: >-
+          {{
+            'No Sockets' in (hostvars[node2_ip].screen_after_node2.stdout | default('')) or
+            (hostvars[node2_ip].screen_after_node2.rc | default(1) | int != 0)
+          }}
+
 
     - name: Determine Global Success Criteria
       set_fact:
@@ -162,19 +228,15 @@
       set_stats:
         data:
           dr_failed_step: "03_stop_validatechannels"
-          dr_failure_reason: "Application shutdown lifecycle checks dropped cleanly failed."
+          dr_failure_reason: "Application shutdown dropped cleanly check failed or Java Two-Phase Commit XA assertions rejected."
           dr_detailed_log: "{{ dr_report }}"
         per_host: no
       when: shutdown_step_failed
-      vars:
-        ansible_connection: local
 
     - name: Enforce Hard Failure Path for Automation Workflow
       fail:
-        msg: "Application shutdown lifecycle metrics out of bounds. Halting workflow progression."
+        msg: "Application shutdown lifecycle or verification metrics out of bounds. Halting workflow progression."
       when: shutdown_step_failed
-      vars:
-        ansible_connection: local
 
     # ----------------------------------------------------
     # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
@@ -182,23 +244,19 @@
     - name: Register Step Success to Global Matrix Variable
       set_stats:
         data:
-          dr_step_02_status: "✅ PASSED (Apps stopped cleanly and screen components cleared)"
+          dr_step_02_status: "✅ PASSED (Apps stopped cleanly and Two-Phase Commit XA verified)"
         per_host: no
-      vars:
-        ansible_connection: local
 
-    - name: Dispatch Scattered Success Email for Step 03
-      mail:
-        host: smtp.yourcompany.com
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
         port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
         subject: "📢 DR UPDATE: Stage [03_stop_validatechannels] PASSED"
         body: |
-          Step 03 has completed successfully. Node environments are stopped and sockets verified empty.
-          
+          Step 03 has completed successfully. Node environments are stopped and XA verified.
           Summary Details:
           {{ dr_report }}
-        to: ops-team@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
-      vars:
-        ansible_connection: local
+      delegate_to: localhost
+      run_once: true

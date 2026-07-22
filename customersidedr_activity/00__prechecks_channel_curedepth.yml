@@ -12,20 +12,18 @@
     ansible_become_flags: "-H -S"
     ansible_ssh_pipelining: true
     mqm_binary: /usr/mqm/bin
-    qmgrs:
-      - SFMSRBIPADGWQM
-      - SFMSRBIPADCLQM1
-    queues:
-      - IDRBT.QUEUE.MANAGER
-      - NEFT.QPXXMITQ
-      - NEFT.CBSXMITQ
-      - RBISPADBRQ
-      - SFMS.INCOMING
+
+    mq_check_matrix:
+      - { qmgr: "SFMSRBIPADGWQM", queue: "IDRBT.QUEUE.MANAGER" }
+      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.QPXXMITQ" }
+      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.CBSXMITQ" }
+      - { qmgr: "SFMSRBIPADCLQM1", queue: "RBISPADBRQ" }
+      - { qmgr: "SFMSRBIPADCLQM1", queue: "SFMS.INCOMING" }
 
   tasks:
     - name: Node 1 - Check MQ Queue Depths
-      shell: "echo 'dis ql({{ item.1 }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.0 }}"
-      loop: "{{ qmgrs | product(queues) | list }}"
+      shell: "echo 'dis ql({{ item.queue }})  curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
+      loop: "{{ mq_check_matrix }}"
       register: mq_node1
       ignore_errors: yes
 
@@ -103,7 +101,7 @@
           {% if n1_mq_mismatch | length > 0 %}
             Blocked Queues:
           {% for item in n1_mq_mismatch %}
-              - {{ item.item.1 }} on {{ item.item.0 }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+              - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
           {% endfor %}
           {% endif %}
           * Screen Processes State: {{ n1_screen_status }}
@@ -124,6 +122,10 @@
       debug:
         msg: "{{ precheck_report }}"
 
+#####################################
+# CONDITION A - RUNTIME FAILURE PATH
+#####################################
+
     - name: Register Global Artifact Variables for AAP Failure Workflow
       set_stats:
         data:
@@ -136,3 +138,33 @@
       fail:
         msg: "DR Precheck validation step failed. Halting workflow progression."
       when: precheck_failed
+
+#######################################################################
+# CONDITION B - RUNTIME SUCCESS PATH (Only runs if 'fail') is skipped
+######################################################################
+
+    - name: Register Step Success to global matrix variable
+      set_stats:
+        data:
+          dr_step_00_status: PASSED (Queses dry, screens validated)
+        per_host: no
+
+    
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "DR UPDATE - Stage [00_Precheck_curedepth] PASSED"
+        body: |
+          Step 00_precheck_curedepth has completed successfully.
+          Summary Details:
+          {{ precheck_report }}
+      delegate_to: localhost
+      run_once: true
+
+
+
+
+

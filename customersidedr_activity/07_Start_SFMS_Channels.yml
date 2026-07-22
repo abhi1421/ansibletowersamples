@@ -126,19 +126,19 @@
       delegate_to: localhost
       become: no
 
-    - name: Dispatch Scattered Success Email for Step 07
-      mail:
-        host: smtp.yourcompany.com
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
         port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
         subject: "📢 DR UPDATE: Stage [07_start_qpx_cbs_channels] PASSED"
         body: |
           Step 07 has completed successfully. Core platform traffic routes targeting QPX and CBS dependencies are active.
-          
+
           Summary Details:
           {{ email_body_step4 }}
-        to: ops-team@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
-      run_once: true
       delegate_to: localhost
+      run_once: true
       become: no
+

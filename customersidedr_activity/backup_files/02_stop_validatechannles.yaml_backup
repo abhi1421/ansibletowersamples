@@ -3,7 +3,7 @@
 # PLAY 1: NODE 1 OPERATIONS
 #############################################
 - name: PAD Node 1 - MQ Check and Shutdown
-  hosts: 172.24.21.132
+  hosts: 172.23.21.132
   gather_facts: no
   become_method: sudo
   become_user: mqm
@@ -29,14 +29,14 @@
     #########################################
     # MQ CHECK WITH RETRY
     #########################################
-    - name: Wait for MQ queues to drain (Node1)
-      shell: "echo 'dis ql({{ item.1 }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.0 }}"
-      loop: "{{ qmgrs | product(queues) | list }}"
-      register: mq_node1
+#    - name: Wait for MQ queues to drain (Node1)
+#      shell: "echo 'dis ql({{ item.1 }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.0 }}"
+#      loop: "{{ qmgrs | product(queues) | list }}"
+#      register: mq_node1
 #      retries: 30
 #      delay: 10
 #      until: mq_node1.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
-      ignore_errors: true
+#      ignore_errors: true
 
     #########################################
     # SCREEN BEFORE
@@ -49,28 +49,40 @@
     #########################################
     # STOP PROCESSES
     #########################################
-    - name: Stop PAD processes Node1
-      shell: |
-        echo -e "2\ny" | sh /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
-      register: stop_node1
+#    - name: Stop PAD processes Node1
+#      shell: |
+#        printf "2\ny\n" | /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
+#      register: stop_node1
 
 
     #########################################
     # STOP EHCACHE
     #########################################
     - name: Stop ehcache Node1
-      shell: sh /home/sfmspadl301/start-ehcache-server.sh
-      register: ehcache_start_node1
+      shell: |
+        sudo -u sfmspadl301 screen -dmS ehcache_start sh start-ehcache-server.sh
+      register: ehcache_stop_node1
+#      become_user: sfmspadl301
+#      become_method: sudo
+
+
+    - name: Wait for ehcache screen session
+      shell: |
+        sudo -u sfmspadl301 screen -ls
+      register: ehcache_screen_node1
+      retries: 12
+      delay: 5
+      until: "'ehcache_start' in ehcache_screen_node1.stdout"
 
 
     #########################################
     # KILL EHCACHE
     #########################################
-#    - name: Kill ehcache Node1
-#      shell: |
-#        screen -ls | grep ehcache | awk -F. '{print $1}' | xargs -r kill
-#      register: kill_node1
-#      ignore_errors: yes
+    - name: Kill ehcache Node1
+      shell: |
+        screen -ls | grep ehcache
+      register: kill_node1
+      ignore_errors: yes
 
     #########################################
     # STOP FRONTEND
@@ -96,7 +108,7 @@
 # PLAY 2: NODE 2 OPERATIONS
 #############################################
 - name: PAD Node 2 - MQ Check and Shutdown
-  hosts: 172.24.21.134
+  hosts: 172.23.21.134
   gather_facts: no
   become_method: sudo
   become_user: mqm
@@ -115,11 +127,11 @@
     #########################################
     # MQ CHECK WITH RETRY
     #########################################
-    - name: Wait for MQ queues to drain (Node2)
-      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
-      loop: "{{ queues }}"
-      register: mq_node2
-      ignore_errors: true
+#    - name: Wait for MQ queues to drain (Node2)
+#      shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+#      loop: "{{ queues }}"
+#      register: mq_node2
+#      ignore_errors: true
 #      retries: 30
 #      delay: 10
 #      until: mq_node2.stdout is not search("CURDEPTH\\(([1-9][0-9]*)\\)")
@@ -135,16 +147,16 @@
     #########################################
     # STOP PROCESSES
     #########################################
-    - name: Stop PAD processes Node2
-      shell: |
-        echo -e "2\ny" | sh SH_Files/Main_Script_Specific_Process.sh
-      register: stop_node2
+#    - name: Stop PAD processes Node2
+#      shell: |
+#        echo -e "2\ny" | sh SH_Files/Main_Script_Specific_Process.sh
+#      register: stop_node2
 
     #########################################
     # STOP EHCACHE
     #########################################
     - name: Stop ehcache Node1
-      shell: sh /home/sfmspadl301/start-ehcache-server.sh
+      shell: sudo -u sfmspadl301 -c "screen -dmS ehcache_start sh start-ehcache-server.sh"
       register: ehcache_start_node1
 
 

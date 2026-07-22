@@ -5,16 +5,16 @@
 - name: Step 05b - Two-Phase Commit Validation and DR Queue Verification
   hosts: all
   gather_facts: no
-  become: yes
-  become_method: sudo
+#  become: yes
+#  become_method: sudo
   vars:
     ansible_become_flags: "-H -S"
     ansible_ssh_pipelining: true
     mqm_binary: /usr/mqm/bin
 
     # Host definitions to align with node-specific constraints
-    node1_host: "172.24.21.132"
-    node2_host: "172.24.21.134"
+    node1_host: "172.23.21.132"
+    node2_host: "172.23.21.134"
 
     # Node 1 Specific Matrix
     qmgr_n1: "SFMSRBIPADCLQM1"
@@ -29,13 +29,32 @@
       - "SFMS.INCOMING"
 
   tasks:
+  
     # ----------------------------------------------------
     # NODE 1 OPERATIONS
     # ----------------------------------------------------
     - name: Node 1 - Execute Java Two-Phase Commit XA Test
-      shell: "echo SFMSRBIPADCLQM1 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      shell: |
+        printf "SFMSRBIPADCLQM1\n" | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS
       register: xa_node1
-      become_user: mqm
+      environment:
+        CLASSPATH: "/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/*:/orahome/app/oracle/product/19.0.0/client_1//jdbc/lib/ojdbc8.jar:/opt/java17/jdk-17.0.7+7/lib/*:/opt/java17/jdk-17.0.7+7/jre/lib:/sfmsapp1/sfmspdc/SFMS/apache-tomcat-10.1.34/webapps/sfms/WEB-INF/classes:/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/*:/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/mqlib/*:/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/log4jlib/*:/sfmsapp1/sfmspdc/SFMS/app_properties/securityconfig:/sfmsapp1/sfmspdc/SFMS/app_properties/logconfig:/sfmsapp1/sfmspdc/SFMS/app_properties/appProcessesConf:/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/javafxjars/*:/sfmsapp1/sfmspdc/SFMS/SFMSAppFiles/appjars/security/*:.:"
+        JAVA_HOME: "/opt/java17/jdk-17.0.7+7"
+        PATH: "/orahome/app/oracle/product/19.0.0/client_1//bin:/usr/mqm/java/lib64:/usr/mqm/java/lib/*:/opt/java17/jdk-17.0.7+7/lib:/opt/java17/jdk-17.0.7+7/bin:/opt/java17/jdk-17.0.7+7/jre/bin:/usr/mqm/bin:/usr/bin:/etc:/usr/sbin:/usr/ucb:/home/sfmspadl301/bin:/usr/bin/X11:/sbin:/sfmsapp1/sfmspdc/SFMS/apache-tomcat-10.1.34/bin:/sfmsapp1/sfmspdc/SFMS/app_properties/appProcessesConf/lib:.:"
+        SFMS_HOME: "/sfmsapp1/sfmspdc/SFMS"
+        MQ_JAVA_DATA_PATH: "/var/mqm"
+        MQ_INSTALLATION_PATH: "/usr/mqm"
+        MQ_ENV_MODE: "32"
+        MQ_DATA_PATH: "/var/mqm"
+        MQ_JRE_PATH: "/usr/mqm/java/jre64/jre"
+        MQ_JAVA_INSTALL_PATH: "/usr/mqm/java"
+        MQ_JAVA_LIB_PATH: "/usr/mqm/java/lib"
+        MQ_INSTALLATION_NAME: "Installation1"
+      args:
+        chdir: /home/sfmspadl301
+      become_user: sfmspadl301
+      become: yes
+      become_method: sudo
       when: inventory_hostname == node1_host
       ignore_errors: yes
 
@@ -50,12 +69,32 @@
     # ----------------------------------------------------
     # NODE 2 OPERATIONS
     # ----------------------------------------------------
+
     - name: Node 2 - Execute Java Two-Phase Commit XA Test
-      shell: "echo SFMSRBIPADCLQM2 | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS"
+      shell: |
+        printf "SFMSRBIPADCLQM2\n" | java -Djava.library.path='/usr/mqm/java/lib64' RunXATest SFMS
       register: xa_node2
-      become_user: mqm
+      environment:
+        CLASSPATH: "/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/*:/orahome/app/oracle/product/19.0.0/client_1//jdbc/lib/ojdbc8.jar:/opt/java17/jdk-17.0.7+7/lib/*:/opt/java17/jdk-17.0.7+7/jre/lib:/sfmsapp2/sfmspdc/SFMS/apache-tomcat-10.1.34/webapps/sfms/WEB-INF/classes:/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/*:/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/mqlib/*:/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/log4jlib/*:/sfmsapp2/sfmspdc/SFMS/app_properties/securityconfig:/sfmsapp2/sfmspdc/SFMS/app_properties/logconfig:/sfmsapp2/sfmspdc/SFMS/app_properties/appProcessesConf:/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/javafxjars/*:/sfmsapp2/sfmspdc/SFMS/SFMSAppFiles/appjars/security/*:.:"
+        JAVA_HOME: "/opt/java17/jdk-17.0.7+7"
+        PATH: "/orahome/app/oracle/product/19.0.0/client_1//bin:/usr/mqm/java/lib64:/usr/mqm/java/lib/*:/opt/java17/jdk-17.0.7+7/lib:/opt/java17/jdk-17.0.7+7/bin:/opt/java17/jdk-17.0.7+7/jre/bin:/usr/mqm/bin:/usr/bin:/etc:/usr/sbin:/usr/ucb:/home/sfmspadl302/bin:/usr/bin/X11:/sbin:/sfmsapp2/sfmspdc/SFMS/apache-tomcat-10.1.34/bin:/sfmsapp2/sfmspdc/SFMS/app_properties/appProcessesConf/lib:"
+        SFMS_HOME: "/sfmsapp2/sfmspdc/SFMS"
+        MQ_JAVA_DATA_PATH: "/var/mqm"
+        MQ_INSTALLATION_PATH: "/usr/mqm"
+        MQ_ENV_MODE: "32"
+        MQ_DATA_PATH: "/var/mqm"
+        MQ_JRE_PATH: "/usr/mqm/java/jre64/jre"
+        MQ_JAVA_INSTALL_PATH: "/usr/mqm/java"
+        MQ_JAVA_LIB_PATH: "/usr/mqm/java/lib"
+        MQ_INSTALLATION_NAME: "Installation1"
+      args:
+        chdir: /home/sfmspadl302
+      become_user: sfmspadl302
+      become: yes
+      become_method: sudo
       when: inventory_hostname == node2_host
       ignore_errors: yes
+
 
     - name: Node 2 - Verify DR Queue Manager Depths are Zero
       shell: "echo 'dis ql({{ item }}) curdepth' | {{ mqm_binary }}/runmqsc {{ qmgr_n2 }}"
@@ -74,8 +113,8 @@
   gather_facts: no
   become: no  # Bypasses local file-permission ownership faults on AAP
   vars:
-    node1_ip: "172.24.21.132"
-    node2_ip: "172.24.21.134"
+    node1_ip: "172.23.21.132"
+    node2_ip: "172.23.21.134"
 
   tasks:
     - name: Evaluate Phase Execution State Matrix
@@ -130,15 +169,11 @@
           dr_detailed_log: "{{ dr_report }}"
         per_host: no
       when: xa_validation_failed
-      vars:
-        ansible_connection: local
 
     - name: Enforce Hard Failure Path for Automation Workflow
       fail:
         msg: "DR Two-Phase Commit validation failed core constraints. Halting workflow progression."
       when: xa_validation_failed
-      vars:
-        ansible_connection: local
 
     # ----------------------------------------------------
     # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
@@ -148,21 +183,19 @@
         data:
           dr_step_05b_status: "✅ PASSED (Two-Phase Commit verified successfully and DR queues are empty)"
         per_host: no
-      vars:
-        ansible_connection: local
 
-    - name: Dispatch Scattered Success Email for Step 05b
-      mail:
-        host: smtp.yourcompany.com
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
         port: 25
-        subject: "📢 DR UPDATE: Stage [05b_two_phase_commit] PASSED"
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject:  "📢 DR UPDATE: Stage [05b_two_phase_commit] PASSED"
         body: |
           Step 05b has completed successfully. Two-Phase Commit validation passed and DR site queues are empty.
-          
+
           Summary Details:
           {{ dr_report }}
-        to: ops-team@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
-      vars:
-        ansible_connection: local
+      delegate_to: localhost
+      run_once: true

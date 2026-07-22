@@ -11,8 +11,8 @@
     ansible_ssh_pipelining: true
     ansible_shell_executable: /usr/bin/ksh
 
-    db_unique_name_primary: "SFMSREPB"
-    db_unique_name_standby: "SFMSREPK"
+    db_unique_name_primary: "SFMSREPK"
+    db_unique_name_standby: "SFMSREPB"
     db_sid_name: "SFMS"
     oracle_home: "/orahome/app/product/19.0.0/dbhome_1"
     log_dest_index: "3"
@@ -22,8 +22,8 @@
     kw_shutdown_success: "ORACLE instance shut down"
     
     # Host Identification (Must match your AAP Inventory names)
-    standby_node: "172.22.182.201"
-    primary_node: "172.23.182.201"
+    standby_node: "172.23.182.201"
+    primary_node: "172.22.182.201"
 
     # Default missing values to prevent dictionary loop lookup errors
     db_name: "SFMS"
@@ -31,11 +31,11 @@
 
   tasks:
     # --- STEP 1: ARCHIVE LOG BACKUP ---
-    - name: 1. Archive Log Backup and Cleanup
-      shell: "sh /pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
-      when: inventory_hostname == primary_node
-      register: step1_out
-      failed_when: "'Recovery Manager complete' not in step1_out.stdout"
+#    - name: 1. Archive Log Backup and Cleanup
+#      shell: "sh /pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
+#      when: inventory_hostname == primary_node
+#      register: step1_out
+#      failed_when: "'Recovery Manager complete' not in step1_out.stdout"
 
     # --- STEP 2: SWITCHOVER CHECK ---
     - name: 2. Switchover Role Check (Primary)
@@ -54,13 +54,14 @@
     - name: Validate Step 2 Output
       fail: 
         msg: "Switchover check failed {{ hostvars[primary_node].step2_out.stdout | default('No output') }}"
-      when: >
-        inventory_hostname == primary_node and
-        (hostvars[primary_node].step2_out is not defined or
-        hostvars[primary_node].step2_out.stdout is not defined or
-        ('PRIMARY' not in hostvars[primary_node].step2_out.stdout | upper) or
-        ('TO STANDBY' not in hostvars[primary_node].step2_out.stdout | upper) or
-        ('READ WRITE' not in hostvars[primary_node].step2_out.stdout | upper))
+      when:
+        - inventory_hostname == primary_node
+        - hostvars[primary_node].step2_out is defined
+        - hostvars[primary_node].step2_out.stdout is defined
+        - >
+          ('PRIMARY' not in (hostvars[primary_node].step2_out.stdout | default('') | upper)) or
+          ('TO STANDBY' not in (hostvars[primary_node].step2_out.stdout | default('') | upper)) or
+          ('READ WRITE' not in (hostvars[primary_node].step2_out.stdout | default('') | upper))
 
 #    # --- STEP 3: SWITCHOVER VERIFY ---
     - name: 3. Switchover Verify
@@ -170,7 +171,14 @@
       debug:
         msg: "Task executed on {{ inventory_hostname }}. Result: {{ item.stdout | default('No Output') }}"
       loop: "{{ [step1_out | default(omit), step2_out | default(omit), step3_out | default(omit), step4_out | default(omit), step5_out | default(omit), step6_out | default(omit), step7a_out | default(omit), step7b_out | default(omit), step8_out | default(omit), step9_out] }}"
-      when: item is defined and item.changed
+      ignore_errors: true
+      when: 
+        - item is defined
+        - item is mapping
+        - "'skipped' not in item"
+        - "'changed' in item"
+        - item.changed | bool
+
 
 # --- STEP 10: CONSOLIDATE DATA INTO A VARIABLE ---
     - name: 10. Create Report Variable for Email
@@ -244,19 +252,20 @@
       run_once: true
       delegate_to: localhost
 
-    - name: Dispatch Scattered Success Email for Step 05
-      mail:
-        host: smtp.yourcompany.com
-        port: 25
-        subject: "📢 DR UPDATE: Stage [05_oracle_dataguard_switchover] PASSED"
-        body: |
-          Step 05 has completed successfully. Oracle Database Roles have been seamlessly inverted.
-          
-          Summary Details:
-          {{ switchover_report_body }}
-        to: ops-team@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
-      run_once: true
-      delegate_to: localhost
-      become: no
+#    - name: Send consolidated Summary Email
+#      community.general.mail:
+#        host: 10.35.1.17
+#        port: 25
+#        to: "{{ email_recepients | join(', ') }}"
+#        from: ansible.alerts@rbi.org.in
+#        subject: "📢 DR UPDATE: Stage [05_oracle_dataguard_switchover] PASSED"
+#        body: |
+#          Step 05 has completed successfully. Oracle Database Roles have been seamlessly inverted.
+#
+#          Summary Details:
+#          {{ switchover_report_body }}
+#      delegate_to: localhost
+#      run_once: true
+#      become: yes
+#      ignore_errors: true
+

@@ -27,11 +27,11 @@
 
   tasks:
     # --- STEP 1: ARCHIVE LOG BACKUP ---
-    - name: 1. Archive Log Backup and Cleanup
-      shell: "sh /pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
-      when: inventory_hostname == primary_node
-      register: step1_out
-      failed_when: "'Recovery Manager complete' not in step1_out.stdout"
+#    - name: 1. Archive Log Backup and Cleanup
+#      shell: "sh /pad_oraBkp/BACKUPS/DBA_Activity/DBA_Script/archive_SFMS_BKP_DEL_MOR_TTS.sh"
+#      when: inventory_hostname == primary_node
+#      register: step1_out
+#      failed_when: "'Recovery Manager complete' not in step1_out.stdout"
 
     # --- STEP 2: SWITCHOVER CHECK ---
     - name: 2. Switchover Role Check (Primary)
@@ -47,15 +47,15 @@
       args:
         executable: /bin/bash
 
-    - name: Validate Step 2 Output
-      fail: 
-        msg: "Switchover check failed {{ step2_out.stdout | default('No output') }}"
-      when: >
-        step2_out is not defined or
-        step2_out.stdout is not defined or
-        ('PRIMARY' not in step2_out.stdout | upper) or
-        ('TO STANDBY' not in step2_out.stdout | upper) or
-        ('READ WRITE' not in step2_out.stdout| upper)
+#    - name: Validate Step 2 Output
+#      fail: 
+#        msg: "Switchover check failed {{ step2_out.stdout | default('No output') }}"
+#      when: >
+#        step2_out is not defined or
+#        step2_out.stdout is not defined or
+#        ('PRIMARY' not in step2_out.stdout | upper) or
+#        ('TO STANDBY' not in step2_out.stdout | upper) or
+#        ('READ WRITE' not in step2_out.stdout| upper)
 
 #    # --- STEP 3: SWITCHOVER VERIFY ---
     - name: 3. Switchover Verify

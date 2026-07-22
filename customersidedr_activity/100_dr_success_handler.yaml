@@ -46,14 +46,15 @@
       debug:
         msg: "{{ success_report }}"
 
-    - name: Dispatch Comprehensive Success Email Notification
-      mail:
-        host: smtp.yourcompany.com
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
         port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
         subject: "🏁 CRITICAL SUCCESS: End-to-End DR Activity Fully Concluded"
         body: "{{ success_report }}"
-        to:
-          - ops-team@yourcompany.com
-          - management-alerts@yourcompany.com
-        from: aap-automation-noreply@yourcompany.com
-      ignore_errors: yes
+      delegate_to: localhost
+      run_once: true
+      become: no
