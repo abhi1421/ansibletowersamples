@@ -1,0 +1,6 @@
+---
+- name: SMAX Lifecycle Operations
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: smax_lifecycle

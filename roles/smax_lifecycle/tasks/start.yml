@@ -1,0 +1,92 @@
+---
+# ==========================================
+# PHASE 2: START SMAX SUITE & INFRASTRUCTURE
+# ==========================================
+- name: Start NFS server service
+  ansible.builtin.systemd:
+    name: nfs-server.service
+    state: started
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['NFS'] }}"
+
+- name: Start PostgreSQL 12 service
+  ansible.builtin.systemd:
+    name: postgresql-12.service
+    state: started
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['DB'] }}"
+
+- name: Start Kubernetes services on master nodes concurrently
+  ansible.builtin.command: ./kube-start.sh
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master'] }}"  # Fixed empty group bug
+  run_once: false
+
+- name: Verify Kubernetes services on Master nodes
+  ansible.builtin.command: ./kube-status.sh 
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master'] }}"
+  register: kube_status_master_start
+  changed_when: false
+  retries: 20
+  delay: 15
+  run_once: false
+  until: >
+    kube_status_master_start.stdout is search('.*Running')
+
+- name: Start Kubernetes services on worker nodes concurrently
+  ansible.builtin.command: ./kube-start.sh
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Worker'] }}"
+  run_once: false
+
+- name: Verify Kubernetes services on Worker nodes
+  ansible.builtin.command: ./kube-status.sh 
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Worker'] }}"
+  register: kube_status_worker_start
+  changed_when: false
+  retries: 20
+  delay: 15
+  run_once: false
+  until: >
+    kube_status_worker_start.stdout is search('.*Running')
+
+- name: Start suite services on primary master node
+  ansible.builtin.shell: |
+    ./cdfctl.sh runlevel set -l UP -n itsma-loucx
+    ./cdfctl.sh runlevel set -l UP -n core
+  args:
+    chdir: /opt_tig/scripts
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master-1'] }}"
+
+- name: Wait for all pods to start up completely
+  ansible.builtin.shell: >
+    kubectl get pod --all-namespaces | grep -v '1/1' | grep -v '2/2' | grep -v '3/3' | grep -v '4/4' | grep -v 'Completed' | wc -l
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master-1'] }}"
+  register: pod_start_check
+  until: pod_start_check.stdout | int == 0
+  retries: 45
+  delay: 20
+
+- name: Check deployment status
+  ansible.builtin.command: ./deployment-status.sh
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master-1'] }}"
+  register: deployment_status
+
+- name: Display final deployment status output
+  ansible.builtin.debug:
+    var: deployment_status.results | map(attribute='stdout_lines') | list  # Fixed empty debug task

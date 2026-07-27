@@ -1,0 +1,78 @@
+---
+# ==========================================
+# PHASE 1: STOP SMAX SUITE & INFRASTRUCTURE
+# ==========================================
+- name: Stop suite services on primary master node
+  ansible.builtin.shell: |
+    ./cdfctl.sh runlevel set -l DOWN -n itsma-loucx
+    ./cdfctl.sh runlevel set -l DOWN -n core 
+  args:
+    chdir: /opt_tig/scripts
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master-1'] }}"
+
+- name: Wait for suite pods to stop
+  ansible.builtin.shell: >
+    kubectl get pod --all-namespaces | grep -v '1/1' | grep -v '2/2' | grep -v '3/3' | grep -v '4/4' | grep -v 'Completed' | wc -l
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master-1'] }}"
+  register: pod_stop_check
+  until: pod_stop_check.stdout | int == 0
+  retries: 30
+  delay: 20
+
+- name: Stop Kubernetes services on worker nodes
+  ansible.builtin.command: ./kube-stop.sh -y
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Worker'] }}"
+  run_once: false
+
+- name: Verify Kubernetes services on worker nodes are stopped
+  ansible.builtin.command: ./kube-status.sh 
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Worker'] }}"
+  register: kube_status_worker
+  changed_when: false
+  retries: 20
+  delay: 15
+  run_once: false
+  until: >
+    kube_status_worker.stdout is search('.*Not Running')
+
+- name: Stop Kubernetes services on master nodes
+  ansible.builtin.command: ./kube-stop.sh -y
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master'] }}"
+  run_once: false
+
+- name: Verify Kubernetes services are stopped on master nodes
+  ansible.builtin.command: ./kube-status.sh
+  args:
+    chdir: /opt_tig/bin
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['Master'] }}"
+  register: kube_status_master_stop
+  changed_when: false
+  until: kube_status_master_stop.stdout is search('Error|Not Running')
+  retries: 12
+  delay: 10
+
+- name: Stop NFS server service
+  ansible.builtin.systemd:
+    name: nfs-server.service
+    state: stopped
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['NFS'] }}"
+
+- name: Stop PostgreSQL 12 service
+  ansible.builtin.systemd:
+    name: postgresql-12.service
+    state: stopped
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['DB'] }}"

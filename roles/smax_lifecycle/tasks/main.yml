@@ -1,0 +1,10 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for smax_lifecycle
+- name: Include SMAX Stop Tasks
+  ansible.builtin.include_tasks: stop.yml
+  when: smax_stop | bool
+
+- name: Include SMAX Start Tasks
+  ansible.builtin.include_tasks: start.yml
+  when: smax_start | bool

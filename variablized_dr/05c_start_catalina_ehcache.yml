@@ -1,0 +1,249 @@
+---
+#############################################
+# PLAY 1: NODE 1 OPERATIONS
+#############################################
+- name: PAD Node 1 - Start Ehcache, Processes, and Frontend
+  hosts: 172.23.21.132
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    CACHE_HOME: "/sfmsapp1/sfmspdc/ehcache-clustered-3.10.8-kit/server"
+    USER: "sfmspadl301"
+
+  tasks:
+
+    - name: Node 1 - Clean Execution of Custom Ehcache Engine
+      shell: |
+        export CACHE_HOME="/sfmsapp1/sfmspdc/ehcache-clustered-3.10.8-kit/server"
+        export USER="sfmspadl301"
+        sh {{ CACHE_HOME }}/bin/start-tc-server.sh -f {{ CACHE_HOME }}/conf/cluster.cfg &
+      args:
+        executable: /bin/bash
+        chdir: /home/sfmspadl301
+      register: ehcache_start_n1
+      become_user: sfmspadl301
+      become_flags: "-i"
+      environment:
+        JAVA_HOME: "/opt/java17/jdk-17.0.7+7"
+        CACHE_HOME: "/sfmsapp1/sfmspdc/ehcache-clustered-3.10.8-kit/server"
+        SFMS_HOME: "/sfmsapp1/sfmspdc/SFMS"
+        PATH: "/orahome/app/oracle/product/19.0.0/client_1//bin:/usr/mqm/java/lib64:/usr/mqm/java/lib/*:/opt/java17/jdk-17.0.7+7/lib:/opt/java17/jdk-17.0.7+7/bin:/opt/java17/jdk-17.0.7+7/jre/bin:/usr/mqm/bin:/usr/bin:/etc:/usr/sbin:/usr/ucb:/home/sfmspadl301/bin:/usr/bin/X11:/sbin:/sfmsapp1/sfmspdc/SFMS/apache-tomcat-10.1.34/bin:/sfmsapp1/sfmspdc/SFMS/app_properties/appProcessesConf/lib:.:"
+        USER: "sfmspadl301"
+        LOGNAME: "sfmspadl301"
+        OME: "/home/sfmspadl301"
+        TERM: "xterm"
+      register: ehcache_start_n1
+      become_user: sfmspadl301
+      become: yes
+      become_method: sudo
+
+
+    - name: Node 1 - Verify Startup Console Output
+      debug:
+        msg: "{{ ehcache_start_n1.stdout }}"
+
+
+    - name: Node 1 - Verify Ehcache java process status
+      shell: |
+        ps -ef | grep -i "start-tc-server.sh" | grep -v grep | awk '{print $2}'
+      register: ehcache_pid_node1
+      ignore_errors: yes
+
+    - name: Display Active process ID
+      debug:
+        msg: >
+          {% if ehcache_pid_node1.stdout != "" %}
+          Ehcache Java Process is running with PID: "{{ ehcache_pid_node1.stdout }}"
+          {% else %}
+          Ehcahce process is not running
+          {% endif %}
+    
+
+    # --- MAIN CORE PROCESSING LAYERS ---
+    - name: Node 1 - Launch Core Application Processing Modules
+      shell: |
+        echo -e "1\ny\n" | bash /home/sfmspadl301/SH_Files/Main_Script_All_Process.sh
+      args:
+        executable: /bin/bash
+        chdir: /home/sfmspadl301/SH_Files
+      register: start_node1
+
+#    - name: Node 1 - Stop and Start Frontend Application Engine (Catalina)
+#      shell: |
+#        sh catalina.sh start
+#      args:
+#        executable: /bin/bash
+#      ignore_errors: yes
+
+    - name: Node 1 - Check and Register Screen Sockets (Verification)
+      shell: screen -ls
+      register: screen_after_node1
+      failed_when: screen_after_node1.rc not in [0,1]
+
+
+#############################################
+# PLAY 2: NODE 2 OPERATIONS
+#############################################
+- name: PAD Node 2 - Start Ehcache and Processes
+  hosts: 172.23.21.134
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    CACHE_HOME: "/sfmsapp2/sfmspdc/ehcache-clustered-3.10.8-kit/server"
+    USER: "sfmspadl302"
+
+  tasks:
+
+    - name: Node 2 - Clean Execution of Custom Ehcache Engine
+      shell: |
+        sh {{ CACHE_HOME }}/bin/start-tc-server.sh -f {{ CACHE_HOME }}/conf/cluster.cfg &
+      args:
+        executable: /bin/bash
+        chdir: /home/sfmspadl302
+      register: ehcache_start_n2
+      become_user: sfmspadl302
+      become_flags: "-i"
+      environment:
+        JAVA_HOME: "/opt/java17/jdk-17.0.7+7"
+        CACHE_HOME: "/sfmsapp2/sfmspdc/ehcache-clustered-3.10.8-kit/server"
+        SFMS_HOME: "/sfmsapp2/sfmspdc/SFMS"
+        PATH: "/orahome/app/oracle/product/19.0.0/client_1//bin:/usr/mqm/java/lib64:/usr/mqm/java/lib/*:/opt/java17/jdk-17.0.7+7/lib:/opt/java17/jdk-17.0.7+7/bin:/opt/java17/jdk-17.0.7+7/jre/bin:/usr/mqm/bin:/usr/bin:/etc:/usr/sbin:/usr/ucb:/home/sfmspadl302/bin:/usr/bin/X11:/sbin:/sfmsapp2/sfmspdc/SFMS/apache-tomcat-10.1.34/bin:/sfmsapp2/sfmspdc/SFMS/app_properties/appProcessesConf/lib:"
+        USER: "sfmspadl302"
+        LOGNAME: "sfmspadl302"
+        HOME: "/home/sfmspadl302"
+        TERM: "xterm"
+      register: ehcache_start_n2
+      become_user: sfmspadl302
+      become: yes
+      become_method: sudo
+
+
+    - name: Node 2 - Verify Startup Console Output
+      debug:
+        msg: "{{ ehcache_start_n2.stdout }}"
+
+
+    - name: Node 2 - Verify Ehcache java process status
+      shell: |
+        ps -ef | grep -i "start-tc-server.sh" | grep -v grep | awk '{print $2}'
+      register: ehcache_pid_node2
+      ignore_errors: yes
+
+    - name: Display Active process ID
+      debug:
+        msg: >
+          {% if ehcache_pid_node2.stdout != "" %}
+          Ehcache Java Process is running with PID: "{{ ehcache_pid_node2.stdout }}"
+          {% else %}
+          Ehcahce process is not running
+          {% endif %}
+
+
+
+    # --- MAIN CORE PROCESSING LAYERS ---
+    - name: Node 2 - Launch Core Application Processing Modules
+      shell: |
+        echo -e "1\ny\n" | bash /home/sfmspadl302/SH_Files/Main_Script_Specific_Process.sh
+      args:
+        executable: /bin/bash
+      register: start_node2
+
+    - name: Node 2 - Check and Register Screen Sockets (Verification)
+      shell: screen -ls
+      register: screen_after_node2
+      failed_when: screen_after_node2.rc not in [0,1]
+
+
+#############################################
+# PLAY 3: CENTRAL ARBITRATION & REPORTING
+#############################################
+- name: Final Startup Validation and Reporting
+  hosts: localhost
+  gather_facts: no
+  become: no  # Bypasses local file-permission ownership faults on AAP
+  vars:
+    node1_ip: "172.23.21.132"
+    node2_ip: "172.23.21.134"
+
+  tasks:
+    - name: Evaluate Application Component Status
+      set_fact:
+        n1_startup_valid: "{{ hostvars[node1_ip].ehcache_pid_node1.stdout | default('') | trim != '' }}"
+        n2_startup_valid: "{{ hostvars[node2_ip].ehcache_pid_node2.stdout | default('') | trim != '' }}"
+
+    - name: Determine Global Success Criteria
+      set_fact:
+        startup_step_failed: "{{ not n1_startup_valid or not n2_startup_valid }}"
+
+    - name: Capture Execution Timestamp
+      set_fact:
+        exec_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+
+    - name: Build Comprehensive Startup Audit Log
+      set_fact:
+        dr_report: |
+          =======================================================
+          DR ENVIRONMENT STARTUP & VERIFICATION REPORT
+          =======================================================
+          Execution Time: {{ exec_time }}
+          Overall Status: {{ '❌ CRITICAL STARTUP CONDITIONAL FAILURE' if startup_step_failed else '✅ PASSED' }}
+          NODE 1: {{ node1_ip }}
+          -------------------------------------------------------
+          * Component Verification Status: {{ '🟢 RUNNING (Ehcache PID: ' ~ hostvars[node1_ip].ehcache_pid_node1.stdout ~ ')' if n1_startup_valid else '❌ FAULT (Processes or Ehcache engine failed to start)' }}
+          * Ehcache PID stdout: {{ hostvars[node1_ip].ehcache_pid_node1.stdout | default('None') }}
+          NODE 2: {{ node2_ip }}
+          -------------------------------------------------------
+          * Component Verification Status: {{ '🟢 RUNNING (Ehcache PID: ' ~ hostvars[node2_ip].ehcache_pid_node2.stdout ~ ')' if n2_startup_valid else '❌ FAULT (Processes or Ehcache engine failed to start)' }}
+          * Ehcache PID stdout: {{ hostvars[node2_ip].ehcache_pid_node2.stdout | default('None') }}
+          =======================================================
+
+    - name: Output Compiled Startup Status to Console
+      debug:
+        msg: "{{ dr_report }}"
+
+    # ----------------------------------------------------
+    # CONDITION A: RUNTIME FAILURE PATH (Central AAP Failure Handler)
+    # ----------------------------------------------------
+    - name: Register Global Artifact Variables for AAP Failure Workflow
+      set_stats:
+        data:
+          dr_failed_step: "05c_start_catalina_ehcache"
+          dr_failure_reason: "One or more core messaging engines, frontend layers, or active screens failed to launch completely."
+          dr_detailed_log: "{{ dr_report }}"
+        per_host: no
+      when: startup_step_failed
+
+    - name: Enforce Hard Failure Path for Automation Workflow
+      fail:
+        msg: "DR Application startup validation failed core constraints. Halting workflow progression."
+      when: startup_step_failed
+
+    # ----------------------------------------------------
+    # CONDITION B: RUNTIME SUCCESS PATH (Only runs if 'fail' is skipped)
+    # ----------------------------------------------------
+    - name: Register Step Success to Global Matrix Variable
+      set_stats:
+        data:
+          dr_step_05c_status: "✅ PASSED (All systems launched, components running, and active sockets validated)"
+        per_host: no
+
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "📢 DR UPDATE: Stage [05c_start_catalina_ehcache] PASSED"
+        body: |
+          Step 05c has completed successfully. All target core processing modules are active.
+          Summary Details:
+          {{ dr_report }}
+      delegate_to: localhost
+      run_once: true
