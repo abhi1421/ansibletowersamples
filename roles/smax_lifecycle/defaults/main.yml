@@ -1,6 +1,13 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# defaults file for smax_lifecycle
-# Control execution toggles
+# Control Execution Toggles
 smax_stop: false
 smax_start: false
+
+# Configurable Paths and Namespaces
+smax_namespace: "itsma-loucx"
+smax_cdf_namespace: "core"
+smax_scripts_dir: "/opt_tig/scripts"
+smax_bin_dir: "/opt_tig/bin"
+
+# Summary Variable Initializer
+smax_execution_summary: ""

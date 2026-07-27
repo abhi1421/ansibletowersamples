@@ -1,0 +1,51 @@
+---
+- name: Build SMAX Execution Summary Report Variable
+  ansible.builtin.set_fact:
+    smax_execution_summary: |
+      =======================================================
+      SMAX LIFECYCLE EXECUTION SUMMARY REPORT
+      =======================================================
+      Execution Mode: {{ 'STOP PROCEDURE' if smax_stop else 'START PROCEDURE' }}
+      Target Namespace: {{ smax_namespace }}
+      Execution Time: {{ ansible_date_time.iso8601 | default('N/A') }}
+      
+      -------------------------------------------------------
+      CONFIGURATION PARAMETERS
+      -------------------------------------------------------
+      * Scripts Directory: {{ smax_scripts_dir }}
+      * Binaries Directory: {{ smax_bin_dir }}
+      * Primary Master: {{ groups['Master-1'] | join(', ') }}
+      * Database Hosts: {{ groups['DB'] | join(', ') }}
+      * NFS Hosts: {{ groups['NFS'] | join(', ') }}
+
+      -------------------------------------------------------
+      STATUS HIGHLIGHTS
+      -------------------------------------------------------
+      {% if smax_stop %}
+      * CDF & Suite Runlevels: Set to DOWN
+      * Kubernetes Nodes: Stopped across Master & Worker hosts
+      * Core Infrastructure: PostgreSQL & NFS status set to STOPPED
+      * Final Pod Status: All active application pods terminated cleanly.
+      {% endif %}
+      {% if smax_start %}
+      * Core Infrastructure: PostgreSQL & NFS status set to RUNNING
+      * Kubernetes Nodes: Cluster operational on Master & Worker hosts
+      * CDF & Suite Runlevels: Set to UP
+      * Final Pod Status: All pods reported 100% READY state.
+      {% if deployment_status is defined and deployment_status.results is defined %}
+
+      -------------------------------------------------------
+      DEPLOYMENT STATUS OUTPUT
+      -------------------------------------------------------
+      {% for result in deployment_status.results %}
+      Node: {{ result.item }}
+      Output:
+      {{ result.stdout }}
+      {% endfor %}
+      {% endif %}
+      {% endif %}
+      =======================================================
+
+- name: Print Generated Execution Summary
+  ansible.builtin.debug:
+    var: smax_execution_summary

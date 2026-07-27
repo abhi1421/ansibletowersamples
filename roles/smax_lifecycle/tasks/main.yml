@@ -8,3 +8,7 @@
 - name: Include SMAX Start Tasks
   ansible.builtin.include_tasks: start.yml
   when: smax_start | bool
+
+- name: Include Report Generation Task
+  ansible.builtin.include_tasks: generate_report.yml
+  when: smax_stop | bool or smax_start | bool
