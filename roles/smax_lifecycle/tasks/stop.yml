@@ -11,9 +11,11 @@
   delegate_to: "{{ item }}"
   loop: "{{ groups['Master-1'] }}"
 
+
+## Count should be 0 - expected value
 - name: Wait for suite pods to stop
   ansible.builtin.shell: >
-    kubectl get pod --all-namespaces | grep -v '1/1' | grep -v '2/2' | grep -v '3/3' | grep -v '4/4' | grep -v 'Completed' | wc -l
+    kubectl get pod --all-namespaces | grep -v '1/1' | grep -v '2/2' | grep -v '3/3' | grep -v '4/4' | grep 'Completed' | wc -l
   delegate_to: "{{ item }}"
   loop: "{{ groups['Master-1'] }}"
   register: pod_stop_check
@@ -39,7 +41,6 @@
   changed_when: false
   retries: 20
   delay: 15
-  run_once: false
   until: >
     kube_status_worker.stdout is search('.*Not Running')
 
