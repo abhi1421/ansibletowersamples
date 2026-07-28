@@ -1,0 +1,63 @@
+---
+- name: Step 3 - Start RBISBR.TO.HUB Channel
+  hosts: all
+  gather_facts: no
+  become_method: sudo
+  become_user: mqm
+
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    qmgr: SFMSRBIPADGWQM
+    channel: RBISBR.TO.HUB
+    conn_name: "172.23.xxxx.xx(xxx)"
+    mqm_binary: /usr/mqm/bin
+
+  tasks:
+
+    - name: Check channel status
+      shell: "echo 'dis chs({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      register: ch_status
+      changed_when: false
+
+#    - name: Alter channel connection
+#      shell: >
+#        "echo 'alter channel({{ channel }}) chltype(sdr) conname('{{ conn_name }}')' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+#      register: alter_output
+#      changed_when: "'AMQ' in alter_output.stdout"
+
+#    - name: Start channel if not running
+#      shell: "echo 'start channel({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+#      when: "'RUNNING' not in ch_status.stdout"
+#      register: start_output
+#      changed_when: "'RUNNING' in start_output.stdout or 'STARTING' in start_output.stdout"
+
+    - name: Wait until channel is RUNNING
+      shell: "echo 'dis chs({{ channel }})' | {{ mqm_binary }}/runmqsc {{ qmgr }}"
+      register: ch_verify
+      retries: 6
+      delay: 10
+      until: "'RUNNING' in ch_verify.stdout"
+      changed_when: false
+
+# --- REPORTING SECTION ---
+
+    - name: Generate Individual Server Report for Step 3
+      set_fact:
+        step3_report: |
+          SERVER: {{ inventory_hostname }}
+          ---------------------------------------
+          * Channel Name: {{ channel }}
+          * Connection Name Altered: {{ 'Yes' if alter_output.changed else 'No/Verified' }}
+          * Final Channel Status: {{ 'RUNNING' if 'RUNNING' in ch_verify.stdout else 'FAILED TO START' }}
+
+    - name: Consolidate Step 3 Reports
+      set_fact:
+        email_body_step3: "{{ ansible_play_hosts | map('extract', hostvars, 'step3_report') | join('\n\n') }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Debug Step 3 Report
+      debug:
+        var: email_body_step3
+      run_once: true

@@ -1,0 +1,89 @@
+---
+- name: Centralized Disaster Recovery Success Orchestrator
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+################################################### NEW ADDITION
+    - name: Capture Execution End Timestamp
+      set_fact:
+        dr_end_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+        dr_start_time_resolved: "{{ dr_start_time_stat | default('N/A') }}"
+        epoch_start: "{{ lookup('pipe', 'date +%s -d \"' + (dr_start_time_stat | default('now')) + '\"') }}"
+        epoch_end: "{{ lookup('pipe', 'date +%s') }}"
+
+    - name: Calculate Total Duration
+      set_fact:
+        total_duration_seconds: "{{ (epoch_end | int) - (epoch_start | int) }}"
+
+    - name: Format Total Duration String
+      set_fact:
+        formatted_duration: >-
+          {% if dr_start_time_stat is defined %}
+          {{ (total_duration_seconds | int) // 3600 }}h {{ ((total_duration_seconds | int) % 3600) // 60 }}m {{ (total_duration_seconds | int) % 60 }}s
+          {% else %}
+          N/A (Start time not registered)
+          {% endif %}
+################################################### NEW ADDITION ENDS
+    - name: Compile Unified DR Execution Dashboard
+      set_fact:
+        success_report: |
+          =======================================================
+          🏆 DISASTER RECOVERY ACTIVITY: COMPLETION REPORT
+          =======================================================
+          Start Time             : {{ dr_start_time_resolved }}
+          End Time               : {{ dr_end_time }}
+          Total Execution Time   : {{ formatted_duration | trim }}
+          Overall Status : 🟢 SUCCESSFUL SWITCHOVER CONCLUDED
+
+          PIPELINE EXECUTION MATRIX:
+          -------------------------------------------------------
+          [STAGE 00] Pre-checks & Queue Validation:
+            Status: {{ dr_step_00_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 02] Application Shutdown & XA Verification:
+            Status: {{ dr_step_02_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 03] Curedepth check and Process Kill:
+            Status: {{ dr_step_03_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 04] Hub gateway integration channel stopped successfully:
+            Status: {{ dr_step_04_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 05a] Oracle Data Guard DB Switchover:
+            Status: {{ dr_step_5a_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 05b] Two-Phase Commit verified successfully and DR queues are empty:
+            Status: {{ dr_step_05b_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 05c] All systems launched, components running, and active sockets validated:
+            Status: {{ dr_step_05c_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 06] Hub gateway channel successfully altered and running:
+            Status: {{ dr_step_06_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+
+          [STAGE 07] Core SFMS QPX and CBS channels altered and verified running:
+            Status: {{ dr_step_07_status | default('⏭️ SKIPPED / NOT EXECUTED') }}
+          -------------------------------------------------------
+
+          All verification layers passed audit constraints. Primary traffic
+          channels are now operational at the DR site.
+          =======================================================
+
+
+    - name: Print Final Success Dashboard
+      debug:
+        msg: "{{ success_report }}"
+
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "🏁 CRITICAL SUCCESS: End-to-End DR Activity Fully Concluded"
+        body: "{{ success_report }}"
+      delegate_to: localhost
+      run_once: true
+      become: no

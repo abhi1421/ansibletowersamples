@@ -1,0 +1,120 @@
+---
+- name: DR-SFMS-PAD-QueueDepth-Check-And-HUB-Channel-Stop
+  hosts: sfms_pad_servers
+  gather_facts: no
+
+  vars:
+    qmgrs:
+      - SFMSRBIPADGWQM
+      - SFMSRBIPADCLQM1
+      - SFMSRBIPADCLQM2
+    hub_channel: "RBISBR.TO.HUB"
+
+  tasks:
+
+    # 🔹 Initialize report
+    - name: Initialize execution report
+      set_fact:
+        execution_report: []
+
+    - name: Start DR activity message
+      debug:
+        msg: "Starting DR Activity: Queue Depth Check and HUB Channel Stop"
+
+    # 🔹 Step 1: Check MQ Managers
+    - name: Check Queue Managers status
+      shell: dspmq
+      register: dspmq_output
+
+    - name: Log Queue Manager status
+      set_fact:
+        execution_report: "{{ execution_report + ['Queue Manager Status: ' ~ dspmq_output.stdout] }}"
+
+    # 🔹 Step 2: Check Queue Depths
+    - name: Check queue depth for all QMs
+      shell: |
+        echo "dis ql(*) where (curdepth gt 0)" | runmqsc {{ item }}
+      loop: "{{ qmgrs }}"
+      register: qdepth_results
+      ignore_errors: yes
+
+    - name: Log queue depth outputs
+      set_fact:
+        execution_report: "{{ execution_report + [ 'Queue Depth for ' ~ item.item ~ ': ' ~ (item.stdout | default('No messages or no output')) ] }}"
+      loop: "{{ qdepth_results.results }}"
+
+    # 🔹 Step 3: Validate if queues are empty
+    - name: Check if any queue has pending messages
+      set_fact:
+        pending_queues: "{{ qdepth_results.results | selectattr('stdout', 'search', 'CURDEPTH') | list }}"
+
+    - name: Log pending queues status
+      set_fact:
+        execution_report: "{{ execution_report + [ 'Pending queue check: ' ~ (pending_queues | length > 0 | ternary('Messages pending in queues', 'No pending messages')) ] }}"
+
+    # 🔹 Step 4: Stop PAD Processes (Manual Input Expected)
+    - name: Check PAD processes
+      shell: ps -ef | grep -i pad | grep -v grep
+      register: pad_processes
+      ignore_errors: yes
+
+    - name: Log PAD processes
+      set_fact:
+        execution_report: "{{ execution_report + ['PAD Processes: ' ~ (pad_processes.stdout | default('No processes found'))] }}"
+
+    # NOTE: Not auto killing processes for safety in PROD
+    - name: Warn if processes exist
+      debug:
+        msg: "WARNING: PAD processes detected. Manual validation required before kill."
+      when: pad_processes.stdout != ""
+
+    # 🔹 Step 5: Check HUB Channel Status
+    - name: Check HUB channel status
+      shell: |
+        echo "dis chs({{ hub_channel }})" | runmqsc SFMSRBIPADGWQM
+      register: hub_status
+
+    - name: Log HUB channel status
+      set_fact:
+        execution_report: "{{ execution_report + ['HUB Channel Status: ' ~ (hub_status.stdout | default('No output'))] }}"
+
+    # 🔹 Step 6: Stop HUB Channel
+    - name: Stop HUB channel
+      shell: |
+        echo "stop CHANNEL({{ hub_channel }})" | runmqsc SFMSRBIPADGWQM
+      register: hub_stop_status
+
+    - name: Log HUB stop output
+      set_fact:
+        execution_report: "{{ execution_report + ['HUB Channel stop output: ' ~ (hub_stop_status.stdout | default('No output'))] }}"
+
+    # 🔹 Step 7: Verify HUB Channel Stopped
+    - name: Verify HUB channel status post stop
+      shell: |
+        echo "dis chs({{ hub_channel }})" | runmqsc SFMSRBIPADGWQM
+      register: hub_verify
+
+    - name: Log HUB verification
+      set_fact:
+        execution_report: "{{ execution_report + ['Post-stop HUB channel status: ' ~ (hub_verify.stdout | default('No output'))] }}"
+
+    # 🔹 Final Report
+    - name: Generate consolidated report
+      set_fact:
+        final_report: |
+          DR Activity: Queue Depth Check & HUB Channel Stop
+          --------------------------------------------------
+          {% for line in execution_report %}
+          - {{ line }}
+          {% endfor %}
+          --------------------------------------------------
+          Summary:
+          - Queue Managers Checked: {{ qmgrs | join(', ') }}
+          - HUB Channel: {{ hub_channel }}
+          - Pending Queues: {{ pending_queues | length }}
+          --------------------------------------------------
+          Status: COMPLETED
+
+    - name: Print final report
+      debug:
+        var: final_report
