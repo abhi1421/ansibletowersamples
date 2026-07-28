@@ -204,7 +204,7 @@
 #        ALTER SYSTEM SET LOG_ARCHIVE_DEST_STATE_{{ log_dest_index }}=DEFER;
 #        EOF
 #      when: 
-#        - inventory_hostname == primary_node
+#        - inventory_hostname == standby_node
 #        - not (db_already_switched | default(false))
 #      register: step9_out
 
