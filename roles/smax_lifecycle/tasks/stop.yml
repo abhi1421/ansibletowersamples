@@ -38,7 +38,7 @@
   delay: 15
   run_once: false
   until: >
-    kube_status_worker.stdout is search('.*Not Running')
+    kube_status_worker.stdout is search('Ready,SchedulingDisabled')
 
 - name: Stop Kubernetes services on master nodes
   ansible.builtin.command: ./kube-stop.sh -y
@@ -56,7 +56,7 @@
   loop: "{{ groups['Master'] }}"
   register: kube_status_master_stop
   changed_when: false
-  until: kube_status_master_stop.stdout is search('Error|Not Running')
+  until: kube_status_master_stop.stdout is search('Error')
   retries: 12
   delay: 10
 
