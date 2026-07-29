@@ -29,6 +29,10 @@
     - name: Capture DR Activity Start Timestamp
       set_fact:
         dr_start_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+      delegate_to: localhost
+      delegate_facts: true
+      run_once: true
+      become: no
 
     - name: Export Start Time to Workflow Context
       set_stats:
@@ -139,6 +143,7 @@
           =======================================================
           🚀 DISASTER RECOVERY ACTIVITY: INITIATION & PRE-CHECK REPORT
           =======================================================
+          Start Time             : {{ dr_start_time_stat | default(dr_start_time | default('N/A')) }}
           Start Time             : {{ hostvars['localhost'].dr_start_time | default('N/A') }}
           Target Environment     : {{ SWITCHOVER_TO | upper }}
           GLOBAL OVERALL STATUS   : {{ '❌ FAILED (Queues not clean)' if precheck_failed else '🟢 PRE-CHECKS PASSED - PIPELINE INITIATED' }}
