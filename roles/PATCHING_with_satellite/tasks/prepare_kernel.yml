@@ -11,7 +11,7 @@
 
 - name: Construct kernel package name
   ansible.builtin.set_fact:
-    kernel_package: "kernel-{{ kernel_version }}.x86_64"
+    kernel_package: "kernel-{{ kernel_version }}.{{ ansible_architecture }}"
 
 - name: Validate requested kernel exists
   ansible.builtin.assert:
@@ -34,4 +34,4 @@
 
 - name: Set kernel version for dracut
   ansible.builtin.set_fact:
-    kernel_for_dracut: "{{ kernel_version }}"
+    kernel_for_dracut: "{{ kernel_version }}.{{ ansible_architecture }}"
