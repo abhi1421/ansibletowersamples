@@ -231,45 +231,7 @@
     standby_node: "{{ groups[SWITCHOVER_TO + '_db_hosts'][0] }}"
 
   tasks:
-# --- STEP 10: CONSOLIDATE DATA INTO A VARIABLE ---
-#    - name: 10. Create Report Variable for Email
-#      run_once: true
-#      set_fact:
-#        switchover_report_body: |
-#          BANK DR SWITCHOVER EXECUTION REPORT
-#          ==========================================
-#          Primary Host:   {{ primary_node }}
-#          Standby Host:   {{ standby_node }}
-#          Database Name:  {{ db_name | default('SFMS') }}
-#          ------------------------------------------
-#          PHASE 1: PRE-CHECKS & BACKUP
-#          - Step 1 (Archive Backup):    {{ 'SUCCESS' if (hostvars[primary_node].step1_out.rc | default(1) == 0) else 'FAILED/SKIPPED' }}
-#          - Step 2 (Role Validation):   {{ 'SUCCESS' if (hostvars[primary_node].step2_out.rc | default(1) == 0) else 'FAILED/SKIPPED' }}
-#          
-#          PHASE 2: SWITCHOVER EXECUTION
-#          - Step 3 (Verify Command):    {{ 'SUCCESS' if (hostvars[primary_node].step3_out.rc | default(1) == 0) else 'FAILED/SKIPPED' }}
-#          - Step 4 (Switchover Cmd):    {{ 'SUCCESS' if (hostvars[primary_node].step4_out.rc | default(1) == 0) else 'FAILED/SKIPPED' }}
-#          
-#          PHASE 3: POST-SWITCHOVER STARTUP
-#          - Step 5 (New Primary Start): {{ 'SUCCESS' if (hostvars[standby_node].step5_out.rc | default(1) == 0) else 'FAILED/SKIPPED' }}
-#          - Step 6 (New Primary Role):  {{ 'SUCCESS' if (hostvars[standby_node].step6_out.stdout | default('') is search('PRIMARY')) else 'FAILED/SKIPPED' }}
-#          - Step 8 (New Standby Role):  {{ 'SUCCESS' if (hostvars[primary_node].step8_out.stdout | default('') is search('PHYSICAL STANDBY')) else 'FAILED/SKIPPED' }}
-#          
-#          PHASE 4: FINAL CONFIG
-#          - Step 9 (Log Deferral):      {{ 'SUCCESS' if (hostvars[standby_node].step9_out.rc | default(0) == 0) else 'FAILED/SKIPPED' }}
-#          ------------------------------------------
-#          FINAL STATUS: {{ 'COMPLETED SUCCESSFULLY' if (hostvars[primary_node].step8_out.rc | default(1) == 0 and hostvars[standby_node].step6_out.rc | default(1) == 0) else 'CRITICAL FAILURE' }}
-#          
-#          DETAILED DIAGNOSTICS:
-#          Primary Error: {{ hostvars[primary_node].step4_out.stdout | default('No direct switchover error registered.') }}
-#          Standby Error: {{ hostvars[standby_node].step5_out.stdout | default('No direct standby startup error registered.') }}
-#      delegate_to: localhost
-#
-#    - name: Determine Pipeline Switchover Health Matrix
-#      set_fact:
-#        switchover_failed: "{{ hostvars[primary_node].step8_out.rc | default(1) != 0 or hostvars[standby_node].step6_out.rc | default(1) != 0 }}"
-#      run_once: true
-#      delegate_to: localhost
+
 
     - name: 10. Create Report Variable for Email
       run_once: true
