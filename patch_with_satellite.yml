@@ -13,7 +13,7 @@
           hostname: "{{ ansible_hostname }}"
           ip_address: "{{ ansible_default_ipv4.address }}"
           os_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
-          kernel: "{{ kernel_for_dracut }}"
+          kernel: "{{ kernel_for_dracut | default(ansible_kernel) }}"
           security_enabled: "{{ apply_security_patches | default(false) }}"
           bugfix_enabled: "{{ apply_bugfix_patches | default(false) }}"
           kernel_enabled: "{{ apply_kernel_patches | default(false) }}"
@@ -168,7 +168,7 @@
               <th>Status</th>
           </tr>
     
-          {% for host in groups['all'] | reject('equalto', 'localhost') | sort %}
+          {% for host in ansible_play_hosts | reject('equalto', 'localhost') | sort %}
           {% set summary = hostvars[host].patch_summary_entry | default({}) %}
     
           <tr>
