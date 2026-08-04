@@ -42,3 +42,8 @@
         mem: "{{ memory_usage_threshold }}"
         disk: "{{ disk_usage_threshold }}"
         io: "{{ iowait_threshold }}"
+      alerts:
+        cpu: "{{ cpu_load.stdout | float > cpu_load_threshold | float }}"
+        mem: "{{ mem_usage.stdout | int > memory_usage_threshold | int }}"
+        disk: "{{ disk_usage.stdout | int > disk_usage_threshold | int }}"
+        io: "{{ (iowait.stdout | default('0') | float) > (iowait_threshold | float) }}"
