@@ -1,0 +1,112 @@
+---
+- name: "TC02: DB Node-1 Abrupt Halt Failover NFR Test (Apps on APP Node-2)"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    testcase_id: "TC02"
+    testcase_name: "TC02: DB Node-1 Abruptly goes down (HALT), while Apps are running from APP Node-2"
+    testcase_status: "FAILED"
+    execution_logs: []
+
+  tasks:
+    - name: Execute TC02 NFR Test Scenario
+      block:
+        - name: Record Test Start Timestamp
+          ansible.builtin.set_fact:
+            start_ts: "{{ now().timestamp() }}"
+            test_start_time: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+        - name: Safety Gate Check via AAP Survey Flag
+          ansible.builtin.meta: end_play
+          when: survey_execute_test | default(false) | bool == false
+
+        # --- STEP 1: Pre-check Application State on APP Node-2 ---
+        - name: Verify APP Node-2 is actively running Application Services
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.secondary_node }}"
+            target_service_ip: "{{ app_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.primary_mounts + app_cluster.secondary_mounts }}"
+            target_qmanagers: "{{ app_cluster.qmanagers.primary + app_cluster.qmanagers.secondary }}"
+
+        - name: Record App Node-2 Pre-check Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '1. Pre-check Applications on APP Node-2', 'status': 'SUCCESS', 'output': 'Service IP, Mounts & Queue Managers active on ' + app_cluster.secondary_node}] }}"
+
+        # --- STEP 2: Set Bosboot & Bootlist on Primary DB Node ---
+        - name: Create boot image and set bootlist on rootvg disk (P9PDCPADDB1)
+          ansible.builtin.shell: |
+            lspv | grep -i rootvg
+            bosboot -ad /dev/hdisk0
+            bootlist -om normal hdisk0
+          delegate_to: "{{ db_cluster.primary_node }}"
+          register: bootlist_out
+
+        - name: Record Bootlist Task Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '2. Set Bosboot and Bootlist on DB1', 'status': 'SUCCESS', 'output': bootlist_out.stdout}] }}"
+
+        # --- STEP 3: Inject Abrupt Halt on Primary DB Node ---
+        - name: Execute abrupt halt command on P9PDCPADDB1
+          ansible.builtin.shell: sleep 2 && halt
+          delegate_to: "{{ db_cluster.primary_node }}"
+          async: 1
+          poll: 0
+          ignore_errors: true
+
+        - name: Record Halt Injection Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '3. Execute Halt Command on DB1', 'status': 'SUCCESS', 'output': 'Halt signal sent to ' + db_cluster.primary_node}] }}"
+
+        # --- STEP 4: Validate Automatic Failover on Secondary DB Node ---
+        - name: Verify DB Service IP and Mountpoints on P9PDCPADDB2
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ db_cluster.secondary_node }}"
+            target_service_ip: "{{ db_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ db_cluster.primary_mounts }}"
+
+        - name: Record DB Failover Validation Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '4. DB Service IP & Storage Failover Verification', 'status': 'SUCCESS', 'output': 'DB Service IP ' + db_cluster.primary_service_ip + ' and mounts ' + (db_cluster.primary_mounts | join(', ')) + ' active on ' + db_cluster.secondary_node}] }}"
+
+        # --- STEP 5: Re-verify APP Node-2 Stability Post DB Failover ---
+        - name: Re-verify Applications on APP Node-2 remain unaffected
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.secondary_node }}"
+            target_service_ip: "{{ app_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.primary_mounts }}"
+
+        - name: Record App Node-2 Post-check Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '5. Post-check Applications Stability', 'status': 'SUCCESS', 'output': 'Application services on ' + app_cluster.secondary_node + ' remained stable throughout DB failover'}] }}"
+
+        # --- STEP 6: Mark Test Case as Passed ---
+        - name: Set Scenario Status to PASSED
+          ansible.builtin.set_fact:
+            testcase_status: "PASSED"
+
+      rescue:
+        - name: Record Failure Details
+          ansible.builtin.set_fact:
+            testcase_status: "FAILED"
+            execution_logs: "{{ execution_logs + [{'name': 'Failover Execution Error', 'status': 'FAILED', 'output': ansible_failed_result.msg | default('Failover verification or step execution failed.')}] }}"
+
+      always:
+        - name: Calculate Test Duration
+          ansible.builtin.set_fact:
+            execution_duration: "{{ ((now().timestamp() | int) - (start_ts | default(now().timestamp()) | int)) | abs }}"
+
+        - name: Dispatch Instant Email Report for TC02
+          ansible.builtin.include_role:
+            name: send_email
+
+        - name: Export Results to AAP Workflow Artifacts (set_stats)
+          ansible.builtin.set_stats:
+            data:
+              workflow_nfr_results: "{{ {testcase_id: {'name': testcase_name, 'status': testcase_status, 'duration': execution_duration}} }}"
+            aggregate: true

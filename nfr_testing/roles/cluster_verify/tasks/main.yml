@@ -1,0 +1,74 @@
+#SPDX-License-Identifier: MIT-0
+# tasks file for cluster_verify
+---
+# --- 1. Verify PowerHA Daemon & Cluster State ---
+- name: Verify PowerHA Cluster Manager State (Must be ST_STABLE)
+  ansible.builtin.shell: /usr/bin/lssrc -ls clstrmgrES | grep -i state
+  delegate_to: "{{ target_node }}"
+  register: clstrmgr_out
+  changed_when: false
+  failed_when: "'ST_STABLE' not in clstrmgr_out.stdout"
+
+- name: Verify Core PowerHA Subsystem Daemons Status
+  ansible.builtin.command: "/usr/bin/lssrc -s {{ item }}"
+  loop:
+    - clcomd
+    - cthags
+    - inetd
+  delegate_to: "{{ target_node }}"
+  register: daemons_out
+  changed_when: false
+  failed_when: "'active' not in daemons_out.stdout"
+
+- name: Verify CAA and Cluster Daemon Groups
+  ansible.builtin.command: "/usr/bin/lssrc -g {{ item }}"
+  loop:
+    - caa
+    - cluster
+  delegate_to: "{{ target_node }}"
+  register: daemon_groups_out
+  changed_when: false
+  failed_when: "'active' not in daemon_groups_out.stdout"
+
+- name: Verify IOCP Device Status
+  ansible.builtin.command: lsdev -Cc iocp
+  delegate_to: "{{ target_node }}"
+  register: iocp_out
+  changed_when: false
+  failed_when: "'Available' not in iocp_out.stdout"
+
+# --- 2. Verify Service / Cluster IP ---
+- name: Verify Service IP ({{ target_service_ip }}) is Active
+  ansible.builtin.shell: ifconfig -a
+  delegate_to: "{{ target_node }}"
+  register: ifconfig_out
+  changed_when: false
+  failed_when: target_service_ip not in ifconfig_out.stdout
+
+# --- 3. Verify Storage Filesystem Mountpoints ---
+- name: Verify Filesystems are Mounted on Target Node
+  ansible.builtin.command: df -gt
+  delegate_to: "{{ target_node }}"
+  register: df_out
+  changed_when: false
+  failed_when: item not in df_out.stdout
+  loop: "{{ target_mountpoints }}"
+
+# --- 4. Verify MQ Queue Managers (Conditional) ---
+- name: Verify IBM MQ Queue Managers Status (When applicable)
+  when: target_qmanagers is defined and target_qmanagers | length > 0
+  block:
+    - name: Check MQ Queue Manager Running Status
+      ansible.builtin.shell: su - mqm -c "dspmq"
+      delegate_to: "{{ target_node }}"
+      register: dspmq_out
+      changed_when: false
+      failed_when: "'STATUS(Running)' not in dspmq_out.stdout"
+
+    - name: Check Cluster Queues Visibility
+      ansible.builtin.shell: |
+        su - mqm -c "runmqsc {{ target_qmanagers[0] }} <<< 'dis qc(*)'"
+      delegate_to: "{{ target_node }}"
+      register: dis_qc_out
+      changed_when: false
+      failed_when: "'TYPE(QCLUSTER)' not in dis_qc_out.stdout"

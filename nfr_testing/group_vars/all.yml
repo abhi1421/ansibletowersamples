@@ -1,0 +1,45 @@
+# Application Cluster Config
+app_cluster:
+  primary_node: "P9PDCPADAPP1"
+  secondary_node: "P9PDCPADAPP2"
+  primary_boot_ip: "172.22.21.132"
+  secondary_boot_ip: "172.22.21.134"
+  primary_service_ip: "172.22.21.133"
+  secondary_service_ip: "172.22.21.135"
+  primary_mounts:
+    - "/neftpadqm1"
+    - "/sfmsapp1"
+    - "/sfmspadgwqm"
+    - "/sfmspadqm1"
+  secondary_mounts:
+    - "/neftpadqm2"
+    - "/sfmsapp2"
+    - "/sfmspadqm2"
+  qmanagers:
+    primary:
+      - "SFMSRBIPADGWQM"
+      - "SFMSRBIPADCLQM1"
+    secondary:
+      - "SFMSRBIPADCLQM2"
+
+# Database Cluster Config
+db_cluster:
+  primary_node: "P9PDCPADDB1"
+  secondary_node: "P9PDCPADDB2"
+  primary_boot_ip: "172.22.21.164"
+  secondary_boot_ip: "172.22.21.166"
+  primary_service_ip: "172.22.21.165"
+  secondary_service_ip: "172.22.21.167"
+  primary_mounts:
+    - "/pad_Oraarch"
+    - "/pad_Oradata1"
+    - "/pad_Oradata2"
+    - "/pad_Oradata3"
+    - "/pad_Oradata4"
+    - "/pad_oraBkp"
+
+# Resource Groups
+resource_groups:
+  app_rg1: "RSG1"
+  app_rg2: "RSG2"
+  db_rg1: "RSG1"

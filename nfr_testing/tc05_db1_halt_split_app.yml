@@ -1,0 +1,129 @@
+---
+- name: "TC05: DB Node-1 Abrupt Halt Failover NFR Test (Split App Active/Active)"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    testcase_id: "TC05"
+    testcase_name: "TC05: DB Node-1 Abruptly goes down (HALT), while APP1 is on Node-1 and APP2 is on Node-2"
+    testcase_status: "FAILED"
+    execution_logs: []
+
+  tasks:
+    - name: Execute TC05 NFR Test Scenario
+      block:
+        - name: Record Test Start Timestamp
+          ansible.builtin.set_fact:
+            start_ts: "{{ now().timestamp() }}"
+            test_start_time: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+        - name: Safety Gate Check via AAP Survey Flag
+          ansible.builtin.meta: end_play
+          when: survey_execute_test | default(false) | bool == false
+
+        # --- STEP 1: Pre-check Split Application State on APP Node-1 and APP Node-2 ---
+        - name: Verify APP Node-1 Active State (APP1)
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.primary_node }}"
+            target_service_ip: "{{ app_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.primary_mounts }}"
+            target_qmanagers: "{{ app_cluster.qmanagers.primary }}"
+
+        - name: Verify APP Node-2 Active State (APP2)
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.secondary_node }}"
+            target_service_ip: "{{ app_cluster.secondary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.secondary_mounts }}"
+            target_qmanagers: "{{ app_cluster.qmanagers.secondary }}"
+
+        - name: Record App Split State Pre-check Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '1. Pre-check Split App State (APP1 on Node-1, APP2 on Node-2)', 'status': 'SUCCESS', 'output': 'Both APP1 and APP2 are active on respective primary/secondary nodes'}] }}"
+
+        # --- STEP 2: Set Bosboot & Bootlist on Primary DB Node ---
+        - name: Create boot image and set bootlist on rootvg disk (P9PDCPADDB1)
+          ansible.builtin.shell: |
+            lspv | grep -i rootvg
+            bosboot -ad /dev/hdisk0
+            bootlist -om normal hdisk0
+          delegate_to: "{{ db_cluster.primary_node }}"
+          register: bootlist_out
+
+        - name: Record Bootlist Task Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '2. Set Bosboot and Bootlist on DB1', 'status': 'SUCCESS', 'output': bootlist_out.stdout}] }}"
+
+        # --- STEP 3: Inject Abrupt Halt on Primary DB Node ---
+        - name: Execute abrupt halt command on P9PDCPADDB1
+          ansible.builtin.shell: sleep 2 && halt
+          delegate_to: "{{ db_cluster.primary_node }}"
+          async: 1
+          poll: 0
+          ignore_errors: true
+
+        - name: Record Halt Injection Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '3. Execute Halt Command on DB1', 'status': 'SUCCESS', 'output': 'Halt signal sent to ' + db_cluster.primary_node}] }}"
+
+        # --- STEP 4: Validate Automatic Failover on Secondary DB Node ---
+        - name: Verify DB Service IP and Mountpoints on P9PDCPADDB2
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ db_cluster.secondary_node }}"
+            target_service_ip: "{{ db_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ db_cluster.primary_mounts }}"
+
+        - name: Record DB Failover Validation Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '4. DB Service IP & Storage Failover Verification', 'status': 'SUCCESS', 'output': 'DB Service IP ' + db_cluster.primary_service_ip + ' and mounts ' + (db_cluster.primary_mounts | join(', ')) + ' active on ' + db_cluster.secondary_node}] }}"
+
+        # --- STEP 5: Re-verify Split Application Stability Post DB Failover ---
+        - name: Re-verify APP Node-1 (APP1) remains active and stable
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.primary_node }}"
+            target_service_ip: "{{ app_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.primary_mounts }}"
+
+        - name: Re-verify APP Node-2 (APP2) remains active and stable
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.secondary_node }}"
+            target_service_ip: "{{ app_cluster.secondary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.secondary_mounts }}"
+
+        - name: Record Split App Post-check Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '5. Post-check Split Application Stability', 'status': 'SUCCESS', 'output': 'APP1 on Node-1 and APP2 on Node-2 remained active and unimpacted during DB failover'}] }}"
+
+        # --- STEP 6: Mark Test Case as Passed ---
+        - name: Set Scenario Status to PASSED
+          ansible.builtin.set_fact:
+            testcase_status: "PASSED"
+
+      rescue:
+        - name: Record Failure Details
+          ansible.builtin.set_fact:
+            testcase_status: "FAILED"
+            execution_logs: "{{ execution_logs + [{'name': 'Failover Execution Error', 'status': 'FAILED', 'output': ansible_failed_result.msg | default('Failover verification or step execution failed.')}] }}"
+
+      always:
+        - name: Calculate Test Duration
+          ansible.builtin.set_fact:
+            execution_duration: "{{ ((now().timestamp() | int) - (start_ts | default(now().timestamp()) | int)) | abs }}"
+
+        - name: Dispatch Instant Email Report for TC05
+          ansible.builtin.include_role:
+            name: send_email
+
+        - name: Export Results to AAP Workflow Artifacts (set_stats)
+          ansible.builtin.set_stats:
+            data:
+              workflow_nfr_results: "{{ {testcase_id: {'name': testcase_name, 'status': testcase_status, 'duration': execution_duration}} }}"
+            aggregate: true

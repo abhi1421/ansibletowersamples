@@ -1,0 +1,77 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for send_email
+
+- name: Construct HTML Email Body Template
+  ansible.builtin.set_fact:
+    email_body_content: |
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { background-color: #1a365d; color: white; padding: 15px; border-radius: 5px; }
+          .status-passed { color: #2e7d32; font-weight: bold; font-size: 16px; }
+          .status-failed { color: #c62828; font-weight: bold; font-size: 16px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { background-color: #f2f2f2; text-align: left; padding: 10px; border: 1px solid #ddd; }
+          td { padding: 10px; border: 1px solid #ddd; vertical-align: top; }
+          pre { background-color: #f8f9fa; padding: 8px; border-radius: 3px; white-space: pre-wrap; word-wrap: break-word; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>PowerHA NFR Test Execution Report</h2>
+        </div>
+        <p><b>Test ID:</b> {{ testcase_id }}</p>
+        <p><b>Scenario:</b> {{ testcase_name }}</p>
+        <p><b>Execution Status:</b> 
+          <span class="{{ 'status-passed' if testcase_status == 'PASSED' else 'status-failed' }}">
+            {{ testcase_status }}
+          </span>
+        </p>
+        <p><b>Start Time:</b> {{ test_start_time }}</p>
+        <p><b>Execution Duration:</b> {{ execution_duration }} seconds</p>
+
+        <h3>Step-by-Step Execution Logs</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Step Description</th>
+              <th style="width: 15%;">Status</th>
+              <th style="width: 60%;">Command Output / Verification Logs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in execution_logs %}
+            <tr>
+              <td><b>{{ log.name }}</b></td>
+              <td style="color: {{ 'green' if log.status == 'SUCCESS' else 'red' }}; font-weight: bold;">
+                {{ log.status }}
+              </td>
+              <td><pre>{{ log.output }}</pre></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <br>
+        <p><i>Automated Notification dispatched by Ansible Automation Platform (AAP).</i></p>
+      </body>
+      </html>
+
+- name: Dispatch Instant Notification Email via SMTP
+  community.general.mail:
+    host: "{{ email_config.smtp_host }}"
+    port: "{{ email_config.smtp_port }}"
+    from: "{{ email_config.sender }}"
+    to: "{{ email_config.recipients }}"
+    subject: "NFR ALERT [{{ testcase_status }}]: {{ testcase_id }} - {{ testcase_name }}"
+    body: "{{ email_body_content }}"
+    subtype: html
+  delegate_to: localhost
+
+- name: Export Results to AAP Workflow Artifacts (set_stats)
+  ansible.builtin.set_stats:
+    data:
+      workflow_nfr_results: "{{ {testcase_id: {'name': testcase_name, 'status': testcase_status, 'duration': execution_duration}} }}"
+    aggregate: true
