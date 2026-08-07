@@ -1,0 +1,76 @@
+---
+- name: Lab Simulation - Verify Dynamic User Environment Variable Capture
+  hosts: all
+  gather_facts: no
+  become: yes
+  become_method: sudo
+
+  vars:
+    # Set this to your test user in the lab (e.g., sfmspadl301, testuser, sfmsuser)
+    target_user: "ansible"
+
+  tasks:
+    # ----------------------------------------------------
+    # TEST METHOD A: Standard non-login shell (May fail or show default)
+    # ----------------------------------------------------
+    - name: "TEST A: Standard non-login become_user check"
+      shell: |
+        echo "JAVA_HOME: $JAVA_HOME"
+        echo "CLASSPATH: $CLASSPATH"
+        echo "SFMS_ENV: $SFMS_ENV"
+      become_user: "{{ target_user }}"
+      register: test_a_output
+
+    - name: "Display TEST A Results"
+      debug:
+        msg: "{{ test_a_output.stdout_lines }}"
+
+    # ----------------------------------------------------
+    # TEST METHOD B: Login shell via 'bash -lc' (Guaranteed to read user profiles)
+    # ----------------------------------------------------
+    - name: "TEST B: Login shell (bash -lc) become_user check"
+      shell: |
+        bash -lc '
+          echo "JAVA_HOME_VAL=${JAVA_HOME}"
+          echo "PATH_VAL=${PATH}"
+          echo "CLASSPATH_VAL=${CLASSPATH}"
+          echo "SFMS_ENV_VAL=${SFMS_ENV}"
+        '
+      become_user: "{{ target_user }}"
+      register: raw_env_output
+
+    - name: "Display TEST B Raw Results"
+      debug:
+        msg: "{{ raw_env_output.stdout_lines }}"
+
+    # ----------------------------------------------------
+    # PARSING STEP: Extract and register as Ansible Facts
+    # ----------------------------------------------------
+    - name: Parse dynamic environment values into Ansible facts
+      set_fact:
+        discovered_java_home: "{{ raw_env_output.stdout_lines | select('search', '^JAVA_HOME_VAL=') | map('regex_replace', '^JAVA_HOME_VAL=', '') | first }}"
+        discovered_path: "{{ raw_env_output.stdout_lines | select('search', '^PATH_VAL=') | map('regex_replace', '^PATH_VAL=', '') | first }}"
+        discovered_classpath: "{{ raw_env_output.stdout_lines | select('search', '^CLASSPATH_VAL=') | map('regex_replace', '^CLASSPATH_VAL=', '') | first }}"
+
+    - name: "CONFIRMATION: Verify Captured Facts inside Ansible Engine"
+      debug:
+        msg:
+          - "Captured JAVA_HOME: {{ discovered_java_home }}"
+          - "Captured PATH:      {{ discovered_path }}"
+          - "Captured CLASSPATH: {{ discovered_classpath }}"
+
+    # ----------------------------------------------------
+    # EXECUTION STEP: Pass facts into task 'environment:'
+    # ----------------------------------------------------
+    - name: "TEST C: Execute dummy Java check using captured environment facts"
+      shell: "echo Execution successful under Java Home -> $JAVA_HOME"
+      become_user: "{{ target_user }}"
+      environment:
+        JAVA_HOME: "{{ discovered_java_home }}"
+        PATH: "{{ discovered_path }}"
+        CLASSPATH: "{{ discovered_classpath }}"
+      register: execution_confirm
+
+    - name: "Display Final Execution Confirmation"
+      debug:
+        msg: "{{ execution_confirm.stdout }}"

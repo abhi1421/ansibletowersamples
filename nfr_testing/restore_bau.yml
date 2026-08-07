@@ -1,0 +1,116 @@
+---
+- name: "BAU Restoration: Reset PowerHA System to Original Baseline"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    testcase_id: "RESTORE_BAU"
+    testcase_name: "BAU Baseline Restoration — Reset PowerHA Clusters"
+    testcase_status: "FAILED"
+    execution_logs: []
+
+  tasks:
+    - name: Execute BAU Restoration in Block
+      block:
+        - name: Record Start Timestamp
+          ansible.builtin.set_fact:
+            start_ts: "{{ now().timestamp() }}"
+            test_start_time: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+        # --- STEP 1: Start PowerHA Cluster Services (smitty clstart equivalent) ---
+        - name: Start PowerHA Cluster Services on Primary APP Node (P9PDCPADAPP1)
+          ansible.builtin.command: /usr/es/sbin/cluster/utilities/clstart -g -s -a -B
+          delegate_to: "{{ app_cluster.primary_node }}"
+          register: clstart_app
+
+        - name: Record App Cluster Start Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '1. Start APP Cluster Services', 'status': 'SUCCESS', 'output': clstart_app.stdout}] }}"
+
+        - name: Start PowerHA Cluster Services on Primary DB Node (P9PDCPADDB1)
+          ansible.builtin.command: /usr/es/sbin/cluster/utilities/clstart -g -s -a -B
+          delegate_to: "{{ db_cluster.primary_node }}"
+          register: clstart_db
+
+        - name: Record DB Cluster Start Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '2. Start DB Cluster Services', 'status': 'SUCCESS', 'output': clstart_db.stdout}] }}"
+
+        # --- STEP 2: Verify & Synchronize Cluster Config (smitty hacmp equivalent) ---
+        - name: Verify and Synchronize PowerHA Config on APP Cluster
+          ansible.builtin.command: /usr/es/sbin/cluster/utilities/clverify -c -y
+          delegate_to: "{{ app_cluster.primary_node }}"
+          register: sync_app
+
+        - name: Verify and Synchronize PowerHA Config on DB Cluster
+          ansible.builtin.command: /usr/es/sbin/cluster/utilities/clverify -c -y
+          delegate_to: "{{ db_cluster.primary_node }}"
+          register: sync_db
+
+        - name: Record Cluster Sync Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '3. Verify & Sync Cluster Configurations', 'status': 'SUCCESS', 'output': 'App & DB Clusters verified successfully'}] }}"
+
+        # --- STEP 3: Fallback Resource Groups to Primary Nodes (smitty cspoc equivalent) ---
+        - name: Fallback App Resource Group RSG1 to APP Node-1 (P9PDCPADAPP1)
+          ansible.builtin.command: >
+            /usr/es/sbin/cluster/utilities/clgrpman -m
+            -g {{ resource_groups.app_rg1 }}
+            -n {{ app_cluster.primary_node }}
+          delegate_to: "{{ app_cluster.primary_node }}"
+          register: rg_app_out
+
+        - name: Fallback DB Resource Group RSG1 to DB Node-1 (P9PDCPADDB1)
+          ansible.builtin.command: >
+            /usr/es/sbin/cluster/utilities/clgrpman -m
+            -g {{ resource_groups.db_rg1 }}
+            -n {{ db_cluster.primary_node }}
+          delegate_to: "{{ db_cluster.primary_node }}"
+          register: rg_db_out
+
+        - name: Record Resource Group Movement Log
+          ansible.builtin.set_fact:
+            execution_logs: "{{ execution_logs + [{'name': '4. Fallback Resource Groups to Primary Nodes', 'status': 'SUCCESS', 'output': 'RSG1 moved to ' + app_cluster.primary_node + ' and ' + db_cluster.primary_node}] }}"
+
+        # --- STEP 4: Start IBM MQ Queue Managers on Primary APP Node ---
+        - name: Ensure Primary Queue Managers are active on APP Node-1
+          ansible.builtin.shell: su - mqm -c "strmqm {{ item }}"
+          loop: "{{ app_cluster.qmanagers.primary }}"
+          delegate_to: "{{ app_cluster.primary_node }}"
+          ignore_errors: true
+
+        # --- STEP 5: Final BAU Verification ---
+        - name: Verify Baseline Health on Primary APP Node
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ app_cluster.primary_node }}"
+            target_service_ip: "{{ app_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ app_cluster.primary_mounts }}"
+            target_qmanagers: "{{ app_cluster.qmanagers.primary }}"
+
+        - name: Verify Baseline Health on Primary DB Node
+          ansible.builtin.include_role:
+            name: cluster_verify
+          vars:
+            target_node: "{{ db_cluster.primary_node }}"
+            target_service_ip: "{{ db_cluster.primary_service_ip }}"
+            target_mountpoints: "{{ db_cluster.primary_mounts }}"
+
+        - name: Mark BAU Restoration Status as PASSED
+          ansible.builtin.set_fact:
+            testcase_status: "PASSED"
+
+      rescue:
+        - name: Record Failure Details
+          ansible.builtin.set_fact:
+            testcase_status: "FAILED"
+            execution_logs: "{{ execution_logs + [{'name': 'BAU Restoration Error', 'status': 'FAILED', 'output': ansible_failed_result.msg | default('BAU reset execution failed.')}] }}"
+
+      always:
+        - name: Calculate Duration
+          ansible.builtin.set_fact:
+            execution_duration: "{{ ((now().timestamp() | int) - (start_ts | default(now().timestamp()) | int)) | abs }}"
+
+        - name: Dispatch Notification Email for BAU Reset
+          ansible.builtin.include_role:
+            name: send_email
