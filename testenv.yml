@@ -63,14 +63,13 @@
     # EXECUTION STEP: Pass facts into task 'environment:'
     # ----------------------------------------------------
     - name: "TEST C: Execute dummy Java check using captured environment facts"
-      shell: "echo Execution successful under Java Home -> $JAVA_HOME"
+      shell: |
+        echo "Execution successful under Java Home -> $JAVA_HOME"
+        $JAVA_HOME/bin/java -version || true
       become_user: "{{ target_user }}"
+      become: yes
       environment:
         JAVA_HOME: "{{ discovered_java_home }}"
-        PATH: "{{ discovered_path }}"
+        PATH: "{{ discovered_path }}:{{ discovered_java_home }}/bin"
         CLASSPATH: "{{ discovered_classpath }}"
       register: execution_confirm
-
-    - name: "Display Final Execution Confirmation"
-      debug:
-        msg: "{{ execution_confirm.stdout }}"
