@@ -93,7 +93,7 @@
 
     - name: Submit Selected Variant & CSR to Certinext API
       ansible.builtin.uri:
-        url: "{{ certinext_api_url }}/certificates/order"
+        url: "{{ certinext_api_url }}/v1/orders"  # <-- Update with actual API endpoint path
         method: POST
         headers:
           Authorization: "{{ auth_header }}"
@@ -106,6 +106,7 @@
           csr: "{{ raw_csr.content | b64decode }}"
         status_code: [200, 201]
       register: order_response
+
 
     - name: Display Order Submission Result
       ansible.builtin.debug:
