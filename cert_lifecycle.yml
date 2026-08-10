@@ -1,16 +1,40 @@
 ---
-- name: Certinext Lab Test - Step_1 Bearer Token
+- name: Certinext Certificate Lifecycle Automation
   hosts: localhost
   connection: local
 
   vars:
-    # --- LAB VARIABLES (Hardcoded) ---
+    # --- USER INPUT FIELDS (Simulating UI / Textbox / Drop-down) ---
+    cert_type: "DV UCC"  # Options: "DV", "DV Wildcard", "DV UCC"
+    common_name: "test.ngrtgs.rbi.org.in"
+    san_list:
+      - "test.ngrtgs.rbi.org.in"
+      - "dev.ngrtgs.rbi.org.in"
+      - "uat.ngrtgs.rbi.org.in"
+
+    # --- API & AUTH CREDENTIALS ---
     certinext_api_url: "https://api.certinext.io"
     client_id: "8459969524"
     client_secret: "3811358745f343b9a5cb3dfb3b6f2be3"
 
   tasks:
-    - name: Step 1 - Call Certinext API to get Bearer Token
+    # --- PRE-REQUISITE: Date-Wise Directory Setup ---
+    - name: Pre-step - Get current date string
+      ansible.builtin.set_fact:
+        current_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+
+    - name: Pre-step - Define base folder path
+      ansible.builtin.set_fact:
+        output_dir: "/tmp/certinext/{{ current_date }}/{{ common_name }}"
+
+    - name: Pre-step - Ensure date-stamped directory exists
+      ansible.builtin.file:
+        path: "{{ output_dir }}"
+        state: directory
+        mode: '0700'
+
+    # --- EXCEL STEP 1: Get Bearer Token ---
+    - name: Excel Step 1 - Call Certinext API to get Bearer Token
       ansible.builtin.uri:
         url: "{{ certinext_api_url }}/oauth/token"
         method: POST
@@ -22,10 +46,70 @@
         status_code: 200
       register: token_response
 
-    - name: Display raw API response details
-      ansible.builtin.debug:
-        var: token_response.json
+    - name: Set Auth Header Fact
+      ansible.builtin.set_fact:
+        auth_header: "Bearer {{ token_response.json.access_token }}"
 
-    - name: Verify and display extracted Access Token
+    # ---  Pick Create - Variant & Generate CSR ---
+    - name:  Generate Private Key (RSA 2048)
+      ansible.builtin.command:
+        cmd: "openssl genrsa -out {{ output_dir }}/{{ common_name }}.key 2048"
+        creates: "{{ output_dir }}/{{ common_name }}.key"
+
+    - name: Construct OpenSSL Config File based on Variant Inputs
+      ansible.builtin.copy:
+        dest: "{{ output_dir }}/openssl.cnf"
+        content: |
+          [ req ]
+          default_bits       = 2048
+          distinguished_name = req_distinguished_name
+          req_extensions     = req_ext
+          prompt             = no
+
+          [ req_distinguished_name ]
+          CN = {{ common_name }}
+
+          [ req_ext ]
+          subjectAltName = @alt_names
+
+          [ alt_names ]
+          {% for san in san_list %}
+          DNS.{{ loop.index }} = {{ san }}
+          {% endfor %}
+
+    - name: Generate CSR File from OpenSSL Config
+      ansible.builtin.command:
+        cmd: >
+          openssl req -new 
+          -key {{ output_dir }}/{{ common_name }}.key 
+          -out {{ output_dir }}/{{ common_name }}.csr 
+          -config {{ output_dir }}/openssl.cnf
+        creates: "{{ output_dir }}/{{ common_name }}.csr"
+
+    - name: Read Local CSR File
+      ansible.builtin.slurp:
+        src: "{{ output_dir }}/{{ common_name }}.csr"
+      register: raw_csr
+
+    - name: Submit Selected Variant & CSR to Certinext API
+      ansible.builtin.uri:
+        url: "{{ certinext_api_url }}/certificates/order"
+        method: POST
+        headers:
+          Authorization: "{{ auth_header }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          certificate_type: "{{ cert_type }}"
+          common_name: "{{ common_name }}"
+          sans: "{{ san_list }}"
+          csr: "{{ raw_csr.content | b64decode }}"
+        status_code: [200, 201]
+      register: order_response
+
+    - name: Display Order Submission Result
       ansible.builtin.debug:
-        msg: "Success! Bearer Token obtained: {{ token_response.json.access_token }}"
+        msg:
+          - "Directory Created: {{ output_dir }}"
+          - "Variant Selected: {{ cert_type }}"
+          - "API Response: {{ order_response.json }}"
