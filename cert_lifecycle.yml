@@ -1,40 +1,48 @@
 ---
-- name: Certinext Certificate Lifecycle Automation
+- name: Certinext Certificate Lifecycle Automation - Phase 1
   hosts: localhost
   connection: local
 
   vars:
-    # --- USER INPUT FIELDS (Simulating UI / Textbox / Drop-down) ---
-    cert_type: "DV UCC"  # Options: "DV", "DV Wildcard", "DV UCC"
-    common_name: "test.ngrtgs.rbi.org.in"
-    san_list:
-      - "test.ngrtgs.rbi.org.in"
-      - "dev.ngrtgs.rbi.org.in"
-      - "uat.ngrtgs.rbi.org.in"
+    # --- AAP SURVEY INPUTS (Overridden dynamically in production by Survey extra_vars) ---
+    cert_type: "{{ survey_cert_type | default('DV UCC') }}"
+    common_name: "{{ survey_common_name | default('test.ngrtgs.rbi.org.in') }}"
+    
+    # Converts comma-separated text box input from Survey into a YAML list
+    san_list: "{{ (survey_san_input | default('test.ngrtgs.rbi.org.in, dev.ngrtgs.rbi.org.in, uat.ngrtgs.rbi.org.in')).split(',') | map('trim') | list }}"
 
-    # --- API & AUTH CREDENTIALS ---
+    # --- API & INFRASTRUCTURE CONFIGURATION ---
     certinext_api_url: "https://api.certinext.io"
+    order_endpoint_path: "/orders"  # Update path once confirmed with customer API documentation
     client_id: "8459969524"
     client_secret: "3811358745f343b9a5cb3dfb3b6f2be3"
+    support_email: "rbiportalsupport@rbi.org.in"
 
   tasks:
-    # --- PRE-REQUISITE: Date-Wise Directory Setup ---
-    - name: Pre-step - Get current date string
+    # =========================================================================
+    # PRE-PROCESSING & DIRECTORY SETUP (Non-workflow helper steps)
+    # Creates a date-stamped folder structure to isolate runtime certificate artifacts
+    # Path format: /tmp/certinext/YYYY-MM-DD/common_name/
+    # =========================================================================
+    - name: Get current date string
       ansible.builtin.set_fact:
         current_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
 
-    - name: Pre-step - Define base folder path
+    - name: Define target folder path
       ansible.builtin.set_fact:
         output_dir: "/tmp/certinext/{{ current_date }}/{{ common_name }}"
 
-    - name: Pre-step - Ensure date-stamped directory exists
+    - name: Ensure target artifact directory exists
       ansible.builtin.file:
         path: "{{ output_dir }}"
         state: directory
         mode: '0700'
 
-    # --- EXCEL STEP 1: Get Bearer Token ---
-    - name: Excel Step 1 - Call Certinext API to get Bearer Token
+    # =========================================================================
+    # STEP 1: Get Bearer Token
+    # Authenticates with the Certinext API via OAuth 2.0 Client Credentials
+    # =========================================================================
+    - name: Step 1 - Call Certinext API to get Bearer Token
       ansible.builtin.uri:
         url: "{{ certinext_api_url }}/oauth/token"
         method: POST
@@ -50,13 +58,16 @@
       ansible.builtin.set_fact:
         auth_header: "Bearer {{ token_response.json.access_token }}"
 
-    # ---  Pick Create - Variant & Generate CSR ---
-    - name:  Generate Private Key (RSA 2048)
+    # =========================================================================
+    # STEP 2: Pick the right Create - Variant (DV / DV Wildcard / DV UCC)
+    # Generates local RSA key, creates CSR based on user inputs, and submits order
+    # =========================================================================
+    - name: Step 2a - Generate Private Key (RSA 2048) using OpenSSL
       ansible.builtin.command:
         cmd: "openssl genrsa -out {{ output_dir }}/{{ common_name }}.key 2048"
         creates: "{{ output_dir }}/{{ common_name }}.key"
 
-    - name: Construct OpenSSL Config File based on Variant Inputs
+    - name: Step 2b - Create OpenSSL Config file with SANs
       ansible.builtin.copy:
         dest: "{{ output_dir }}/openssl.cnf"
         content: |
@@ -77,7 +88,7 @@
           DNS.{{ loop.index }} = {{ san }}
           {% endfor %}
 
-    - name: Generate CSR File from OpenSSL Config
+    - name: Step 2c - Generate CSR File using OpenSSL
       ansible.builtin.command:
         cmd: >
           openssl req -new 
@@ -86,14 +97,14 @@
           -config {{ output_dir }}/openssl.cnf
         creates: "{{ output_dir }}/{{ common_name }}.csr"
 
-    - name: Read Local CSR File
+    - name: Step 2d - Read Generated Local CSR File
       ansible.builtin.slurp:
         src: "{{ output_dir }}/{{ common_name }}.csr"
       register: raw_csr
 
-    - name: Submit Selected Variant & CSR to Certinext API
+    - name: Step 2e - Submit Certificate Order to Certinext API
       ansible.builtin.uri:
-        url: "{{ certinext_api_url }}/orders"  # <-- Changed from /v1/orders to /orders
+        url: "{{ certinext_api_url }}{{ order_endpoint_path }}"
         method: POST
         headers:
           Authorization: "{{ auth_header }}"
@@ -106,11 +117,73 @@
           csr: "{{ raw_csr.content | b64decode }}"
         status_code: [200, 201]
       register: order_response
+      ignore_errors: true  # Allows local lab execution while endpoint path is being confirmed
 
+    - name: Set Order ID Fact
+      ansible.builtin.set_fact:
+        order_id: "{{ order_response.json.order_id | default('LAB_TEST_ORDER_12345') }}"
 
-    - name: Display Order Submission Result
-      ansible.builtin.debug:
-        msg:
-          - "Directory Created: {{ output_dir }}"
-          - "Variant Selected: {{ cert_type }}"
-          - "API Response: {{ order_response.json }}"
+    # =========================================================================
+    # STEP 3: Get DCV Challenges
+    # Fetches the DNS TXT record challenge value required for domain verification
+    # =========================================================================
+    - name: Step 3 - Fetch TXT Record Challenge from API
+      ansible.builtin.uri:
+        url: "{{ certinext_api_url }}{{ order_endpoint_path }}/{{ order_id }}/dcv"
+        method: GET
+        headers:
+          Authorization: "{{ auth_header }}"
+        status_code: 200
+      register: dcv_response
+      ignore_errors: true
+
+    # =========================================================================
+    # STEP 4: Publish the TXT record / HTTP file / reply to email
+    # Drafts consolidated body variable, saves local state, and emails support
+    # =========================================================================
+    - name: Step 4a - Construct Consolidated Email Body Variable
+      ansible.builtin.set_fact:
+        email_body_content: |
+          Dear RBI Support Team,
+
+          Please publish the following DNS TXT Record for Domain Control Validation (DCV):
+
+          =====================================================
+          REQUEST DETAILS
+          =====================================================
+          Common Name   : {{ common_name }}
+          Cert Variant  : {{ cert_type }}
+          Order ID      : {{ order_id }}
+
+          =====================================================
+          REQUIRED DNS TXT RECORD
+          =====================================================
+          Record Host   : _acme-challenge.{{ common_name }}
+          Record Type   : TXT
+          Record Value  : {{ dcv_response.json.txt_record | default('dcv_sample_txt_token_abc123xyz') }}
+
+          SANs Included : {{ san_list | join(', ') }}
+          =====================================================
+
+          Please confirm once the record has been updated in DNS so Phase 2 can proceed.
+
+          Automated via Ansible Automation Controller.
+
+    # Helper Task: Persists Order Context to Disk for Phase 2 Playbook Hand-off
+#    - name: Save Phase 1 Metadata to Local Disk
+#      ansible.builtin.copy:
+#        dest: "{{ output_dir }}/phase_data.json"
+#        content: "{{ {'order_id': order_id, 'email_body': email_body_content} | to_nice_json }}"
+#
+#    - name: Step 4b - Dispatch Email Request to Support
+#      community.general.mail:
+#        host: "smtp.internal.rbi.org.in"
+#        port: 25
+#        to: "{{ support_email }}"
+#        subject: "DNS TXT Record Update Request - {{ common_name }}"
+#        body: "{{ email_body_content }}"
+#      ignore_errors: true
+#
+#    - name: Display Consolidated Email Payload
+#      ansible.builtin.debug:
+#        var: email_body_content
