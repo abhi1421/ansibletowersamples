@@ -1,5 +1,5 @@
 ---
-- name: Certinext Lab Test - Step 1: Bearer Token
+- name: Certinext Lab Test - Step_1 Bearer Token
   hosts: localhost
   connection: local
 
