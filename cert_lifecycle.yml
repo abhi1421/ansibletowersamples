@@ -1,0 +1,31 @@
+---
+- name: Certinext Lab Test - Step 1: Bearer Token
+  hosts: localhost
+  connection: local
+
+  vars:
+    # --- LAB VARIABLES (Hardcoded) ---
+    certinext_api_url: "https://api.certinext.io"
+    client_id: "8459969524"
+    client_secret: "3811358745f343b9a5cb3dfb3b6f2be3"
+
+  tasks:
+    - name: Step 1 - Call Certinext API to get Bearer Token
+      ansible.builtin.uri:
+        url: "{{ certinext_api_url }}/oauth/token"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: "client_credentials"
+          client_id: "{{ client_id }}"
+          client_secret: "{{ client_secret }}"
+        status_code: 200
+      register: token_response
+
+    - name: Display raw API response details
+      ansible.builtin.debug:
+        var: token_response.json
+
+    - name: Verify and display extracted Access Token
+      ansible.builtin.debug:
+        msg: "Success! Bearer Token obtained: {{ token_response.json.access_token }}"
