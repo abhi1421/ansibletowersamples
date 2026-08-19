@@ -92,6 +92,31 @@
     node2_ip: "{{ groups[SWITCHOVER_FROM + '_app_node2'][0] }}"
 
   tasks:
+
+# NEW ADDITION - also ensure to add both the nodes in the hosts param
+#    - name: Analyze MQ and Screen Outputs Across All Nodes
+#      set_fact:
+#        all_hosts_results: >-
+#          {% set host_summary = [] %}
+#          {% for host in (groups[SWITCHOVER_FROM + '_app_node1'] + groups[SWITCHOVER_TO + '_app_node1'] + groups[SWITCHOVER_FROM + '_app_node2'] + groups[SWITCHOVER_TO + '_app_node2']) %}
+#            {% set n_mq = hostvars[host].mq_node1 if 'node1' in host else hostvars[host].mq_node2 %}
+#            {% set n_scr = hostvars[host].screen_before_node1 if 'node1' in host else hostvars[host].screen_before_node2 %}
+#            {% set mismatches = n_mq.results | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list %}
+#            {% set scr_status = 'Active Application Screens Found' if 'Sockets' in (n_scr.stdout | default('')) else 'No Active Screens (Clean)' %}
+#            {% set _ = host_summary.append({
+#                'host': host,
+#                'failed': (mismatches | length > 0),
+#                'mismatches': mismatches,
+#                'screen_status': scr_status
+#            }) %}
+#          {% endfor %}
+#          {{ host_summary }}
+
+#    - name: Evaluate Global Pre-Check Status
+#      set_fact:
+#        precheck_failed: "{{ (all_hosts_results | selectattr('failed', 'equalto', true) | list | length) > 0 }}"
+
+
     - name: Analyze Node 1 MQ and Screen Outputs
       set_fact:
         n1_mq_mismatch: "{{ hostvars[node1_ip].mq_node1.results | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
