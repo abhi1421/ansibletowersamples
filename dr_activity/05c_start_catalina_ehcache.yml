@@ -150,6 +150,8 @@
     - name: Node 2 - Launch Core Application Processing Modules
       shell: |
         echo -e "1\ny\n" | bash /home/sfmspadl302/SH_Files/Main_Script_Specific_Process.sh
+      environment:
+        PROCESS_DIR: "<Value>"
       args:
         executable: /bin/bash
       register: start_node2

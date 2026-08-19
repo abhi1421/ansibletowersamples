@@ -1,6 +1,6 @@
 ---
 # =================================================================
-# TASK 1 DR READINESS PRE-CHECK FRAMEWORK
+# TASK 1 - DR READINESS PRE-CHECK FRAMEWORK (All 8 Nodes)
 # =================================================================
 - name: Stage 00 - AIX PowerHA Cluster Readiness Check (All 8 Nodes)
   hosts: "{{ SWITCHOVER_FROM }}:{{ SWITCHOVER_TO }}"
@@ -54,14 +54,12 @@
             DEGRADED / UNKNOWN
           {% endif %}
 
-    # Optional debug to verify collected facts per host during development
     - name: Cluster Check - Audit Fact Summary
       debug:
         msg:
           - "Host: {{ inventory_hostname }}"
           - "Cluster State: {{ chk_cluster_state }}"
           - "Cluster Status Label: {{ chk_cluster_status_label }}"
-
 
 
 # =================================================================
@@ -72,10 +70,9 @@
   gather_facts: no
   become: yes
   become_method: sudo
-  become_user: "{{ app_user }}"  # e.g., sfmspadl301 / sfmspadl302
+  become_user: "{{ app_user }}"
 
   vars:
-    # List of 7 mandatory cluster queues required across all QMs
     required_cluster_queues:
       - "CPR.INCOMING"
       - "QPX.INCOMING"
@@ -137,13 +134,13 @@
 
 
 # =================================================================
-# TASK 3 - Curedepth Check on Node1 and Node2
+# TASK 3 - CURDEPTH CHECK ON NODE 1 AND NODE 2 (App Nodes Only)
 # =================================================================
 
-#############################################
-# PLAY 3,1 NODE_1 PRE-CHECKS
-#############################################
-- name: PAD Node 1 - Pre-check MQ and Processes
+# -----------------------------------------------------------------
+# TASK 3.1 NODE 1 PRE-CHECKS
+# -----------------------------------------------------------------
+- name: PAD Node 1 - Pre-check MQ Queue Depths
   hosts: "{{ SWITCHOVER_FROM }}_app_node1:{{ SWITCHOVER_TO }}_app_node1"
   gather_facts: no
   become: yes
@@ -155,15 +152,15 @@
     mqm_binary: /usr/mqm/bin
   tasks:
     - name: Node 1 - Check MQ Queue Depths
-      shell: "echo 'dis ql({{ item.queue }})  curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
+      shell: "echo 'dis ql({{ item.queue }}) curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
       loop: "{{ mq_check_matrix_n1 }}"
       register: mq_node1
       ignore_errors: yes
 
-#############################################
-# PLAY 3.2 NODE_2 PRE-CHECKS
-#############################################
-- name: PAD Node 2 - Pre-check MQ and Processes
+# -----------------------------------------------------------------
+# TASK 3.2 NODE 2 PRE-CHECKS
+# -----------------------------------------------------------------
+- name: PAD Node 2 - Pre-check MQ Queue Depths
   hosts: "{{ SWITCHOVER_FROM }}_app_node2:{{ SWITCHOVER_TO }}_app_node2"
   gather_facts: no
   become: yes
@@ -179,3 +176,101 @@
       loop: "{{ mq_check_matrix_n2 }}"
       register: mq_node2
       ignore_errors: yes
+
+
+# =================================================================
+# TASK 4 - CONSOLIDATED REPORTING & EMAIL VARIABLE GENERATION
+# =================================================================
+- name: Generate Consolidated DR Readiness Email Body Variable
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Compile Master HTML Email Body Fact
+      set_fact:
+        dr_readiness_email_body: |
+          <html>
+          <head>
+          <style>
+            body { font-family: Arial, sans-serif; font-size: 14px; color: #333; }
+            table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+            th, td { border: 1px solid #dddddd; text-align: left; padding: 8px; }
+            th { background-color: #003366; color: white; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            .pass { color: green; font-weight: bold; }
+            .fail { color: red; font-weight: bold; }
+            .header-bg { background-color: #e6f2ff; font-weight: bold; }
+          </style>
+          </head>
+          <body>
+          <h2>🚀 SFMS DR Readiness Pre-flight Assessment Report</h2>
+          <p><b>Execution Scope:</b> Switchover FROM <b>{{ SWITCHOVER_FROM | upper }}</b> TO <b>{{ SWITCHOVER_TO | upper }}</b></p>
+          
+          <h3>1. PowerHA Cluster Status (All 8 Nodes)</h3>
+          <table>
+            <tr>
+              <th>Node Hostname</th>
+              <th>Cluster Manager State</th>
+              <th>Overall Cluster Readiness</th>
+            </tr>
+            {% for host in (groups[SWITCHOVER_FROM] + groups[SWITCHOVER_TO]) | unique %}
+            <tr>
+              <td><b>{{ host }}</b></td>
+              <td>{{ hostvars[host].chk_cluster_state | default('N/A') }}</td>
+              <td>
+                {% set status = hostvars[host].chk_cluster_status_label | default('UNKNOWN') %}
+                <span class="{{ 'pass' if 'ACTIVE' in status else 'fail' }}">{{ status }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </table>
+
+          <h3>2. MQ Cluster Queues Health (App Nodes)</h3>
+          <table>
+            <tr>
+              <th>Node Hostname</th>
+              <th>Queue Manager Cluster Status</th>
+            </tr>
+            {% for host in (groups[SWITCHOVER_FROM + '_app'] + groups[SWITCHOVER_TO + '_app']) | unique %}
+            <tr>
+              <td><b>{{ host }}</b></td>
+              <td>{{ hostvars[host].node_mq_summary | default('N/A') }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+
+          <h3>3. Monitored Queue Depth (Curdepth) Verification</h3>
+          <table>
+            <tr>
+              <th>Node Hostname</th>
+              <th>Queue Manager</th>
+              <th>Queue Name</th>
+              <th>Curdepth Status</th>
+            </tr>
+            {% for host in (groups[SWITCHOVER_FROM + '_app_node1'] + groups[SWITCHOVER_TO + '_app_node1'] + groups[SWITCHOVER_FROM + '_app_node2'] + groups[SWITCHOVER_TO + '_app_node2']) | unique %}
+              {% set mq_res = hostvars[host].mq_node1 if 'node1' in host else hostvars[host].mq_node2 %}
+              {% if mq_res is defined and mq_res.results is defined %}
+                {% for item in mq_res.results %}
+                  {% set depth_match = item.stdout | default('') | regex_search('CURDEPTH\\((\\d+)\\)', '\\1') %}
+                  {% set depth = depth_match[0] if depth_match else '0' %}
+                  <tr>
+                    <td><b>{{ host }}</b></td>
+                    <td>{{ item.item.qmgr }}</td>
+                    <td>{{ item.item.queue }}</td>
+                    <td class="{{ 'pass' if depth == '0' else 'fail' }}">
+                      {{ '🟢 CLEAR (0)' if depth == '0' else '🔴 BLOCKED (' ~ depth ~ ')' }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </table>
+
+          <br/>
+          <p><i>Note: This is an automatically generated readiness check report from Ansible Automation Platform.</i></p>
+          </body>
+          </html>
+
+    - name: Output Variable Contents to Console (Verification)
+      debug:
+        var: dr_readiness_email_body
