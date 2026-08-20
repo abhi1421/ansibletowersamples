@@ -83,6 +83,16 @@
       - "SFMS.INCOMING"
 
   tasks:
+
+    # -----------------------------------------------------------------
+    # MAP EXISTING SITE VARS (FROM odc.yml / pdc.yml / drdc.yml)
+    # -----------------------------------------------------------------
+    - name: MQ - Map Node User and Target QMs from Site Group Vars
+      set_fact:
+        app_user: "{{ node1_user if ('node1' in inventory_hostname or 'node1' in group_names | join(' ')) else node2_user }}"
+        target_qms: "{{ [node1_qmgr, gateway_qmgr] if ('node1' in inventory_hostname or 'node1' in group_names | join(' ')) else [node2_qmgr] }}"
+
+    
     # -----------------------------------------------------------------
     # TASK 2.1 QUERY QUEUE CLUSTER STATUS FOR EACH HOST QM
     # -----------------------------------------------------------------
@@ -90,6 +100,9 @@
       shell: |
         echo "dis qc(*)" | runmqsc {{ item }}
       loop: "{{ target_qms }}"
+      become: yes
+      become_method: sudo
+      become_user: "{{ app_user }}"
       register: raw_mqsc_results
       changed_when: false
       failed_when: false
