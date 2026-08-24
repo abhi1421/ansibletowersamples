@@ -1,0 +1,106 @@
+---
+- name: Step 1 - Dynamic Host Assignment & Pre-Check Setup
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/testcases_map.yml
+  tasks:
+    - name: Validate testcase selection and map dynamic targets
+      block:
+        - name: Check selected test case existence
+          ansible.builtin.fail:
+            msg: "Selected Testcase '{{ selected_testcase }}' is invalid."
+          when: selected_testcase not in testcases
+
+        - name: Add halt target hosts to dynamic in-memory group
+          ansible.builtin.add_host:
+            name: "{{ item }}"
+            groups: "targeted_halt_nodes"
+          loop: "{{ testcases[selected_testcase].halt_nodes }}"
+      rescue:
+        - name: Record failure stats for stage 1 setup
+          ansible.builtin.set_stats:
+            data:
+              nfr_failed_stage: "Stage 1 - Dynamic Setup"
+              nfr_failed_host: "localhost"
+              nfr_error_details: "Testcase {{ selected_testcase | default('UNDEFINED') }} not found in configuration map."
+              nfr_testcase: "{{ selected_testcase | default('UNKNOWN') }}"
+
+        - name: Force task failure
+          ansible.builtin.fail:
+            msg: "Pre-check setup failure registered."
+
+- name: Execute Boot Configuration, Halt & Send Success Email
+  hosts: targeted_halt_nodes
+  gather_facts: false
+  vars:
+    smtp_server: "mail.company.com"
+    smtp_port: 25
+    email_to: "nfr-testing-team@company.com"
+    email_from: "ansible-automation@company.com"
+  tasks:
+    - name: Execute boot checks and issue system halt
+      block:
+        - name: Verify rootvg disk configuration
+          ansible.builtin.shell: "lspv | grep -i rootvg"
+          register: rootvg_check
+          changed_when: false
+
+        - name: Create boot image (bosboot)
+          ansible.builtin.shell: "bosboot -ad /dev/{{ rootvg_check.stdout.split()[0] }}"
+          register: bosboot_out
+
+        - name: Set normal bootlist
+          ansible.builtin.shell: "bootlist -om normal {{ rootvg_check.stdout.split()[0] }}"
+          register: bootlist_out
+
+        - name: Register stage stats for master consolidated report
+          ansible.builtin.set_stats:
+            data:
+              s1_halted_node: "{{ inventory_hostname }}"
+              s1_rootvg_disk: "{{ rootvg_check.stdout.split()[0] }}"
+              s1_bootlist_output: "Normal"
+
+        - name: Send Stage 1 Success Email Notification directly
+          community.general.mail:
+            host: "{{ smtp_server }}"
+            port: "{{ smtp_port }}"
+            to: "{{ email_to }}"
+            from: "{{ email_from }}"
+            subject: "[SUCCESS] Stage 1 Completed: Pre-Checks & Halt - Testcase {{ selected_testcase }}"
+            body: |
+              NFR Testcase Stage 1 Execution Summary
+              ======================================
+              Test Case ID     : {{ selected_testcase }}
+              Status           : SUCCESS
+              Halted Node(s)   : {{ inventory_hostname }}
+              RootVG Disk      : /dev/{{ rootvg_check.stdout.split()[0] }}
+              Bootlist Status  : Normal
+
+              Execution Details:
+              - Pre-checks completed (rootvg verified).
+              - Boot image generated via bosboot.
+              - Bootlist set to normal.
+              - Abrupt halt issued successfully.
+
+              Next Action: Post-halt failover verification is executing automatically.
+          delegate_to: localhost
+
+        - name: Issue abrupt halt command
+          ansible.builtin.shell: "halt"
+          async: 1
+          poll: 0
+          ignore_errors: true
+
+      rescue:
+        - name: Record failure stats for halt stage
+          ansible.builtin.set_stats:
+            data:
+              nfr_failed_stage: "Stage 1 - System Halt"
+              nfr_failed_host: "{{ inventory_hostname }}"
+              nfr_error_details: "{{ ansible_failed_result | default('Failed during bosboot/bootlist/halt execution') }}"
+              nfr_testcase: "{{ selected_testcase }}"
+
+        - name: Fail playbook to trigger error path in AAP Workflow
+          ansible.builtin.fail:
+            msg: "Failed to halt system {{ inventory_hostname }}."

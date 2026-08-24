@@ -1,0 +1,31 @@
+---
+- name: Unified Failure Reporting via Email
+  hosts: localhost
+  gather_facts: false
+  vars:
+    smtp_server: "mail.company.com"
+    smtp_port: 25
+    email_to: "nfr-testing-team@company.com"
+    email_from: "ansible-automation@company.com"
+  tasks:
+    - name: Send failure email with aggregated stats from AAP Workflow memory
+      community.general.mail:
+        host: "{{ smtp_server }}"
+        port: "{{ smtp_port }}"
+        to: "{{ email_to }}"
+        from: "{{ email_from }}"
+        subject: "ALERT: NFR Testcase Failure - Testcase: {{ nfr_testcase | default('UNKNOWN') }}"
+        body: |
+          NFR Automation Workflow Failure Report
+          =====================================
+          Test Case ID    : {{ nfr_testcase | default('Not Defined') }}
+          Failed Stage    : {{ nfr_failed_stage | default('Workflow Level Failure') }}
+          Failed Host     : {{ nfr_failed_host | default('Unknown Host') }}
+          Execution Time  : {{ ansible_date_time.iso8601 | default('N/A') }}
+          
+          Error Details:
+          -------------------------------------
+          {{ nfr_error_details | to_nice_json }}
+
+          Please investigate the issue and verify cluster stability manually.
+      delegate_to: localhost

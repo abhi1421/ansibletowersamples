@@ -1,0 +1,111 @@
+---
+- name: Step 2 - Assign Survivor Nodes for Verification
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/testcases_map.yml
+  tasks:
+    - name: Build targeted verification host group
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "targeted_verify_nodes"
+      loop: "{{ testcases[selected_testcase].verify_nodes }}"
+
+- name: Verify PowerHA Failover & Send Success Email
+  hosts: targeted_verify_nodes
+  gather_facts: false
+  vars_files:
+    - vars/testcases_map.yml
+  vars:
+    smtp_server: "mail.company.com"
+    smtp_port: 25
+    email_to: "nfr-testing-team@company.com"
+    email_from: "ansible-automation@company.com"
+  tasks:
+    - name: Execute Failover Assertions & Notify
+      block:
+        - name: Load test case mapping
+          ansible.builtin.set_fact:
+            tc_info: "{{ testcases[selected_testcase] }}"
+
+        - name: Check network interfaces on survivor node
+          ansible.builtin.shell: "ifconfig -a"
+          register: ifconfig_out
+          changed_when: false
+
+        - name: Assert floating IP takeover
+          ansible.builtin.assert:
+            that: "item in ifconfig_out.stdout"
+            fail_msg: "Cluster IP {{ item }} is missing on {{ inventory_hostname }}!"
+          loop: "{{ tc_info.expected_cluster_ips }}"
+
+        - name: Check mountpoints
+          ansible.builtin.shell: "df -gt"
+          register: df_out
+          changed_when: false
+
+        - name: Assert storage mountpoint takeover
+          ansible.builtin.assert:
+            that: "item in df_out.stdout"
+            fail_msg: "Mountpoint {{ item }} is not mounted on {{ inventory_hostname }}!"
+          loop: "{{ tc_info.expected_mounts }}"
+
+        - name: Verify PowerHA service state (ST_STABLE)
+          ansible.builtin.shell: "lssrc -ls clstrmgrES | grep -i state"
+          register: cluster_state
+          changed_when: false
+
+        - name: Assert ST_STABLE cluster status
+          ansible.builtin.assert:
+            that: "'ST_STABLE' in cluster_state.stdout"
+            fail_msg: "Cluster status is not ST_STABLE on {{ inventory_hostname }}!"
+
+        - name: Start MQ Managers if required
+          when: tc_info.start_mq
+          ansible.builtin.shell: "su - mqm -c 'strmqm {{ item }}'"
+          loop: "{{ tc_info.queue_managers }}"
+          ignore_errors: true
+
+        - name: Register stage stats for master consolidated report
+          ansible.builtin.set_stats:
+            data:
+              s2_survivor_node: "{{ inventory_hostname }}"
+              s2_verified_ips: "{{ tc_info.expected_cluster_ips }}"
+              s2_verified_mounts: "{{ tc_info.expected_mounts }}"
+              s2_cluster_state: "ST_STABLE"
+              s2_mq_started: "{{ tc_info.queue_managers if tc_info.start_mq else ['N/A'] }}"
+
+        - name: Send Stage 2 Success Email Notification directly
+          community.general.mail:
+            host: "{{ smtp_server }}"
+            port: "{{ smtp_port }}"
+            to: "{{ email_to }}"
+            from: "{{ email_from }}"
+            subject: "[SUCCESS] Stage 2 Completed: Failover Verification - Testcase {{ selected_testcase }}"
+            body: |
+              NFR Testcase Stage 2 Execution Summary
+              ======================================
+              Test Case ID        : {{ selected_testcase }}
+              Status              : SUCCESS
+              Survivor Node       : {{ inventory_hostname }}
+              Cluster IPs Verified: {{ tc_info.expected_cluster_ips | join(', ') }}
+              Cluster State       : ST_STABLE
+              Mounts Verified     : {{ tc_info.expected_mounts | join(', ') }}
+              MQ Managers Started : {{ (tc_info.queue_managers if tc_info.start_mq else ['N/A']) | join(', ') }}
+
+              Next Action: Workflow is currently paused on the Approval Node.
+              PLEASE POWER ON THE HALTED LPAR VIA HMC AND CLICK APPROVE IN AAP.
+          delegate_to: localhost
+
+      rescue:
+        - name: Record failure stats for verification stage
+          ansible.builtin.set_stats:
+            data:
+              nfr_failed_stage: "Stage 2 - Failover Verification"
+              nfr_failed_host: "{{ inventory_hostname }}"
+              nfr_error_details: "{{ ansible_failed_result | default('Failover verification checks failed') }}"
+              nfr_testcase: "{{ selected_testcase }}"
+
+        - name: Fail playbook to trigger error path in AAP Workflow
+          ansible.builtin.fail:
+            msg: "Post-halt failover verification failed on {{ inventory_hostname }}."

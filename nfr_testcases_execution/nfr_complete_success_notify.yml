@@ -1,0 +1,47 @@
+---
+- name: Consolidated End-to-End NFR Master Success Report
+  hosts: localhost
+  gather_facts: false
+  vars:
+    smtp_server: "mail.company.com"
+    smtp_port: 25
+    email_to: "nfr-testing-team@company.com, management@company.com"
+    email_from: "ansible-automation@company.com"
+  tasks:
+    - name: Send master execution summary report
+      community.general.mail:
+        host: "{{ smtp_server }}"
+        port: "{{ smtp_port }}"
+        to: "{{ email_to }}"
+        from: "{{ email_from }}"
+        subject: "PASS: Complete NFR Test Case {{ selected_testcase }} - Final Execution Report"
+        body: |
+          ===================================================================
+                       CONSOLIDATED NFR TEST CASE REPORT
+          ===================================================================
+          Test Case ID           : {{ selected_testcase }}
+          Overall Status         : COMPLETED SUCCESSFULLY (PASS)
+
+          STAGE 1: PRE-CHECK & SYSTEM HALT
+          -------------------------------------------------------------------
+          Halted Host(s)         : {{ s1_halted_node | default('N/A') }}
+          Boot Disk              : /dev/{{ s1_rootvg_disk | default('N/A') }}
+          Action Executed        : bosboot, bootlist set to normal, halt issued
+
+          STAGE 2: POST-HALT FAILOVER VERIFICATION
+          -------------------------------------------------------------------
+          Survivor Node          : {{ s2_survivor_node | default('N/A') }}
+          Takeover Floating IP(s): {{ s2_verified_ips | default([]) | join(', ') }}
+          Mounts Verified        : {{ s2_verified_mounts | default([]) | join(', ') }}
+          Cluster Service State  : {{ s2_cluster_state | default('N/A') }}
+          MQ Managers Started    : {{ s2_mq_started | default([]) | join(', ') }}
+
+          STAGE 3: BAU RESTORATION
+          -------------------------------------------------------------------
+          Restored Host(s)       : {{ s3_restored_node | default('N/A') }}
+          Cluster Sync & Online  : Successful (State: ST_STABLE)
+          Resource Groups Moved  : {{ s3_resource_groups_moved | default([]) | join(', ') }}
+          ===================================================================
+
+          The cluster environment has been fully restored to its normal BAU operational state.
+      delegate_to: localhost

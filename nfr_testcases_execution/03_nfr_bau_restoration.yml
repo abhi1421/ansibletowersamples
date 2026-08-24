@@ -1,0 +1,104 @@
+---
+- name: Step 3 - Wait for HMC Boot & Re-establish SSH
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/testcases_map.yml
+  tasks:
+    - name: Build target host group for rebooted nodes
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: "rebooted_nodes"
+      loop: "{{ testcases[selected_testcase].halt_nodes }}"
+
+    - name: Wait for SSH availability using NATTED Ansible IPs
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item]['ansible_host'] }}"
+        port: 22
+        state: started
+        delay: 10
+        timeout: 600
+      loop: "{{ testcases[selected_testcase].halt_nodes }}"
+
+- name: Restore PowerHA Services, Move RGs & Send Success Email
+  hosts: rebooted_nodes
+  gather_facts: false
+  vars_files:
+    - vars/testcases_map.yml
+  vars:
+    smtp_server: "mail.company.com"
+    smtp_port: 25
+    email_to: "nfr-testing-team@company.com"
+    email_from: "ansible-automation@company.com"
+  tasks:
+    - name: Execute BAU Restoration Steps & Notify
+      block:
+        - name: Load local testcase config
+          ansible.builtin.set_fact:
+            tc_info: "{{ testcases[selected_testcase] }}"
+
+        - name: Verify initial cluster state (Expect ST_INIT)
+          ansible.builtin.shell: "lssrc -ls clstrmgrES | grep -i state"
+          register: init_check
+          changed_when: false
+
+        - name: Synchronize PowerHA Cluster
+          ansible.builtin.shell: "/usr/es/sbin/cluster/utilities/clmgr sync cluster"
+
+        - name: Bring PowerHA Cluster online
+          ansible.builtin.shell: "/usr/es/sbin/cluster/utilities/clmgr online node {{ inventory_hostname }} WHEN=now MANAGE=auto"
+
+        - name: Verify cluster state returned to ST_STABLE
+          ansible.builtin.shell: "lssrc -ls clstrmgrES | grep -i state"
+          register: final_check
+          until: "'ST_STABLE' in final_check.stdout"
+          retries: 10
+          delay: 15
+
+        - name: Move Resource Group back to original target node
+          ansible.builtin.shell: "/usr/es/sbin/cluster/utilities/clmgr move resource_group {{ item.name }} node={{ item.target_node }}"
+          loop: "{{ tc_info.res_groups }}"
+          when: item.target_node == inventory_hostname
+
+        - name: Register stage stats for master consolidated report
+          ansible.builtin.set_stats:
+            data:
+              s3_restored_node: "{{ inventory_hostname }}"
+              s3_final_cluster_state: "ST_STABLE"
+              s3_resource_groups_moved: "{{ tc_info.res_groups | map(attribute='name') | list }}"
+
+        - name: Send Stage 3 Success Email Notification directly
+          community.general.mail:
+            host: "{{ smtp_server }}"
+            port: "{{ smtp_port }}"
+            to: "{{ email_to }}"
+            from: "{{ email_from }}"
+            subject: "[SUCCESS] Stage 3 Completed: BAU Restoration - Testcase {{ selected_testcase }}"
+            body: |
+              NFR Testcase Stage 3 Execution Summary
+              ======================================
+              Test Case ID         : {{ selected_testcase }}
+              Status               : SUCCESS
+              Restored Node(s)     : {{ inventory_hostname }}
+              PowerHA Cluster State: ST_STABLE
+              Moved Resource Groups: {{ tc_info.res_groups | map(attribute='name') | list | join(', ') }}
+
+              Execution Details:
+              - LPAR power-on detected via SSH.
+              - PowerHA cluster synchronized via clmgr.
+              - Node brought online (ST_STABLE state reached).
+              - Resource Groups returned home to primary node.
+          delegate_to: localhost
+
+      rescue:
+        - name: Record failure stats for BAU restoration stage
+          ansible.builtin.set_stats:
+            data:
+              nfr_failed_stage: "Stage 3 - BAU Restoration"
+              nfr_failed_host: "{{ inventory_hostname }}"
+              nfr_error_details: "{{ ansible_failed_result | default('Failed during clmgr sync, online, or RG movement') }}"
+              nfr_testcase: "{{ selected_testcase }}"
+
+        - name: Fail playbook to trigger error path in AAP Workflow
+          ansible.builtin.fail:
+            msg: "BAU Restoration failed on {{ inventory_hostname }}."

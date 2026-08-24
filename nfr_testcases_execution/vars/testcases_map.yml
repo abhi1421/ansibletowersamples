@@ -1,0 +1,75 @@
+---
+testcases:
+  "TC1":
+    name: "APP Node-1 abrupt halt"
+    halt_nodes: ["P9PDCPADAPP1"]
+    verify_nodes: ["P9PDCPADAPP2"]
+    res_groups:
+      - name: "RSG1"
+        target_node: "P9PDCPADAPP1"
+    expected_cluster_ips: ["172.22.21.133"]
+    expected_mounts: ["/neftpadqm1", "/sfmsapp1", "/sfmspadgwqm", "/sfmspadqm1"]
+    start_mq: true
+    queue_managers: ["SFMSRBIPADGWQM", "SFMSRBIPADCLQM1"]
+
+  "TC2":
+    name: "DB Node-1 abrupt halt (APP on APP2)"
+    halt_nodes: ["P9PDCPADDB1"]
+    verify_nodes: ["P9PDCPADDB2"]
+    res_groups:
+      - name: "RSG1"
+        target_node: "P9PDCPADDB1"
+    expected_cluster_ips: ["172.22.21.165"]
+    expected_mounts: ["/pad_Oraarch", "/pad_Oradata1", "/pad_Oradata2", "/pad_Oradata3", "/pad_Oradata4", "/pad_oraBkp"]
+    start_mq: false
+    queue_managers: []
+
+  "TC3":
+    name: "APP Node-2 abrupt halt"
+    halt_nodes: ["P9PDCPADAPP2"]
+    verify_nodes: ["P9PDCPADAPP1"]
+    res_groups:
+      - name: "RSG2"
+        target_node: "P9PDCPADAPP2"
+    expected_cluster_ips: ["172.22.21.135"]
+    expected_mounts: ["/neftpadqm2", "/sfmsapp2", "/sfmspadqm2"]
+    start_mq: true
+    queue_managers: ["SFMSRBIPADCLQM2"]
+
+  "TC4":
+    name: "DB Node-1 abrupt halt (APP on APP1)"
+    halt_nodes: ["P9PDCPADDB1"]
+    verify_nodes: ["P9PDCPADDB2"]
+    res_groups:
+      - name: "RSG1"
+        target_node: "P9PDCPADDB1"
+    expected_cluster_ips: ["172.22.21.165"]
+    expected_mounts: ["/pad_Oraarch", "/pad_Oradata1", "/pad_Oradata2", "/pad_Oradata3", "/pad_Oradata4", "/pad_oraBkp"]
+    start_mq: false
+    queue_managers: []
+
+  "TC5":
+    name: "DB Node-1 abrupt halt (Split APP Load)"
+    halt_nodes: ["P9PDCPADDB1"]
+    verify_nodes: ["P9PDCPADDB2"]
+    res_groups:
+      - name: "RSG1"
+        target_node: "P9PDCPADDB1"
+    expected_cluster_ips: ["172.22.21.165"]
+    expected_mounts: ["/pad_Oraarch", "/pad_Oradata1", "/pad_Oradata2", "/pad_Oradata3", "/pad_Oradata4", "/pad_oraBkp"]
+    start_mq: false
+    queue_managers: []
+
+  "TC6":
+    name: "APP-1 and DB-1 abrupt halt together"
+    halt_nodes: ["P9PDCPADAPP1", "P9PDCPADDB1"]
+    verify_nodes: ["P9PDCPADAPP2", "P9PDCPADDB2"]
+    res_groups:
+      - name: "RSG1"
+        target_node: "P9PDCPADAPP1"
+      - name: "RSG1"
+        target_node: "P9PDCPADDB1"
+    expected_cluster_ips: ["172.22.21.133", "172.22.21.165"]
+    expected_mounts: ["/neftpadqm1", "/sfmsapp1", "/sfmspadgwqm", "/sfmspadqm1", "/pad_Oraarch", "/pad_Oradata1", "/pad_Oradata2", "/pad_Oradata3", "/pad_Oradata4", "/pad_oraBkp"]
+    start_mq: true
+    queue_managers: ["SFMSRBIPADGWQM", "SFMSRBIPADCLQM1"]

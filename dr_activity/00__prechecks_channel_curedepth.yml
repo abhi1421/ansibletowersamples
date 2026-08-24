@@ -3,7 +3,7 @@
 # PLAY 1: NODE 1 PRE-CHECKS
 #############################################
 - name: PAD Node 1 - Pre-check MQ and Processes
-  hosts: "{{ SWITCHOVER_FROM }}_app_node1"
+  hosts: "{{ SWITCHOVER_FROM }}_app_node1:{{ SWITCHOVER_TO }}_app_node1"
   gather_facts: no
   become: yes
   become_method: sudo
@@ -13,33 +13,27 @@
     ansible_ssh_pipelining: true
     mqm_binary: /usr/mqm/bin
 
-#    mq_check_matrix:
-#      - { qmgr: "SFMSRBIPADGWQM", queue: "IDRBT.QUEUE.MANAGER" }
-#      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.QPXXMITQ" }
-#      - { qmgr: "SFMSRBIPADGWQM", queue: "NEFT.CBSXMITQ" }
-#      - { qmgr: "SFMSRBIPADCLQM1", queue: "RBISPADBRQ" }
-#      - { qmgr: "SFMSRBIPADCLQM1", queue: "SFMS.INCOMING" }
 
   tasks:
-
 #############################################
-# New Task to capture start time
+# NEW TASK TO CAPTURE START TIME
 #############################################
-
-    - name: Capture DR Activity Start Timestamp
+    - name: Capture DR activity start time
       set_fact:
-        dr_start_time: "{{ lookup('pipe', 'date +\"%d-%b-%Y %H:%M:%S\"') }}"
+        dr_start_time: "{{ lookup('pipe', 'TZ=\"Asia/Kolkata\" date +\"%d-%b-%Y %H:%M:%S\"') }}"
       delegate_to: localhost
       delegate_facts: true
       run_once: true
       become: no
 
-    - name: Export Start Time to Workflow Context
+    - name: Export start time to Workflow context
       set_stats:
         data:
-          dr_start_time_stat: "{{ dr_start_time }}"
+          dr_start_time_stat: "{{ hostvars['localhost'].dr_start_time }}"
         per_host: no
-    
+      run_once: true
+
+
     - name: Node 1 - Check MQ Queue Depths
       shell: "echo 'dis ql({{ item.queue }})  curdepth' | {{ mqm_binary }}/runmqsc {{ item.qmgr }}"
       loop: "{{ mq_check_matrix_n1 }}"
@@ -49,13 +43,13 @@
     - name: Node 1 - Check Active Application Screens
       shell: screen -ls
       register: screen_before_node1
-      failed_when: screen_before_node1.rc not in [1]
+      failed_when: screen_before_node1.rc not in [0, 1]
 
 #############################################
 # PLAY 2: NODE 2 PRE-CHECKS
 #############################################
 - name: PAD Node 2 - Pre-check MQ and Processes
-  hosts: "{{ SWITCHOVER_FROM }}_app_node2"
+  hosts: "{{ SWITCHOVER_FROM }}_app_node2:{{ SWITCHOVER_TO }}_app_node2"
   gather_facts: no
   become: yes
   become_method: sudo
@@ -64,10 +58,6 @@
     ansible_become_flags: "-H -S"
     ansible_ssh_pipelining: true
     mqm_binary: /usr/mqm/bin
-#    qmgr: SFMSRBIPADCLQM2
-#    queues:
-#      - RBISPADBRQ
-#      - SFMS.INCOMING
 
   tasks:
     - name: Node 2 - Check MQ Queue Depths
@@ -79,185 +69,169 @@
     - name: Node 2 - Check Active Application Screens
       shell: screen -ls
       register: screen_before_node2
-      failed_when: screen_before_node2.rc not in [1]
+      failed_when: screen_before_node2.rc not in [0, 1]
 
 #############################################
-# PLAY 3: CONSOLIDATED REPORTING & ARBITRATION
+# PLAY 3: CONSOLIDATED REPORTING & ARBITRATION (DUAL SITE)
 #############################################
-- name: Consolidate Pre-check Matrix
+- name: Consolidate Pre-check Matrix (Source & Destination Sites)
   hosts: localhost
   gather_facts: no
   vars:
-    node1_ip: "{{ groups[SWITCHOVER_FROM + '_app_node1'][0] }}"
-    node2_ip: "{{ groups[SWITCHOVER_FROM + '_app_node2'][0] }}"
+    # Source Site Hosts
+    src_node1_ip: "{{ groups[SWITCHOVER_FROM + '_app_node1'][0] }}"
+    src_node2_ip: "{{ groups[SWITCHOVER_FROM + '_app_node2'][0] }}"
+    
+    # Destination Site Hosts
+    dst_node1_ip: "{{ groups[SWITCHOVER_TO + '_app_node1'][0] }}"
+    dst_node2_ip: "{{ groups[SWITCHOVER_TO + '_app_node2'][0] }}"
 
   tasks:
-
-# NEW ADDITION - also ensure to add both the nodes in the hosts param
-#    - name: Analyze MQ and Screen Outputs Across All Nodes
-#      set_fact:
-#        all_hosts_results: >-
-#          {% set host_summary = [] %}
-#          {% for host in (groups[SWITCHOVER_FROM + '_app_node1'] + groups[SWITCHOVER_TO + '_app_node1'] + groups[SWITCHOVER_FROM + '_app_node2'] + groups[SWITCHOVER_TO + '_app_node2']) %}
-#            {% set n_mq = hostvars[host].mq_node1 if 'node1' in host else hostvars[host].mq_node2 %}
-#            {% set n_scr = hostvars[host].screen_before_node1 if 'node1' in host else hostvars[host].screen_before_node2 %}
-#            {% set mismatches = n_mq.results | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list %}
-#            {% set scr_status = 'Active Application Screens Found' if 'Sockets' in (n_scr.stdout | default('')) else 'No Active Screens (Clean)' %}
-#            {% set _ = host_summary.append({
-#                'host': host,
-#                'failed': (mismatches | length > 0),
-#                'mismatches': mismatches,
-#                'screen_status': scr_status
-#            }) %}
-#          {% endfor %}
-#          {{ host_summary }}
-
-#    - name: Evaluate Global Pre-Check Status
-#      set_fact:
-#        precheck_failed: "{{ (all_hosts_results | selectattr('failed', 'equalto', true) | list | length) > 0 }}"
-
-
-    - name: Analyze Node 1 MQ and Screen Outputs
+    # ----------------------------------------------------
+    # SOURCE SITE ANALYSIS
+    # ----------------------------------------------------
+    - name: Analyze Source Site Outputs (Node 1 & Node 2)
       set_fact:
-        n1_mq_mismatch: "{{ hostvars[node1_ip].mq_node1.results | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
-        n1_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in hostvars[node1_ip].screen_before_node1.stdout else 'No Active Screens (Clean)' }}"
+        src_n1_mq_mismatch: "{{ hostvars[src_node1_ip].mq_node1.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        src_n1_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in (hostvars[src_node1_ip].screen_before_node1.stdout | default('')) else 'No Active Screens (Clean)' }}"
+        src_n2_mq_mismatch: "{{ hostvars[src_node2_ip].mq_node2.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        src_n2_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in (hostvars[src_node2_ip].screen_before_node2.stdout | default('')) else 'No Active Screens (Clean)' }}"
 
-    - name: Analyze Node 2 MQ Outputs
+    # ----------------------------------------------------
+    # DESTINATION SITE ANALYSIS
+    # ----------------------------------------------------
+    - name: Analyze Destination Site Outputs (Node 1 & Node 2)
       set_fact:
-        n2_mq_mismatch: "{{ hostvars[node2_ip].mq_node2.results | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
-        n2_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in hostvars[node2_ip].screen_before_node2.stdout else 'No Active Screens (Clean)' }}"
+        dst_n1_mq_mismatch: "{{ hostvars[dst_node1_ip].mq_node1.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        dst_n1_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in (hostvars[dst_node1_ip].screen_before_node1.stdout | default('')) else 'No Active Screens (Clean)' }}"
+        dst_n2_mq_mismatch: "{{ hostvars[dst_node2_ip].mq_node2.results | default([]) | selectattr('stdout', 'defined') | selectattr('stdout', 'search', 'CURDEPTH\\(([1-9][0-9]*)\\)') | list }}"
+        dst_n2_screen_status: "{{ 'Active Application Screens Found' if 'Sockets' in (hostvars[dst_node2_ip].screen_before_node2.stdout | default('')) else 'No Active Screens (Clean)' }}"
 
-    - name: Evaluate Global Pre-Check Status Matrix
+    # ----------------------------------------------------
+    # EVALUATE GLOBAL MATRIX STATUS
+    # ----------------------------------------------------
+    - name: Evaluate Global Dual-Site Status
       set_fact:
-        precheck_failed: "{{ (n1_mq_mismatch | length > 0) or (n2_mq_mismatch | length > 0) }}"
+        precheck_failed: >-
+          {{
+            (src_n1_mq_mismatch | length > 0) or 
+            (src_n2_mq_mismatch | length > 0) or 
+            (dst_n1_mq_mismatch | length > 0) or 
+            (dst_n2_mq_mismatch | length > 0)
+          }}
 
-#    - name: Compile Human-Readable Pre-Check Report
-#      set_fact:
-#        precheck_report: |
-#          =======================================================
-#          DR DISASTER RECOVERY ACTIVITY: PRE-CHECK REPORT
-#          =======================================================
-#          GLOBAL OVERALL STATUS: {{ '❌ FAILED (Queues not clean)' if precheck_failed else '✅ PASSED' }}
-#          
-#          NODE 1: {{ node1_ip }}
-#          -------------------------------------------------------
-#          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n1_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
-#          {% if n1_mq_mismatch | length > 0 %}
-#            Blocked Queues:
-#          {% for item in n1_mq_mismatch %}
-#              - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
-#          {% endfor %}
-#          {% endif %}
-#          * Screen Processes State: {{ n1_screen_status }}
-#          
-#          NODE 2: {{ node2_ip }}
-#          -------------------------------------------------------
-#          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n2_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
-#          {% if n2_mq_mismatch | length > 0 %}
-#            Blocked Queues:
-#          {% for item in n2_mq_mismatch %}
-#              - {{ item.item }} on SFMSRBIPADCLQM2 ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
-#          {% endfor %}
-#          {% endif %}
-#          * Screen Processes State: {{ n2_screen_status }}
-#          =======================================================
-
-    - name: Compile Human-Readable Pre-Check Report
+    - name: Compile Human-Readable Dual-Site Pre-Check Report
       set_fact:
         precheck_report: |
-          =======================================================
-          🚀 DISASTER RECOVERY ACTIVITY: INITIATION & PRE-CHECK REPORT
-          =======================================================
-          Start Time             : {{ dr_start_time_stat | default(dr_start_time | default('N/A')) }}
-          Start Time             : {{ hostvars['localhost'].dr_start_time | default('N/A') }}
-          Target Environment     : {{ SWITCHOVER_TO | upper }}
-          GLOBAL OVERALL STATUS   : {{ '❌ FAILED (Queues not clean)' if precheck_failed else '🟢 PRE-CHECKS PASSED - PIPELINE INITIATED' }}
+          ======================================================================
+          DR DISASTER RECOVERY ACTIVITY: INITIATION & DUAL-SITE PRE-CHECK REPORT
+          ======================================================================
+          Start time:            {{ hostvars['localhost'].dr_start_time | default('N/A') }}
+          Source Environment:    {{ SWITCHOVER_FROM | upper }}
+          Target Environment:    {{ SWITCHOVER_TO | upper }}
+          GLOBAL OVERALL STATUS: {{ '❌ FAILED (Queues not dry on one or both sites)' if precheck_failed else '✅ PRE-CHECKS PASSED - PIPELINE INITIATED' }}
 
-          PLANNED EXECUTION PIPELINE & SCOPE:
-          -------------------------------------------------------
-          [STAGE 00] Pre-checks & Queue Validation
-          [STAGE 02] Application Shutdown & XA Verification
-          [STAGE 03] Queue Depth Verification & Application Process Kill
-          [STAGE 04] Hub Gateway Integration Channel Stop
-          [STAGE 05a] Oracle Data Guard Database Switchover
-          [STAGE 05b] Two-Phase Commit Verification & DR Queue Check
-          [STAGE 05c] Application & Ehcache Startup Verification
-          [STAGE 06] Hub Gateway Channel Re-configuration & Startup
-          [STAGE 07] Core SFMS QPX and CBS Channels Alteration & Start
-          [STAGE 100] Final Execution Audit & Success Reporting
-          -------------------------------------------------------
+          PLANNED EXECUTION PIPELINE AND SCOPE:
+          ----------------------------------------------------------------------
+          [STAGE 00] Pre Checks and Queue Validation (Source & Destination)
+          [STAGE 02] Application Shutdown by stopping sender channel
+          [STAGE 03] Queue depth verification and Application process kill
+          [STAGE 04] Hub gateway integration channel stop
+          [STAGE 05a] Oracle data guard database switchover
+          [STAGE 05b] Two-Phase commit verification and DR queue depth
+          [STAGE 05c] Application and Ehcache startup process
+          [STAGE 06] Hub Gateway Channel re-configuration and startup
+          [STAGE 07] Core SFMS QPX and CBS channels alteration and start
+          [STAGE 100] Final Execution audit and Success reporting
+          ----------------------------------------------------------------------
 
-          PRE-CHECK VERIFICATION MATRIX:
-          -------------------------------------------------------
-          NODE 1: {{ node1_ip }}
-          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n1_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
-          {% if n1_mq_mismatch | length > 0 %}
+          1. SOURCE SITE PRE-CHECK MATRIX ({{ SWITCHOVER_FROM | upper }})
+          ----------------------------------------------------------------------
+          SOURCE NODE 1: {{ src_node1_ip }}
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if src_n1_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if src_n1_mq_mismatch | length > 0 %}
             Blocked Queues:
-          {% for item in n1_mq_mismatch %}
+          {% for item in src_n1_mq_mismatch %}
               - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
           {% endfor %}
           {% endif %}
-          * Screen Processes State: {{ n1_screen_status }}
-          
-          NODE 2: {{ node2_ip }}
-          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if n2_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
-          {% if n2_mq_mismatch | length > 0 %}
+          * Screen Processes State: {{ src_n1_screen_status }}
+
+          SOURCE NODE 2: {{ src_node2_ip }}
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if src_n2_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if src_n2_mq_mismatch | length > 0 %}
             Blocked Queues:
-          {% for item in n2_mq_mismatch %}
-              - {{ item.item }} on SFMSRBIPADCLQM2 ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+          {% for item in src_n2_mq_mismatch %}
+              - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
           {% endfor %}
           {% endif %}
-          * Screen Processes State: {{ n2_screen_status }}
-          =======================================================
+          * Screen Processes State: {{ src_n2_screen_status }}
+
+
+          2. DESTINATION SITE PRE-CHECK MATRIX ({{ SWITCHOVER_TO | upper }})
+          ----------------------------------------------------------------------
+          DESTINATION NODE 1: {{ dst_node1_ip }}
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if dst_n1_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if dst_n1_mq_mismatch | length > 0 %}
+            Blocked Queues:
+          {% for item in dst_n1_mq_mismatch %}
+              - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+          {% endfor %}
+          {% endif %}
+          * Screen Processes State: {{ dst_n1_screen_status }}
+
+          DESTINATION NODE 2: {{ dst_node2_ip }}
+          * MQ Queue Health: {{ '⚠️ BLOCKED - Non-Zero Queue Depth Detected' if dst_n2_mq_mismatch | length > 0 else '🟢 CLEAR - All Monitored Queues Empty' }}
+          {% if dst_n2_mq_mismatch | length > 0 %}
+            Blocked Queues:
+          {% for item in dst_n2_mq_mismatch %}
+              - {{ item.item.queue }} on {{ item.item.qmgr }} ({{ item.stdout | regex_search('CURDEPTH\\(\\d+\\)') }})
+          {% endfor %}
+          {% endif %}
+          * Screen Processes State: {{ dst_n2_screen_status }}
+          ======================================================================
 
     - name: Print Consolidated Pre-check Matrix
       debug:
         msg: "{{ precheck_report }}"
 
-#####################################
-# CONDITION A - RUNTIME FAILURE PATH
-#####################################
-
+    # ----------------------------------------------------
+    # CONDITION A - RUNTIME FAILURE PATH
+    # ----------------------------------------------------
     - name: Register Global Artifact Variables for AAP Failure Workflow
       set_stats:
         data:
           dr_failed_step: "00_precheck_curedepth"
-          dr_failure_reason: "Pre-check failed because transaction queues are not dry."
+          dr_failure_reason: "Pre-check failed because transaction queues are not dry on Source or Destination site."
           dr_detailed_log: "{{ precheck_report }}"
         per_host: no
       when: precheck_failed
 
     - name: Enforce Hard Failure Path for Automation Workflow
       fail:
-        msg: "DR Precheck validation step failed. Halting workflow progression."
+        msg: "DR Precheck validation step failed on Source/Destination site. Halting workflow progression."
       when: precheck_failed
 
-#######################################################################
-# CONDITION B - RUNTIME SUCCESS PATH (Only runs if 'fail') is skipped
-######################################################################
-
+    # ----------------------------------------------------
+    # CONDITION B - RUNTIME SUCCESS PATH
+    # ----------------------------------------------------
     - name: Register Step Success to global matrix variable
       set_stats:
         data:
-          dr_step_00_status: PASSED (Queses dry, screens validated)
+          dr_step_00_status: "PASSED (Dual-site queues dry, screens validated)"
         per_host: no
 
-    
     - name: Send consolidated Summary Email
       community.general.mail:
         host: 10.35.1.17
         port: 25
         to: "{{ email_recepients | join(', ') }}"
         from: ansible.alerts@rbi.org.in
-        subject: "DR UPDATE - Stage [00_Precheck_curedepth] PASSED - DR Switchover In Progress"
+        subject: "📢 DR UPDATE - Stage [00_Precheck_curedepth] PASSED - DR Switchover in Progress"
         body: |
-          Step 00_precheck_curedepth has completed successfully.
+          Step 00_precheck_curedepth has completed successfully on both Source ({{ SWITCHOVER_FROM | upper }}) and Destination ({{ SWITCHOVER_TO | upper }}) sites.
+          
           Summary Details:
           {{ precheck_report }}
       delegate_to: localhost
       run_once: true
-
-
-
-
-
