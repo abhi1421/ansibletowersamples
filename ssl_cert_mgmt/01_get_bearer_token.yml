@@ -1,6 +1,6 @@
 ---
 - name: Step 01 - Get Bearer & Refresh Token
-  hosts: localhost
+  hosts: all
   gather_facts: false
   vars:
     v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
@@ -23,6 +23,7 @@
               Content-Type: "application/x-www-form-urlencoded"
             status_code: 200
           register: token_response
+          delegate_to: localhost
 
         - name: Construct Step Success Summary
           ansible.builtin.set_fact:

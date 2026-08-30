@@ -1,6 +1,6 @@
 ---
 - name: Step 02 - Generate CSR & Create Order
-  hosts: localhost
+  hosts: all
   gather_facts: false
   vars:
     v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
@@ -55,6 +55,7 @@
                 validityYears: 1
             status_code: [200, 201]
           register: order_response
+          delegate_to: localhost
 
         - name: Construct Step Success Summary
           ansible.builtin.set_fact:

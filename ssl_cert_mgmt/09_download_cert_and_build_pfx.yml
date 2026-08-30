@@ -1,6 +1,6 @@
 ---
 - name: Step 09 - Download Cert & Build PFX
-  hosts: localhost
+  hosts: all
   gather_facts: false
   vars:
     v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
@@ -20,6 +20,7 @@
               Accept: "application/x-pem-file"
             return_content: true
           register: cert_download
+          delegate_to: localhost
 
         - name: Save Certificate File
           ansible.builtin.copy:
