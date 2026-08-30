@@ -1,0 +1,27 @@
+
+---
+- name: Send Phase Completion Email
+  hosts: localhost
+  gather_facts: false
+  vars:
+    recipient_list: "{{ recipientEmails | default(['vijaymerugu@rbi.org.in', 'shamiseles@rbi.org.in', 'akmaurya@rbi.org.in']) }}"
+    email_body: "{{ phase_1_consolidated_report | default(phase_2_consolidated_report | default('No summary available.')) }}"
+
+  tasks:
+    - name: Send Consolidated Status Email
+      community.general.mail:
+        host: "localhost"
+        port: 25
+        to: "{{ recipient_list }}"
+        subject: "[Automation Notification] SSL Certificate Workflow Phase Report"
+        body: |
+          Hello Team,
+
+          Here is the consolidated summary of the executed SSL lifecycle phase:
+
+          --------------------------------------------------
+          {{ email_body }}
+          --------------------------------------------------
+
+          Regards,
+          Ansible Automation Controller

@@ -1,0 +1,7 @@
+---
+- name: Master Execution - Phase 1 (Steps 1 to 4)
+  import_playbook: 01_get_bearer_token.yml
+
+- import_playbook: 02_generate_csr_and_order.yml
+- import_playbook: 03_get_dcv_challenges.yml
+- import_playbook: 04_publish_dcv_record.yml

@@ -1,0 +1,8 @@
+---
+- name: Master Execution - Phase 2 (Steps 5 to 9)
+  import_playbook: 05_verify_dcv.yml
+
+- import_playbook: 06_submit_csr.yml
+- import_playbook: 07_accept_agreement.yml
+- import_playbook: 08_track_order_status.yml
+- import_playbook: 09_download_cert_and_build_pfx.yml

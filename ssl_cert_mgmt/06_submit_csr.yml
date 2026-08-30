@@ -1,0 +1,25 @@
+---
+- name: Step 06 - Submit CSR Check
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Evaluate CSR Submission Step
+      block:
+        - name: Construct Step Summary
+          ansible.builtin.set_fact:
+            step_6_summary: "Step 06 [Submit CSR]: SKIPPED | CSR already processed in Step 02"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 06 [Submit CSR]: SKIPPED - Handled in Step 2'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_6_summary: "Step 06 [Submit CSR]: FAILED"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 06 [Submit CSR]: FAILED'] }}"
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              step_6_summary: "{{ step_6_summary }}"
+              phase_summary_report: "{{ current_report }}"

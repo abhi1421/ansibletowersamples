@@ -1,0 +1,82 @@
+---
+- name: Step 02 - Generate CSR & Create Order
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+    cert_type: "{{ cert_type_input | default('DV Single Domain') }}"
+    common_name: "{{ common_name_input | default('demo-cert.rbi.org.in') }}"
+    san_list: "{{ san_list_input | default('demo-cert.rbi.org.in') }}"
+    cert_dir: "/tmp/certs/{{ common_name }}"
+
+  tasks:
+    - name: Execute CSR Generation and Order Creation
+      block:
+        - name: Map Certificate Variant & Product Code
+          ansible.builtin.set_fact:
+            product_code: "{{ '842' if 'Single' in cert_type else ('843' if 'Wildcard' in cert_type else '844') }}"
+            product_variant: "{{ 'dv' if 'Single' in cert_type else ('dv_wildcard' if 'Wildcard' in cert_type else 'dv_ucc') }}"
+
+        - name: Ensure Directory Exists
+          ansible.builtin.file:
+            path: "{{ cert_dir }}"
+            state: directory
+            mode: '0755'
+
+        - name: Generate RSA Private Key
+          community.crypto.openssl_privatekey:
+            path: "{{ cert_dir }}/{{ common_name }}.key"
+            type: RSA
+            size: 2048
+
+        - name: Generate OpenSSL CSR
+          community.crypto.openssl_csr:
+            path: "{{ cert_dir }}/{{ common_name }}.csr"
+            privatekey_path: "{{ cert_dir }}/{{ common_name }}.key"
+            common_name: "{{ common_name }}"
+            subject_alt_name: "{{ san_list.split(',') | map('trim') | map('regex_replace', '^', 'DNS:') | list }}"
+
+        - name: Submit Order Request
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+              Content-Type: "application/json"
+              X-Product-Code: "{{ product_code }}"
+            body_format: json
+            body:
+              productVariant: "{{ product_variant }}"
+              saveAsDraft: false
+              certificate:
+                domain: "{{ common_name }}"
+              csr: "{{ lookup('file', cert_dir + '/' + common_name + '.csr') }}"
+              subscription:
+                validityYears: 1
+            status_code: [200, 201]
+          register: order_response
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            order_id_val: "{{ order_response.json.orderId }}"
+            step_2_summary: "Step 02 [Order Created]: SUCCESS | Order ID: {{ order_response.json.orderId }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 02 [Order Created]: SUCCESS - Order ID ' + order_response.json.orderId] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            order_id_val: ""
+            step_2_summary: "Step 02 [Order Created]: FAILED | {{ ansible_failed_result.msg | default('Order Failed') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 02 [Order Created]: FAILED - ' + (ansible_failed_result.msg | default('Order Failed'))] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 02 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              order_id: "{{ order_id_val | default('') }}"
+              step_2_summary: "{{ step_2_summary }}"
+              phase_summary_report: "{{ current_report }}"

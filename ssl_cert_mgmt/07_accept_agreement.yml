@@ -1,0 +1,45 @@
+---
+- name: Step 07 - Accept Subscriber Agreement
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+
+  tasks:
+    - name: Submit Agreement Signature
+      block:
+        - name: Post Agreement Acceptance
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates/{{ order_id }}/agreement"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+              Content-Type: "application/json"
+            body_format: json
+            body:
+              signerName: "Vijay Merugu"
+              signerPlace: "Navi Mumbai, India"
+              accepted: true
+            status_code: 200
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            step_7_summary: "Step 07 [Accept Agreement]: SUCCESS | Agreement Signed"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 07 [Accept Agreement]: SUCCESS'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_7_summary: "Step 07 [Accept Agreement]: FAILED | {{ ansible_failed_result.msg | default('Agreement Submission Failed') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 07 [Accept Agreement]: FAILED'] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 07 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              step_7_summary: "{{ step_7_summary }}"
+              phase_summary_report: "{{ current_report }}"

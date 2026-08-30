@@ -1,0 +1,43 @@
+---
+- name: Step 08 - Track Order Status
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+
+  tasks:
+    - name: Track Status
+      block:
+        - name: Poll Status Until Issued
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates/{{ order_id }}"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+          register: order_status
+          until: "(order_status.json.certificateState | default('') | lower == 'issued') or (order_status.json.status | default('') | lower == 'issued')"
+          retries: 30
+          delay: 20
+          failed_when: order_status.json.status | default('') | lower in ['failed', 'rejected', 'cancelled']
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            step_8_summary: "Step 08 [Track Order]: SUCCESS | Status: ISSUED"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 08 [Track Order]: SUCCESS - Status Issued'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_8_summary: "Step 08 [Track Order]: FAILED | Timed out or order rejected"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 08 [Track Order]: FAILED - Timeout or rejection'] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 08 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              step_8_summary: "{{ step_8_summary }}"
+              phase_summary_report: "{{ current_report }}"

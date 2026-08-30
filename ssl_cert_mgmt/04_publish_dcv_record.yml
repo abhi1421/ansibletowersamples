@@ -1,0 +1,39 @@
+---
+- name: Step 04 - Publish TXT Record Notification
+  hosts: localhost
+  gather_facts: false
+  vars:
+    recipient_list: "{{ recipientEmails | default(['vijaymerugu@rbi.org.in', 'shamiseles@rbi.org.in', 'akmaurya@rbi.org.in']) }}"
+
+  tasks:
+    - name: Notify DNS Support Team
+      block:
+        - name: Send TXT Update Email to Support
+          community.general.mail:
+            host: "localhost"
+            port: 25
+            to: "{{ recipient_list }}"
+            subject: "[Action Required] Publish DNS TXT Record for {{ common_name_input | default('demo-cert.rbi.org.in') }}"
+            body: "Please publish DNS TXT Record Value: {{ dcv_content }}"
+
+        - name: Construct Step Success Summary & Consolidated Phase 1 Report
+          ansible.builtin.set_fact:
+            step_4_summary: "Step 04 [DNS Notification]: SUCCESS | Email Sent"
+            final_report: "{{ (phase_summary_report | default([])) + ['Step 04 [DNS Notification]: SUCCESS - Email Sent'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_4_summary: "Step 04 [DNS Notification]: FAILED | {{ ansible_failed_result.msg | default('Email Dispatch Failed') }}"
+            final_report: "{{ (phase_summary_report | default([])) + ['Step 04 [DNS Notification]: FAILED - Email Dispatch Failed'] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 04 Failed."
+
+      always:
+        - name: Push Facts & Phase 1 Report
+          ansible.builtin.set_stats:
+            data:
+              step_4_summary: "{{ step_4_summary }}"
+              phase_1_consolidated_report: "{{ final_report | join('\n') }}"

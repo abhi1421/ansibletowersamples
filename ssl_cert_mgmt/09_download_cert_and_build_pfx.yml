@@ -1,0 +1,59 @@
+---
+- name: Step 09 - Download Cert & Build PFX
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+    common_name: "{{ common_name_input | default('demo-cert.rbi.org.in') }}"
+    pfx_pass: "{{ pfx_password_input | default('ChangeMe123!') }}"
+    cert_dir: "/tmp/certs/{{ common_name }}"
+
+  tasks:
+    - name: Download and Package Certificate
+      block:
+        - name: Download CRT File
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates/{{ order_id }}/download"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+              Accept: "application/x-pem-file"
+            return_content: true
+          register: cert_download
+
+        - name: Save Certificate File
+          ansible.builtin.copy:
+            content: "{{ cert_download.content }}"
+            dest: "{{ cert_dir }}/{{ common_name }}.crt"
+            mode: '0644'
+
+        - name: Generate PFX Archive using Native OpenSSL Command
+          ansible.builtin.command: >-
+            openssl pkcs12 -export
+            -out "{{ cert_dir }}/{{ common_name }}.pfx"
+            -inkey "{{ cert_dir }}/{{ common_name }}.key"
+            -in "{{ cert_dir }}/{{ common_name }}.crt"
+            -passout "pass:{{ pfx_pass }}"
+          no_log: true
+
+        - name: Construct Step Success Summary & Consolidated Phase 2 Report
+          ansible.builtin.set_fact:
+            step_9_summary: "Step 09 [Download & Build PFX]: SUCCESS | Saved in {{ cert_dir }}"
+            final_report: "{{ (phase_summary_report | default([])) + ['Step 09 [Download & Build PFX]: SUCCESS - Files saved to ' + cert_dir] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_9_summary: "Step 09 [Download & Build PFX]: FAILED | {{ ansible_failed_result.msg | default('Download or PFX Build Failed') }}"
+            final_report: "{{ (phase_summary_report | default([])) + ['Step 09 [Download & Build PFX]: FAILED - Download or PFX Build Failed'] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 09 Failed."
+
+      always:
+        - name: Push Facts & Phase 2 Report
+          ansible.builtin.set_stats:
+            data:
+              step_9_summary: "{{ step_9_summary }}"
+              phase_2_consolidated_report: "{{ final_report | join('\n') }}"

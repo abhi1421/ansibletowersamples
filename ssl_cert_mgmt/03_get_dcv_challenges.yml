@@ -1,0 +1,43 @@
+---
+- name: Step 03 - Get DCV Challenges
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+
+  tasks:
+    - name: Fetch DCV Challenge Details
+      block:
+        - name: Request DCV TXT Record Content
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates/{{ order_id }}/dcv"
+            method: GET
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+            status_code: 200
+          register: dcv_response
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            dcv_content_val: "{{ dcv_response.json.fileNameContent }}"
+            step_3_summary: "Step 03 [DCV Challenge]: SUCCESS | TXT Content Retrieved"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 03 [DCV Challenge]: SUCCESS'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            dcv_content_val: ""
+            step_3_summary: "Step 03 [DCV Challenge]: FAILED | {{ ansible_failed_result.msg | default('DCV Fetch Error') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 03 [DCV Challenge]: FAILED - ' + (ansible_failed_result.msg | default('DCV Fetch Error'))] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 03 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              dcv_content: "{{ dcv_content_val | default('') }}"
+              step_3_summary: "{{ step_3_summary }}"
+              phase_summary_report: "{{ current_report }}"

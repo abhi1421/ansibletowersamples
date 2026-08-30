@@ -1,0 +1,39 @@
+---
+- name: Step 05 - Verify DCV
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+
+  tasks:
+    - name: Execute DCV Verification
+      block:
+        - name: Trigger DCV Verification Request
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/api/certinext/v2/ssl-certificates/{{ order_id }}/verify-dcv"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ bearer_token }}"
+            status_code: [200, 202]
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            step_5_summary: "Step 05 [Verify DCV]: SUCCESS | Verification Triggered"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 05 [Verify DCV]: SUCCESS'] }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_5_summary: "Step 05 [Verify DCV]: FAILED | {{ ansible_failed_result.msg | default('Verification Call Failed') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 05 [Verify DCV]: FAILED - Verification Call Failed'] }}"
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 05 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              step_5_summary: "{{ step_5_summary }}"
+              phase_summary_report: "{{ current_report }}"

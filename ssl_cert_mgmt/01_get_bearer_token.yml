@@ -1,0 +1,53 @@
+---
+- name: Step 01 - Get Bearer & Refresh Token
+  hosts: localhost
+  gather_facts: false
+  vars:
+    v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
+    client_id: "{{ client_id_input | default('9119697538') }}"
+    client_secret: "{{ client_secret_input | default('f1acc3932a0442bc99820cadd2162be6') }}"
+
+  tasks:
+    - name: Execute Token Request
+      block:
+        - name: Fetch Bearer and Refresh Token
+          ansible.builtin.uri:
+            url: "{{ v2_base_url }}/oauth/token"
+            method: POST
+            body_format: form-urlencoded
+            body:
+              grant_type: "client_credentials"
+              client_id: "{{ client_id }}"
+              client_secret: "{{ client_secret }}"
+            headers:
+              Content-Type: "application/x-www-form-urlencoded"
+            status_code: 200
+          register: token_response
+
+        - name: Construct Step Success Summary
+          ansible.builtin.set_fact:
+            step_1_summary: "Step 01 [Token Auth]: SUCCESS | Token Type: {{ token_response.json.token_type }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 01 [Token Auth]: SUCCESS - Token generated'] }}"
+            bearer_token_val: "{{ token_response.json.access_token }}"
+            refresh_token_val: "{{ token_response.json.refresh_token }}"
+
+      rescue:
+        - name: Construct Step Failure Summary
+          ansible.builtin.set_fact:
+            step_1_summary: "Step 01 [Token Auth]: FAILED | {{ ansible_failed_result.msg | default('API Auth Error') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 01 [Token Auth]: FAILED - ' + (ansible_failed_result.msg | default('API Auth Error'))] }}"
+            bearer_token_val: ""
+            refresh_token_val: ""
+
+        - name: Fail task execution
+          ansible.builtin.fail:
+            msg: "Step 01 Failed."
+
+      always:
+        - name: Push Facts to AAP Workflow Engine
+          ansible.builtin.set_stats:
+            data:
+              bearer_token: "{{ bearer_token_val | default('') }}"
+              refresh_token: "{{ refresh_token_val | default('') }}"
+              step_1_summary: "{{ step_1_summary }}"
+              phase_summary_report: "{{ current_report }}"
