@@ -55,11 +55,22 @@
             body:
               productVariant: "{{ product_variant }}"
               saveAsDraft: false
+              requestor:
+                name: "{{ requestor_name | default('Vijay Merugu') }}"
+                email: "{{ requestor_email | default('vijaymerugu@rbi.org.in') }}"
+                phone: "{{ requestor_phone | default('+919987720876') }}"
+                designation: "{{ requestor_designation | default('AGM Consultant') }}"
               certificate:
                 domain: "{{ common_name }}"
-              csr: "{{ csr_encoded.content | b64decode }}"
+                autoSecureWww: false
               subscription:
                 validityYears: 1
+              csr: "{{ csr_encoded.content | b64decode }}"
+              agreement:
+                signerName: "{{ requestor_name | default('Vijay Merugu') }}"
+                signerPlace: "Navi Mumbai, India"
+                accepted: true
+              remarks: "Automated via Ansible Automation Platform"
             status_code: [200, 201]
           register: order_response
           delegate_to: localhost
