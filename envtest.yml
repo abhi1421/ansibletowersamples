@@ -1,5 +1,5 @@
 ---
-- name: Test SFMSP environment collection
+- name: Collect SFMSP environment
   hosts: all
   become: true
   gather_facts: false
@@ -8,10 +8,24 @@
 
     - name: Collect SFMSP environment
       ansible.builtin.shell: |
-        printf 'env | awk '\''/^[A-Za-z_][A-Za-z0-9_]*=/{print}'\''\nexit\n' | sudo su - sfmspad -c ':'
+        printf 'printf "__ENV_START__\n"; env; printf "__ENV_END__\n"; exit\n' |
+        sudo su - sfmspad -c ':'
       register: sfmspad_env
       changed_when: false
 
-    - name: Display collected environment
+    - name: Extract environment block
+      ansible.builtin.set_fact:
+        sfmspad_env_clean: >-
+          {{
+            sfmspad_env.stdout
+            | regex_search(
+                '__ENV_START__\r?\n(.*?)\r?\n__ENV_END__',
+                '\1',
+                multiline=True
+              )
+            | first
+          }}
+
+    - name: Display clean environment
       ansible.builtin.debug:
-        var: sfmspad_env.stdout
+        var: sfmspad_env_clean
