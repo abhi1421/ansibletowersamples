@@ -41,3 +41,23 @@
     - name: Display environment dictionary
       ansible.builtin.debug:
         var: sfmspad_environment
+
+
+    - name: Test command using dynamically collected environment
+      ansible.builtin.shell: |
+        echo "USER=$USER"
+        echo "SFM_ENV=$SFM_ENV"
+        echo "SFM_REGION=$SFM_REGION"
+        echo "SFM_APP=$SFM_APP"
+        echo "MQ_MANAGER=$MQ_MANAGER"
+        echo "MQ_CHANNEL=$MQ_CHANNEL"
+        echo "SFM_HOME=$SFM_HOME"
+      become: true
+      become_user: sfmspad
+      environment: "{{ sfmspad_environment }}"
+      register: test_process
+      changed_when: false
+    
+    - name: Display test result
+      ansible.builtin.debug:
+        var: test_process.stdout
