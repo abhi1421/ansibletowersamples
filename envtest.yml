@@ -1,0 +1,17 @@
+---
+- name: Test SFMSP environment collection
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+
+    - name: Collect SFMSP environment
+      ansible.builtin.shell: |
+        printf 'env\nexit\n' | sudo su - sfmspad -c ':'
+      register: sfmspad_env
+      changed_when: false
+
+    - name: Display collected environment
+      ansible.builtin.debug:
+        var: sfmspad_env.stdout
