@@ -15,7 +15,7 @@
         - name: Map Certificate Variant & Product Code
           ansible.builtin.set_fact:
             product_code: "{{ '842' if 'Single' in cert_type else ('843' if 'Wildcard' in cert_type else '844') }}"
-            product_variant: "{{ 'dv' if 'Single' in cert_type else ('dv_wildcard' if 'Wildcard' in cert_type else 'dv_ucc') }}"
+            product_variant: "{{ 'dv' if 'Single' in cert_type else ('dv-wildcard' if 'Wildcard' in cert_type else 'dv-ucc') }}"
 
         - name: Ensure Directory Exists on Target Server
           ansible.builtin.file:
