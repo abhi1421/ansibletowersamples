@@ -22,8 +22,22 @@
             | last
             | split('__ENV_END__')
             | first
-          }}    
+            | trim
+          }}
 
-    - name: Display clean environment
+    - name: Convert environment to dictionary
+      ansible.builtin.set_fact:
+        sfmspad_environment: >-
+          {{
+            dict(
+              sfmspad_env_clean.splitlines()
+              | map('trim')
+              | select('match', '^[A-Za-z_][A-Za-z0-9_]*=')
+              | reject('match', '^BASH_FUNC_')
+              | map('split', '=', 1)
+            )
+          }}
+
+    - name: Display environment dictionary
       ansible.builtin.debug:
-        var: sfmspad_env_clean
+        var: sfmspad_environment
