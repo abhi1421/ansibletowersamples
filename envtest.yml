@@ -18,13 +18,11 @@
         sfmspad_env_clean: >-
           {{
             sfmspad_env.stdout
-            | regex_search(
-                '__ENV_START__\r?\n(.*?)\r?\n__ENV_END__',
-                '\1',
-                multiline=True
-              )
+            | split('__ENV_START__')
+            | last
+            | split('__ENV_END__')
             | first
-          }}
+          }}    
 
     - name: Display clean environment
       ansible.builtin.debug:
