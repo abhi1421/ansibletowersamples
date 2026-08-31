@@ -61,3 +61,36 @@
     - name: Display test result
       ansible.builtin.debug:
         var: test_process.stdout
+
+
+    - name: Collect sfmspad runtime environment
+      ansible.builtin.shell: |
+        printf 'printf "__ENV_START__\n"; env; printf "__ENV_END__\n"; exit\n' |
+        sudo su - sfmspad -c ':'
+      register: sfmspad_env
+      changed_when: false
+    
+    - name: Extract environment block
+      ansible.builtin.set_fact:
+        sfmspad_env_clean: >-
+          {{
+            sfmspad_env.stdout
+            | split('__ENV_START__')
+            | last
+            | split('__ENV_END__')
+            | first
+            | trim
+          }}
+    
+    - name: Convert environment to dictionary
+      ansible.builtin.set_fact:
+        sfmspad_environment: >-
+          {{
+            dict(
+              sfmspad_env_clean.splitlines()
+              | map('trim')
+              | select('match', '^[A-Za-z_][A-Za-z0-9_]*=')
+              | reject('match', '^BASH_FUNC_')
+              | map('split', '=', 1)
+            )
+          }}
