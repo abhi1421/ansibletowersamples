@@ -7,7 +7,11 @@
     cert_type: "{{ cert_type_input | default('DV Single Domain') }}"
     common_name: "{{ common_name_input | default('demo-cert.rbi.org.in') }}"
     san_list: "{{ san_list_input | default('demo-cert.rbi.org.in') }}"
-    cert_dir: "/etc/ssl/certs/{{ common_name }}"
+    
+    # Domain & Date based directory structure
+    base_cert_dir: "/etc/ssl/certs"
+    current_date: "{{ lookup('pipe', 'date +%Y-%m-%d') }}"
+    cert_dir: "{{ base_cert_dir }}/{{ common_name }}/{{ current_date }}"
 
   tasks:
     - name: Execute CSR Generation and Order Creation
@@ -17,11 +21,38 @@
             product_code: "{{ '842' if 'Single' in cert_type else ('843' if 'Wildcard' in cert_type else '844') }}"
             product_variant: "{{ 'dv' if 'Single' in cert_type else ('dv-wildcard' if 'Wildcard' in cert_type else 'dv-ucc') }}"
 
-        - name: Ensure Directory Exists on Target Server
+        - name: Ensure Domain and Date Directory Structure Exists
           ansible.builtin.file:
             path: "{{ cert_dir }}"
             state: directory
             mode: '0755'
+
+        - name: Generate Domain Specific utf8.conf
+          ansible.builtin.copy:
+            dest: "{{ cert_dir }}/utf8.conf"
+            mode: '0644'
+            content: |
+              [ req ]
+              default_bits = 2048
+              default_md = sha256
+              prompt = no
+              utf8 = yes
+              string_mask = utf8only
+              distinguished_name = dn
+              req_extensions = req_ext
+
+              [ dn ]
+              C = IN
+              ST = Maharashtra
+              L = NAVI MUMBAI
+              O = RBI
+              CN = {{ common_name }}
+
+              [ req_ext ]
+              subjectAltName = @alt_names
+
+              [ alt_names ]
+              DNS.1 = {{ common_name }}
 
         - name: Generate RSA Private Key on Target Server
           ansible.builtin.command: >-
@@ -29,12 +60,12 @@
           args:
             creates: "{{ cert_dir }}/{{ common_name }}.key"
 
-        - name: Generate OpenSSL CSR on Target Server
+        - name: Generate OpenSSL CSR using Domain utf8.conf
           ansible.builtin.command: >-
             openssl req -new
             -key "{{ cert_dir }}/{{ common_name }}.key"
             -out "{{ cert_dir }}/{{ common_name }}.csr"
-            -subj "/C=IN/ST=Maharashtra/L=Navi Mumbai/O=DIT/CN={{ common_name }}"
+            -config "{{ cert_dir }}/utf8.conf"
           args:
             creates: "{{ cert_dir }}/{{ common_name }}.csr"
 
@@ -97,5 +128,6 @@
           ansible.builtin.set_stats:
             data:
               order_id: "{{ order_id_val | default('') }}"
+              cert_dir_path: "{{ cert_dir }}"
               step_2_summary: "{{ step_2_summary }}"
               phase_summary_report: "{{ current_report }}"

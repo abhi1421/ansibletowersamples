@@ -1,3 +1,4 @@
+[root@gitserver dr_activity]# cat dr_readiness_framework_precheck.yml
 ---
 # =================================================================
 # TASK 1 - DR READINESS PRE-CHECK FRAMEWORK (All 8 Nodes)
@@ -5,8 +6,11 @@
 - name: Stage 00 - AIX PowerHA Cluster Readiness Check (All 8 Nodes)
   hosts: "{{ SWITCHOVER_FROM }}:{{ SWITCHOVER_TO }}"
   gather_facts: no
-  become: yes
+#  become: yes
   become_method: sudo
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
 
   tasks:
     # -----------------------------------------------------------------
@@ -68,11 +72,11 @@
 - name: Stage 00 - MQ Cluster Queue Check (App Nodes 1 & 2)
   hosts: "{{ SWITCHOVER_FROM }}_app:{{ SWITCHOVER_TO }}_app"
   gather_facts: no
-  become: yes
-  become_method: sudo
-  become_user: "{{ app_user }}"
 
   vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: "/usr/mqm/bin"
     required_cluster_queues:
       - "CPR.INCOMING"
       - "QPX.INCOMING"
@@ -80,70 +84,187 @@
       - "RBISPADBRQ"
       - "RBISPADBRO"
       - "SFMS.INCOMING"
-      - "SFMS.INCOMING"
 
   tasks:
 
-    # -----------------------------------------------------------------
-    # MAP EXISTING SITE VARS (FROM odc.yml / pdc.yml / drdc.yml)
-    # -----------------------------------------------------------------
-    - name: MQ - Map Node User and Target QMs from Site Group Vars
-      set_fact:
-        app_user: "{{ node1_user if ('node1' in inventory_hostname or 'node1' in group_names | join(' ')) else node2_user }}"
-        target_qms: "{{ [node1_qmgr, gateway_qmgr] if ('node1' in inventory_hostname or 'node1' in group_names | join(' ')) else [node2_qmgr] }}"
+    # ----------------------------------------------------
+    # DYNAMIC ENV EXTRACTION BLOCK ON NODE 1
+    # ----------------------------------------------------
 
-    
+    - name: Node 1 - Read the env file from tmp dir
+      slurp:
+        src: "/tmp/node1_env.txt"
+      register: node1_env_raw
+
+    - name: Node 1 - Display vars
+      debug:
+        msg: "{{ (node1_env_raw.content | b64decode).splitlines() }}"
+
+
+    - name: Node 1 - Convert environment to dictionary
+      ansible.builtin.set_fact:
+        node1_env: >-
+          {{
+            dict(
+              (node1_env_raw.content | b64decode).splitlines()
+              | map('trim')
+              | select('match', '^[A-Za-z_][A-Za-z0-9_]*=')
+              | reject('match', '^BASH_FUNC_')
+              | map('split', '=', 1)
+            )
+          }}
+
+
+
     # -----------------------------------------------------------------
-    # TASK 2.1 QUERY QUEUE CLUSTER STATUS FOR EACH HOST QM
+    # TASK 2.1a: NODE 1 - QUERY CLUSTER QUEUES VIA RUNMQSC
     # -----------------------------------------------------------------
-    - name: MQ - Query Cluster Queues via runmqsc
+    - name: Node 1 - MQ - Query Cluster Queues via runmqsc
       shell: |
-        echo "dis qc(*)" | runmqsc {{ item }}
-      loop: "{{ target_qms }}"
+        echo "dis qc(*)" | {{ mqm_binary }}/runmqsc {{ item }}
+      loop: "{{ [node1_qmgr, gateway_qmgr] }}"
       become: yes
       become_method: sudo
-      become_user: "{{ app_user }}"
-      register: raw_mqsc_results
+      become_user: "{{ node1_user }}"
+      environment: "{{ node1_env }}"
+      register: raw_mqsc_results_n1
       changed_when: false
       failed_when: false
+      when: "'node1' in inventory_hostname or 'node1' in group_names | join(' ')"
+
+
+
+    # ----------------------------------------------------
+    # DYNAMIC ENV EXTRACTION BLOCK ON NODE 2
+    # ----------------------------------------------------
+
+    - name: Node 2 - Read the env file from tmp dir
+      slurp:
+        src: "/tmp/node2_env.txt"
+      register: node2_env_raw
+
+    - name: Node 2 - Display vars
+      debug:
+        msg: "{{ (node2_env_raw.content | b64decode).splitlines() }}"
+
+
+    - name: Node 2 - Convert environment to dictionary
+      ansible.builtin.set_fact:
+        node2_env: >-
+          {{
+            dict(
+              (node2_env_raw.content | b64decode).splitlines()
+              | map('trim')
+              | select('match', '^[A-Za-z_][A-Za-z0-9_]*=')
+              | reject('match', '^BASH_FUNC_')
+              | map('split', '=', 1)
+            )
+          }}
+
 
     # -----------------------------------------------------------------
-    # TASK 2.2 EVALUATE QUEUES AND REGISTER REPORT FACTS
+    # TASK 2.1b: NODE 2 - QUERY CLUSTER QUEUES VIA RUNMQSC
     # -----------------------------------------------------------------
-    - name: MQ - Parse Queue Results and Register Readiness Facts
+    - name: Node 2 - MQ - Query Cluster Queues via runmqsc
+      shell: |
+        echo "dis qc(*)" | {{ mqm_binary }}/runmqsc {{ item }}
+      loop: "{{ [node2_qmgr] }}"
+      become: yes
+      become_method: sudo
+      become_user: "{{ node2_user }}"
+      environment: "{{ node2_env }}"
+      register: raw_mqsc_results_n2
+      changed_when: false
+      failed_when: false
+      when: "'node2' in inventory_hostname or 'node2' in group_names | join(' ')"
+
+
+    # -----------------------------------------------------------------
+    # TASK 2.2: UNIFY RAW RESULTS ACROSS NODES
+    # -----------------------------------------------------------------
+    - name: MQ - Consolidate Raw Execution Results
+      set_fact:
+        raw_mqsc_results: >-
+          {{
+            raw_mqsc_results_n1
+            if (
+              raw_mqsc_results_n1 is defined
+              and raw_mqsc_results_n1.results is defined
+              and (
+                raw_mqsc_results_n1.results
+                | selectattr('skipped', 'undefined')
+                | list
+                | length
+              ) > 0
+            )
+            else raw_mqsc_results_n2
+          }}
+
+    - name: MQ - Verify Consolidated Raw Results
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Raw MQ result type: {{ raw_mqsc_results | type_debug }}"
+          - "Number of MQ results: {{ raw_mqsc_results.results | default([]) | length }}"
+
+
+    # -----------------------------------------------------------------
+    # TASK 2.3: EVALUATE QUEUES AND REGISTER READINESS FACTS
+    # -----------------------------------------------------------------
+    - name: MQ - Initialize Queue Validation Results
+      set_fact:
+        chk_mq_results: []
+
+    - name: MQ - Process Queue Manager Status
       set_fact:
         chk_mq_results: >-
-          {% set mq_report = [] %}
-          {% for res in raw_mqsc_results.results %}
-            {% set qm_name = res.item %}
-            {% set stdout_text = res.stdout | default('') %}
-            {% set found_count = stdout_text.splitlines() | select('search', 'TYPE\(QCLUSTER\)') | list | length %}
-            {% set qm_status = 'PASS' if found_count >= 7 else 'FAIL (Found ' ~ found_count ~ '/7 Queues)' %}
-            {% set _ = mq_report.append({
-                'qm': qm_name,
-                'status': qm_status,
-                'queues_found': found_count
-            }) %}
-          {% endfor %}
-          {{ mq_report }}
+          {{
+            chk_mq_results + [{
+              'qm': item.item,
+              'status': ('PASS' if ((item.stdout_lines | default([]) | select('search', 'TYPE\(QCLUSTER\)') | list | length) >= 7) else ('FAIL (Found ' ~ (item.stdout_lines | default([]) | select('search','TYPE(QCLUSTER)')| list | length) ~ '/7 Queues)')),
+              'queues_found': (item.stdout_lines | default('') | select('search','TYPE(QCLUSTER)')| list | length),
+              'required_queues': 7
+            }]
+          }}
+      loop: "{{ raw_mqsc_results.results | default([]) }}"
+      when:
+        - item.stdout is defined
+        - not (item.skipped | default(false))
+
+
+
+    - name: MQ - Audit Processed Queue Results
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Queue Manager: {{ item.qm }}"
+          - "Status: {{ item.status }}"
+          - "Queues Found: {{ item.queues_found }}/{{ item.required_queues }}"
+      loop: "{{ chk_mq_results }}"
+
 
     # -----------------------------------------------------------------
-    # TASK 2.3 AGGREGATE INTO CONSOLIDATED NODE SUMMARY FACT
+    # TASK 2.4: AGGREGATE INTO CONSOLIDATED NODE SUMMARY STRING
     # -----------------------------------------------------------------
     - name: MQ - Build Node-Level Summary String
       set_fact:
         node_mq_summary: >-
-          {% set status_list = [] %}
-          {% for item in chk_mq_results %}
-            {% set _ = status_list.append(item.qm ~ ': ' ~ item.status) %}
-          {% endfor %}
-          {{ status_list | join(' | ') }}
+          {{
+            chk_mq_results
+            | map(attribute='qm')
+            | zip(chk_mq_results | map(attribute='status'))
+            | map('join', ': ')
+            | join(' | ')
+          }}
+
 
     - name: MQ - Audit Fact Output
       debug:
         msg:
           - "Host: {{ inventory_hostname }}"
           - "MQ Check Output: {{ node_mq_summary }}"
+          - "Detailed MQ Results: {{ chk_mq_results }}"
+
 
 
 # =================================================================
@@ -191,8 +312,52 @@
       ignore_errors: yes
 
 
+
+
+# -----------------------------------------------------------------
+# TASK 4 REMOTE QUEUE PRECHECKS
+# -----------------------------------------------------------------
+- name: PAD Node  - Check Remote queues
+  hosts: "{{ SWITCHOVER_FROM }}_app_node1:{{ SWITCHOVER_TO }}_app_node1"
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: mqm
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    mqm_binary: /usr/mqm/bin
+
+  tasks:
+
+    - name: Fetch Remote Queue Details (SFMSRBIPADGWQM) on App Node 1
+      shell: |
+        echo "dis qr(CPR.INCOMING) RNAME RQMNAME" | {{ mqm_binary }}/runmqsc SFMSRBIPADGWQM
+        echo "dis qr(QPX.INCOMING) RNAME RQMNAME" | {{ mqm_binary }}/runmqsc SFMSRBIPADGWQM
+        echo "dis qr(RBIH0000000) RNAME RQMNAME" | {{ mqm_binary }}/runmqsc SFMSRBIPADGWQM
+      register: mq_rqm_raw
+      failed_when: false
+      become_method: sudo
+      become_user: "{{ node1_user }}"
+
+
+    - name: Parse Remote Queue Details into Facts
+      set_fact:
+        remote_q_facts:
+          - qname: "CPR.INCOMING"
+            rqmname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(CPR\\.INCOMING\\)[\\s\\S]*?RQMNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+            rname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(CPR\\.INCOMING\\)[\\s\\S]*?RNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+          - qname: "QPX.INCOMING"
+            rqmname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(QPX\\.INCOMING\\)[\\s\\S]*?RQMNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+            rname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(QPX\\.INCOMING\\)[\\s\\S]*?RNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+          - qname: "RBIH0000000"
+            rqmname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(RBIH0000000\\)[\\s\\S]*?RQMNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+            rname: "{{ (mq_rqm_raw.stdout | regex_search('QUEUE\\(RBIH0000000\\)[\\s\\S]*?RNAME\\(([^\\)]+)\\)', '\\1') | default(['N/A']))[0] }}"
+
+
+
 # =================================================================
-# TASK 4 - CONSOLIDATED REPORTING & EMAIL VARIABLE GENERATION
+# TASK - CONSOLIDATED REPORTING & EMAIL VARIABLE GENERATION
 # =================================================================
 - name: Generate Consolidated DR Readiness Email Body Variable
   hosts: localhost
@@ -218,7 +383,7 @@
           <body>
           <h2>🚀 SFMS DR Readiness Pre-flight Assessment Report</h2>
           <p><b>Execution Scope:</b> Switchover FROM <b>{{ SWITCHOVER_FROM | upper }}</b> TO <b>{{ SWITCHOVER_TO | upper }}</b></p>
-          
+
           <h3>1. PowerHA Cluster Status (All 8 Nodes)</h3>
           <table>
             <tr>
@@ -260,12 +425,25 @@
               <th>Queue Name</th>
               <th>Curdepth Status</th>
             </tr>
-            {% for host in (groups[SWITCHOVER_FROM + '_app_node1'] + groups[SWITCHOVER_TO + '_app_node1'] + groups[SWITCHOVER_FROM + '_app_node2'] + groups[SWITCHOVER_TO + '_app_node2']) | unique %}
-              {% set mq_res = hostvars[host].mq_node1 if 'node1' in host else hostvars[host].mq_node2 %}
-              {% if mq_res is defined and mq_res.results is defined %}
+
+            {# -------------------------------------------------------------
+               NODE 1 RESULTS
+               ------------------------------------------------------------- #}
+
+            {% for host in (
+                  groups[SWITCHOVER_FROM + '_app_node1']
+                  + groups[SWITCHOVER_TO + '_app_node1']
+                ) | unique %}
+
+              {% set mq_res = hostvars[host].mq_node1 | default({}) %}
+
+              {% if mq_res.results is defined %}
+
                 {% for item in mq_res.results %}
+
                   {% set depth_match = item.stdout | default('') | regex_search('CURDEPTH\\((\\d+)\\)', '\\1') %}
                   {% set depth = depth_match[0] if depth_match else '0' %}
+
                   <tr>
                     <td><b>{{ host }}</b></td>
                     <td>{{ item.item.qmgr }}</td>
@@ -274,16 +452,89 @@
                       {{ '🟢 CLEAR (0)' if depth == '0' else '🔴 BLOCKED (' ~ depth ~ ')' }}
                     </td>
                   </tr>
+
                 {% endfor %}
+
               {% endif %}
+
+            {% endfor %}
+
+
+            {# -------------------------------------------------------------
+               NODE 2 RESULTS
+               ------------------------------------------------------------- #}
+
+            {% for host in (
+                  groups[SWITCHOVER_FROM + '_app_node2']
+                  + groups[SWITCHOVER_TO + '_app_node2']
+                ) | unique %}
+
+              {% set mq_res = hostvars[host].mq_node2 | default({}) %}
+
+              {% if mq_res.results is defined %}
+
+                {% for item in mq_res.results %}
+
+                  {% set depth_match = item.stdout | default('') | regex_search('CURDEPTH\\((\\d+)\\)', '\\1') %}
+                  {% set depth = depth_match[0] if depth_match else '0' %}
+
+                  <tr>
+                    <td><b>{{ host }}</b></td>
+                    <td>{{ item.item.qmgr }}</td>
+                    <td>{{ item.item.queue }}</td>
+                    <td class="{{ 'pass' if depth == '0' else 'fail' }}">
+                      {{ '🟢 CLEAR (0)' if depth == '0' else '🔴 BLOCKED (' ~ depth ~ ')' }}
+                    </td>
+                  </tr>
+
+                {% endfor %}
+
+              {% endif %}
+
             {% endfor %}
           </table>
 
+          <h3>4. MQ Remote Queues Details (SFMSRBIPADGWQM)</h3>
+            <table>
+              <tr>
+                <th>Node Hostname</th>
+                <th>Queue Name</th>
+                <th>Type</th>
+                <th>RQMNAME</th>
+                <th>RNAME</th>
+              </tr>
+              {% for host in [groups[SWITCHOVER_FROM + '_app_node1'][0], groups[SWITCHOVER_TO + '_app_node1'][0]] %}
+                {% if hostvars[host].remote_q_facts is defined %}
+                  {% for q in hostvars[host].remote_q_facts %}
+                  <tr>
+                    <td>{{ host }}</td>
+                    <td>{{ q.qname }}</td>
+                    <td>QREMOTE</td>
+                    <td>{{ q.rqmname }}</td>
+                    <td>{{ q.rname }}</td>
+                  </tr>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            </table>
           <br/>
-          <p><i>Note: This is an automatically generated readiness check report from Ansible Automation Platform.</i></p>
           </body>
           </html>
 
     - name: Output Variable Contents to Console (Verification)
       debug:
         var: dr_readiness_email_body
+
+
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "DR READINESS FRAMEWORK EXECUTION"
+        body: "{{ dr_readiness_email_body }}"
+        subtype: html
+      delegate_to: localhost
+      run_once: true
