@@ -1,0 +1,152 @@
+---
+- name: Oracle RMAN Archive Backup and Dual Status Validation
+  hosts: "{{ SWITCHOVER_FROM }}_db_hosts[0]"
+  gather_facts: no
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+  vars:
+    ansible_become_flags: "-H -S"
+    ansible_ssh_pipelining: true
+    db_sid: "{{ db_sid_name | default('SFMS') }}"
+    ora_home: "{{ oracle_home | default('/orahome/app/product/19.0.0/dbhome_1') }}"
+    log_dir: "/pad_oraBkp/BACKUPS/DBA_Activity/archive_deletion_log"
+    backup_script_path: "/path/to/your/archive_backup_script.sh" # Update this path
+
+  tasks:
+
+    # -----------------------------------------------------------------
+    # STEP 1: EXECUTE ARCHIVE BACKUP SCRIPT
+    # -----------------------------------------------------------------
+    - name: Execute Archive Backup Script
+      shell: "{{ backup_script_path }}"
+      register: script_exec
+      ignore_errors: yes
+
+    # -----------------------------------------------------------------
+    # STEP 2: VALIDATION SUCCESS 1 - LOG FILE AUDIT
+    # -----------------------------------------------------------------
+    - name: Find Latest Archive Backup Log File
+      find:
+        paths: "{{ log_dir }}"
+        patterns: "SFMS_PAD_P9_archive_disk_*.log"
+        age_stamp: mtime
+      register: found_logs
+      ignore_errors: yes
+
+    - name: Process Log File Results (If Found)
+      block:
+        - name: Set Fact for Most Recent Log File
+          set_fact:
+            latest_log_path: "{{ (found_logs.files | sort(attribute='mtime', reverse=true) | first).path }}"
+
+        - name: Read Latest Log File Content
+          slurp:
+            src: "{{ latest_log_path }}"
+          register: raw_log_content
+
+        - name: Parse Log File Content Facts
+          set_fact:
+            log_text: "{{ raw_log_content.content | b64decode }}"
+
+        - name: Evaluate Success Criteria 1 (Log Validation)
+          set_fact:
+            log_status_label: "{{ '🟢 PASSED' if ('Recovery Manager complete' in log_text and 'RMAN-' not in log_text and 'ORA-' not in log_text) else '❌ FAILED (RMAN/ORA errors or incomplete)' }}"
+            log_has_errors: "{{ ('RMAN-' in log_text) or ('ORA-' in log_text) }}"
+            log_has_rman_complete: "{{ 'Recovery Manager complete' in log_text }}"
+      when:
+        - found_logs.files is defined
+        - found_logs.files | length > 0
+
+    - name: Handle Missing Log File Condition
+      set_fact:
+        latest_log_path: "NO_LOG_FILE_FOUND"
+        log_status_label: "⚠️ WARNING (No log file found in {{ log_dir }})"
+        log_has_errors: true
+        log_has_rman_complete: false
+      when:
+        - found_logs.files is not defined or found_logs.files | length == 0
+
+    # -----------------------------------------------------------------
+    # STEP 3: VALIDATION SUCCESS 2 - V$RMAN_BACKUP_JOB_DETAILS QUERY
+    # -----------------------------------------------------------------
+    - name: Query Latest RMAN Archive Job Status from Database
+      shell: |
+        export ORACLE_SID={{ db_sid }}
+        export ORACLE_HOME={{ ora_home }}
+        export LD_LIBRARY_PATH={{ ora_home }}/lib
+
+        {{ ora_home }}/bin/sqlplus -s / as sysdba <<EOF
+        SET PAGESIZE 0 FEEDBACK OFF VERIFY OFF HEAD OFF;
+        SELECT STATUS
+        FROM (
+            SELECT STATUS
+            FROM V\$RMAN_BACKUP_JOB_DETAILS
+            WHERE INPUT_TYPE LIKE '%ARCH%'
+            ORDER BY START_TIME DESC
+        )
+        WHERE ROWNUM < 2;
+        EXIT;
+        EOF
+      register: rman_sql_out
+      ignore_errors: yes
+
+    - name: Evaluate Success Criteria 2 (SQL Status)
+      set_fact:
+        v_rman_status: "{{ rman_sql_out.stdout | default('QUERY_FAILED') | trim }}"
+        sql_is_completed: "{{ (rman_sql_out.stdout | default('') | trim) == 'COMPLETED' }}"
+
+    # -----------------------------------------------------------------
+    # STEP 4: EVALUATE OVERALL STATUS & BUILD REPORT
+    # -----------------------------------------------------------------
+    - name: Evaluate Global Backup Status
+      set_fact:
+        overall_passed: "{{ (log_status_label == '🟢 PASSED') and sql_is_completed }}"
+
+    - name: Compile Backup Execution Summary Report
+      set_fact:
+        backup_summary_report: |
+          ======================================================================
+          ORACLE RMAN ARCHIVE BACKUP EXECUTION REPORT
+          ======================================================================
+          Host:                  {{ inventory_hostname }}
+          Database SID:          {{ db_sid }}
+          Latest Log Path:       {{ latest_log_path }}
+          
+          VALIDATION CHECKS:
+          ----------------------------------------------------------------------
+          1. Log File Audit:                 {{ log_status_label }}
+          2. V$RMAN_BACKUP_JOB_DETAILS:      {{ v_rman_status }} ({{ '🟢 COMPLETED' if sql_is_completed else '❌ NOT COMPLETED CLEANLY' }})
+          ----------------------------------------------------------------------
+          OVERALL BACKUP STATUS: {{ '✅ PASSED (SUCCESSFUL BACKUP)' if overall_passed else '⚠️ ATTENTION REQUIRED / FAILED' }}
+          ======================================================================
+
+    - name: Print Backup Summary Report
+      debug:
+        msg: "{{ backup_summary_report }}"
+
+    # -----------------------------------------------------------------
+    # STEP 5: EMAIL NOTIFICATION
+    # -----------------------------------------------------------------
+    - name: Send Summary Email Notification
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "📢 DR UPDATE - Archive Backup Status: {{ 'PASSED ✅' if overall_passed else 'ATTENTION REQUIRED / FAILED ⚠️' }}"
+        body: |
+          RMAN Archive Backup execution cycle has finished processing on {{ inventory_hostname }}.
+
+          Summary Details:
+          {{ backup_summary_report }}
+      delegate_to: localhost
+      run_once: true
+
+    - name: Register Global Stat Artifacts
+      set_stats:
+        data:
+          dr_archive_backup_status: "{{ 'PASSED' if overall_passed else 'FAILED/WARNING' }}"
+          dr_archive_backup_log: "{{ latest_log_path }}"
+        per_host: no
