@@ -1,0 +1,34 @@
+---
+# Connection settings for non-root Podman execution user
+ansible_user: "ansible"
+
+# Systemd user services mapping by component role
+app_services:
+  gateway:
+    - "automation-gateway.service"
+    - "automation-gateway-proxy.service"
+  eda:
+    - "automation-eda-api.service"
+    - "automation-eda-daphne.service"
+    - "automation-eda-web.service"
+    - "automation-eda-worker-1.service"
+    - "automation-eda-worker-2.service"
+    - "automation-eda-activation-worker-1.service"
+    - "automation-eda-activation-worker-2.service"
+    - "automation-eda-scheduler.service"
+  execution:
+    - "receptor.service"
+  controller:
+    - "receptor.service"
+    - "automation-controller-task.service"
+    - "automation-controller-web.service"
+  hub:
+    - "automation-hub-api.service"
+    - "automation-hub-content.service"
+    - "automation-hub-web.service"
+    - "automation-hub-worker-1.service"
+    - "automation-hub-worker-2.service"
+  database:
+    - "redis-tcp.service"
+    - "redis-unix.service"
+    - "postgresql.service"

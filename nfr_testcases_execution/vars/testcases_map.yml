@@ -73,3 +73,55 @@ testcases:
     expected_mounts: ["/neftpadqm1", "/sfmsapp1", "/sfmspadgwqm", "/sfmspadqm1", "/pad_Oraarch", "/pad_Oradata1", "/pad_Oradata2", "/pad_Oradata3", "/pad_Oradata4", "/pad_oraBkp"]
     start_mq: true
     queue_managers: ["SFMSRBIPADGWQM", "SFMSRBIPADCLQM1"]
+
+
+
+---
+testcases:
+  "TC1":
+    name: "Application Node-1 abrupt halt"
+    type: "app"
+    halt_roles: ["app_node1"]
+    verify_roles: ["app_node2"]
+    res_groups: ["RSG1"]
+    start_mq: true
+
+  "TC2":
+    name: "DB Node-1 abrupt halt (APP on APP2)"
+    type: "db"
+    halt_roles: ["db_primary"]
+    verify_roles: ["db_standby"]
+    res_groups: ["RSG1"]
+    start_mq: false
+
+  "TC3":
+    name: "Application Node-2 abrupt halt"
+    type: "app"
+    halt_roles: ["app_node2"]
+    verify_roles: ["app_node1"]
+    res_groups: ["RSG2"]
+    start_mq: true
+
+  "TC4":
+    name: "DB Node-1 abrupt halt (APP on APP1)"
+    type: "db"
+    halt_roles: ["db_primary"]
+    verify_roles: ["db_standby"]
+    res_groups: ["RSG1"]
+    start_mq: false
+
+  "TC5":
+    name: "DB Node-1 abrupt halt (Split APP Load)"
+    type: "db"
+    halt_roles: ["db_primary"]
+    verify_roles: ["db_standby"]
+    res_groups: ["RSG1"]
+    start_mq: false
+
+  "TC6":
+    name: "APP-1 and DB-1 abrupt halt together"
+    type: "dual"
+    halt_roles: ["app_node1", "db_primary"]
+    verify_roles: ["app_node2", "db_standby"]
+    res_groups: ["RSG1"]
+    start_mq: true

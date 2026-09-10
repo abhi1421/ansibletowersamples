@@ -1,0 +1,47 @@
+---
+- name: Determine Component Role for Current Host
+  ansible.builtin.set_fact:
+    matched_role: >-
+      {% if 'gateway' in group_names | join(',') %}gateway
+      {% elif 'eda' in group_names | join(',') %}eda
+      {% elif 'execution' in group_names | join(',') %}execution
+      {% elif 'controller' in group_names | join(',') %}controller
+      {% elif 'hub' in group_names | join(',') %}hub
+      {% elif 'database' in group_names | join(',') %}database
+      {% endif %}
+
+- name: Set Targeted Services for Host
+  ansible.builtin.set_fact:
+    target_services: "{{ app_services[matched_role] }}"
+
+- name: Execute User Systemd Action ({{ sequence_type | upper }})
+  block:
+    - name: Manage Systemd Services via --user Flag
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        scope: user
+        state: "{{ 'stopped' if sequence_type == 'stop' else 'started' if sequence_type == 'start' else 'restarted' if sequence_type == 'restart' else omit }}"
+      loop: "{{ target_services }}"
+      when: sequence_type != 'status'
+
+    - name: Inspect Live Container Health via Podman
+      ansible.builtin.command: "podman ps --format 'table {{.Names}}\t{{.Status}}'"
+      register: podman_check
+      changed_when: false
+
+    - name: Save Success Status for Report
+      ansible.builtin.set_fact:
+        srv_status: "SUCCESS"
+        srv_processed: "{{ target_services | join(', ') }}"
+        podman_ps_output: "{{ podman_check.stdout }}"
+
+  rescue:
+    - name: Capture Failure Details
+      ansible.builtin.set_fact:
+        srv_status: "FAILED"
+        srv_processed: "{{ target_services | join(', ') }}"
+        podman_ps_output: "ERROR: Systemd or Podman execution failed on host."
+
+    - name: Fail Host Execution Gracefully
+      ansible.builtin.fail:
+        msg: "Failed to perform {{ sequence_type }} on host {{ inventory_hostname }} ({{ ansible_host }})."

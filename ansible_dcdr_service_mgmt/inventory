@@ -1,0 +1,63 @@
+# ===================================================================
+# PDC INVENTORY (PRIMARY DATA CENTER)
+# ===================================================================
+[pdc_gateway]
+pdc-gateway01 ansible_host=172.22.7.20
+pdc-gateway02 ansible_host=172.22.7.21
+
+[pdc_controller]
+pdc-controller01 ansible_host=172.22.7.22
+pdc-controller02 ansible_host=172.22.7.23
+
+[pdc_execution]
+pdc-exec01 ansible_host=172.22.7.24
+pdc-exec02 ansible_host=172.22.7.25
+
+[pdc_hub]
+pdc-hub01 ansible_host=172.22.7.26
+
+[pdc_eda]
+pdc-eda01 ansible_host=172.22.7.27
+
+[pdc_database]
+pdc-postgresdb ansible_host=172.22.7.28
+
+[pdc:children]
+pdc_gateway
+pdc_controller
+pdc_execution
+pdc_hub
+pdc_eda
+pdc_database
+
+# ===================================================================
+# ODC INVENTORY (DISASTER RECOVERY SITE)
+# ===================================================================
+[odc_gateway]
+odc-gateway01 ansible_host=172.23.7.20
+odc-gateway02 ansible_host=172.23.7.21
+
+[odc_controller]
+odc-controller01 ansible_host=172.23.7.22
+odc-controller02 ansible_host=172.23.7.23
+
+[odc_execution]
+odc-exec01 ansible_host=172.23.7.24
+odc-exec02 ansible_host=172.23.7.25
+
+[odc_hub]
+odc-hub01 ansible_host=172.23.7.26
+
+[odc_eda]
+odc-eda01 ansible_host=172.23.7.27
+
+[odc_database]
+odc-postgresdb ansible_host=172.23.7.28
+
+[odc:children]
+odc_gateway
+odc_controller
+odc_execution
+odc_hub
+odc_eda
+odc_database

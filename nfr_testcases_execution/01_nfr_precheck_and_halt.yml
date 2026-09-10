@@ -33,11 +33,6 @@
 - name: Execute Boot Configuration, Halt & Send Success Email
   hosts: targeted_halt_nodes
   gather_facts: false
-  vars:
-    smtp_server: "mail.company.com"
-    smtp_port: 25
-    email_to: "nfr-testing-team@company.com"
-    email_from: "ansible-automation@company.com"
   tasks:
     - name: Execute boot checks and issue system halt
       block:

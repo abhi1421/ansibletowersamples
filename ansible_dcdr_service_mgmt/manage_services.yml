@@ -1,0 +1,96 @@
+---
+- name: AAP 2.6 Service Management - Survey Validation
+  hosts: localhost
+  gather_facts: false
+  vars:
+    valid_actions: ['start', 'stop', 'restart', 'status']
+    valid_sites: ['pdc', 'odc']
+  tasks:
+    - name: Validate Survey Inputs
+      ansible.builtin.assert:
+        that:
+          - target_site in valid_sites
+          - service_action in valid_actions
+        fail_msg: "Invalid survey parameters provided! Site: {{ target_site | default('NONE') }}, Action: {{ service_action | default('NONE') }}"
+        success_msg: "Inputs validated successfully. Target Site: {{ target_site | upper }}, Action: {{ service_action | upper }}."
+
+# -------------------------------------------------------------------
+# EDGE-TO-CORE SHUTDOWN SEQUENCE (Gateway -> EDA -> Exec -> Controller -> Hub -> DB)
+# -------------------------------------------------------------------
+- name: Execute Service Management - STOP Sequence
+  hosts: "{{ target_site }}_gateway:{{ target_site }}_eda:{{ target_site }}_execution:{{ target_site }}_controller:{{ target_site }}_hub:{{ target_site }}_database"
+  gather_facts: false
+  serial: 100%
+  when: hostvars['localhost']['service_action'] == 'stop'
+  order: sorted
+  tasks:
+    - name: Include Systemd Action Handler
+      ansible.builtin.include_tasks: inner_manage_systemd.yml
+      vars:
+        sequence_type: "stop"
+
+# -------------------------------------------------------------------
+# CORE-TO-EDGE START/RESTART SEQUENCE (DB -> Hub -> Controller -> Exec -> EDA -> Gateway)
+# -------------------------------------------------------------------
+- name: Execute Service Management - START / RESTART Sequence
+  hosts: "{{ target_site }}_database:{{ target_site }}_hub:{{ target_site }}_controller:{{ target_site }}_execution:{{ target_site }}_eda:{{ target_site }}_gateway"
+  gather_facts: false
+  serial: 100%
+  when: hostvars['localhost']['service_action'] in ['start', 'restart']
+  order: sorted
+  tasks:
+    - name: Include Systemd Action Handler
+      ansible.builtin.include_tasks: inner_manage_systemd.yml
+      vars:
+        sequence_type: "{{ hostvars['localhost']['service_action'] }}"
+
+# -------------------------------------------------------------------
+# STATUS CHECK ONLY SEQUENCE
+# -------------------------------------------------------------------
+- name: Execute Service Management - STATUS Inspection
+  hosts: "{{ target_site }}"
+  gather_facts: false
+  when: hostvars['localhost']['service_action'] == 'status'
+  tasks:
+    - name: Include Systemd Action Handler
+      ansible.builtin.include_tasks: inner_manage_systemd.yml
+      vars:
+        sequence_type: "status"
+
+# -------------------------------------------------------------------
+# REPORT CONSOLIDATION
+# -------------------------------------------------------------------
+- name: Consolidate Summary Report
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Construct HTML Email Body
+      ansible.builtin.set_fact:
+        email_body_html: |
+          <h3>AAP 2.6 Service Management Execution Summary</h3>
+          <p><b>Target Site:</b> {{ target_site | upper }}<br/>
+          <b>Action Performed:</b> {{ service_action | upper }}</p>
+          <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-family:Arial, sans-serif;">
+            <tr style="background-color:#d9d9d9;">
+              <th>Host Label</th>
+              <th>IP Address</th>
+              <th>Managed Services</th>
+              <th>Status</th>
+              <th>Podman Container State</th>
+            </tr>
+            {% for host in groups[target_site] %}
+            <tr>
+              <td><b>{{ host }}</b></td>
+              <td>{{ hostvars[host]['ansible_host'] }}</td>
+              <td><code>{{ hostvars[host]['srv_processed'] | default('N/A') }}</code></td>
+              <td style="color: {{ 'green' if hostvars[host]['srv_status'] | default('FAILED') == 'SUCCESS' else 'red' }};">
+                <b>{{ hostvars[host]['srv_status'] | default('FAILED') }}</b>
+              </td>
+              <td><pre style="margin:0;">{{ hostvars[host]['podman_ps_output'] | default('N/A') }}</pre></td>
+            </tr>
+            {% endfor %}
+          </table>
+
+    - name: Output Email HTML Body Variable
+      ansible.builtin.debug:
+        msg: "{{ email_body_html.split('\n') }}"
