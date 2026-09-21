@@ -34,13 +34,13 @@
 
 
 # -----------------------------------------------------------------------------
-# Play 2: Map hostvars using groups['all']
+# Play 2: Extract and parse into a clean Ansible List
 # -----------------------------------------------------------------------------
 - name: Output Pre-Check Report
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Build consolidated pre-check report
+    - name: Build consolidated pre-check report list
       ansible.builtin.set_fact:
         consolidated_precheck_report: >-
           {% set report = [] %}
@@ -52,7 +52,14 @@
             }) %}
             {% set _ = report.append(summary) %}
           {% endfor %}
-          {{ report }}
+          {{ report | to_json }}
+      # Pipe through from_json to store as a true Ansible array
+      vars:
+        parsed_report: "{{ consolidated_precheck_report | from_json }}"
+
+    - name: Set final parsed variable
+      ansible.builtin.set_fact:
+        consolidated_precheck_report: "{{ consolidated_precheck_report | from_json }}"
 
     - name: Display Consolidated Pre-Check Report
       ansible.builtin.debug:
