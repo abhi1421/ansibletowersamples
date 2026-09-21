@@ -1,10 +1,9 @@
-[root@gitserver dr_activity]# cat dr_readiness_framework_precheck.yml
 ---
 # =================================================================
 # TASK 1 - DR READINESS PRE-CHECK FRAMEWORK (All 8 Nodes)
 # =================================================================
 - name: Stage 00 - AIX PowerHA Cluster Readiness Check (All 8 Nodes)
-  hosts: "{{ SWITCHOVER_FROM }}:{{ SWITCHOVER_TO }}"
+  hosts: all
   gather_facts: no
 #  become: yes
   become_method: sudo
@@ -70,7 +69,7 @@
 # TASK 2 - MQ CLUSTER QUEUE VALIDATION (App Nodes Only)
 # =================================================================
 - name: Stage 00 - MQ Cluster Queue Check (App Nodes 1 & 2)
-  hosts: "{{ SWITCHOVER_FROM }}_app:{{ SWITCHOVER_TO }}_app"
+  hosts: all
   gather_facts: no
 
   vars:
@@ -275,7 +274,7 @@
 # TASK 3.1 NODE 1 PRE-CHECKS
 # -----------------------------------------------------------------
 - name: PAD Node 1 - Pre-check MQ Queue Depths
-  hosts: "{{ SWITCHOVER_FROM }}_app_node1:{{ SWITCHOVER_TO }}_app_node1"
+  hosts: all
   gather_facts: no
   become: yes
   become_method: sudo
@@ -295,7 +294,7 @@
 # TASK 3.2 NODE 2 PRE-CHECKS
 # -----------------------------------------------------------------
 - name: PAD Node 2 - Pre-check MQ Queue Depths
-  hosts: "{{ SWITCHOVER_FROM }}_app_node2:{{ SWITCHOVER_TO }}_app_node2"
+  hosts: all
   gather_facts: no
   become: yes
   become_method: sudo
@@ -318,7 +317,7 @@
 # TASK 4 REMOTE QUEUE PRECHECKS
 # -----------------------------------------------------------------
 - name: PAD Node  - Check Remote queues
-  hosts: "{{ SWITCHOVER_FROM }}_app_node1:{{ SWITCHOVER_TO }}_app_node1"
+  hosts: all
   gather_facts: no
   become: yes
   become_method: sudo

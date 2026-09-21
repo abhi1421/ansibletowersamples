@@ -1,0 +1,63 @@
+---
+- name: Target Node Pre-Checks
+  hosts: all
+  gather_facts: false
+  tasks:
+    # -------------------------------------------------------------------------
+    # Task 1: Check Ansible SSH Reachability
+    # -------------------------------------------------------------------------
+    - name: Ping target node
+      ansible.builtin.ping:
+        data: pong
+      ignore_unreachable: true
+      register: ping_check
+
+    # -------------------------------------------------------------------------
+    # Task 2: Check Subscription-Manager Identity directly
+    # -------------------------------------------------------------------------
+    - name: Run subscription-manager identity
+      ansible.builtin.command: subscription-manager identity
+      register: sub_mgr_identity
+      changed_when: false
+      ignore_errors: true
+      when: ping_check is not unreachable
+
+    # -------------------------------------------------------------------------
+    # Task 3: Build Host Status Fact
+    # -------------------------------------------------------------------------
+    - name: Build status record for reachable host
+      ansible.builtin.set_fact:
+        host_precheck_summary:
+          hostname: "{{ inventory_hostname }}"
+          ansible_reachable: true
+          satellite_check: "{{ 'PASSED' if (sub_mgr_identity is defined and sub_mgr_identity.rc == 0 and 'system identity:' in sub_mgr_identity.stdout) else 'FAILED' }}"
+      when: ping_check is not unreachable
+
+    - name: Build status record for unreachable host
+      ansible.builtin.set_fact:
+        host_precheck_summary:
+          hostname: "{{ inventory_hostname }}"
+          ansible_reachable: false
+          satellite_check: "FAILED"
+      when: ping_check is unreachable
+
+    # -------------------------------------------------------------------------
+    # Task 4: Append Result to Global List on Localhost
+    # -------------------------------------------------------------------------
+    - name: Append to consolidated list
+      ansible.builtin.set_fact:
+        consolidated_precheck_report: "{{ hostvars['localhost']['consolidated_precheck_report'] | default([]) + [host_precheck_summary] }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+
+# -----------------------------------------------------------------------------
+# Play 2: Print Consolidated Report across all Target Nodes
+# -----------------------------------------------------------------------------
+- name: Output Pre-Check Report
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Display Consolidated Pre-Check Report
+      ansible.builtin.debug:
+        var: consolidated_precheck_report
