@@ -13,7 +13,7 @@
       register: ping_check
 
     # -------------------------------------------------------------------------
-    # Task 2: Check Subscription-Manager Identity directly
+    # Task 2: Check Subscription-Manager Identity
     # -------------------------------------------------------------------------
     - name: Run subscription-manager identity
       ansible.builtin.command: subscription-manager identity
@@ -23,41 +23,27 @@
       when: ping_check is not unreachable
 
     # -------------------------------------------------------------------------
-    # Task 3: Build Host Status Fact
+    # Task 3: Store Host Status locally (No delegation to localhost)
     # -------------------------------------------------------------------------
-    - name: Build status record for reachable host
+    - name: Record host pre-check status
       ansible.builtin.set_fact:
         host_precheck_summary:
           hostname: "{{ inventory_hostname }}"
-          ansible_reachable: true
-          satellite_check: "{{ 'PASSED' if (sub_mgr_identity is defined and sub_mgr_identity.rc == 0 and 'system identity:' in sub_mgr_identity.stdout) else 'FAILED' }}"
-      when: ping_check is not unreachable
-
-    - name: Build status record for unreachable host
-      ansible.builtin.set_fact:
-        host_precheck_summary:
-          hostname: "{{ inventory_hostname }}"
-          ansible_reachable: false
-          satellite_check: "FAILED"
-      when: ping_check is unreachable
-
-    # -------------------------------------------------------------------------
-    # Task 4: Append Result to Global List on Localhost
-    # -------------------------------------------------------------------------
-    - name: Append to consolidated list
-      ansible.builtin.set_fact:
-        consolidated_precheck_report: "{{ hostvars['localhost']['consolidated_precheck_report'] | default([]) + [host_precheck_summary] }}"
-      delegate_to: localhost
-      delegate_facts: true
+          ansible_reachable: "{{ ping_check is not unreachable }}"
+          satellite_check: "{{ 'PASSED' if (ping_check is not unreachable and sub_mgr_identity is defined and sub_mgr_identity.rc == 0 and 'system identity:' in sub_mgr_identity.stdout) else 'FAILED' }}"
 
 
 # -----------------------------------------------------------------------------
-# Play 2: Print Consolidated Report across all Target Nodes
+# Play 2: Extract facts from ALL hosts on Localhost
 # -----------------------------------------------------------------------------
 - name: Output Pre-Check Report
   hosts: localhost
   gather_facts: false
   tasks:
+    - name: Map all host records into consolidated report
+      ansible.builtin.set_fact:
+        consolidated_precheck_report: "{{ ansible_play_hosts_all | map('extract', hostvars, 'host_precheck_summary') | list }}"
+
     - name: Display Consolidated Pre-Check Report
       ansible.builtin.debug:
         var: consolidated_precheck_report
