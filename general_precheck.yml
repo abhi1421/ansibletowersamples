@@ -22,8 +22,8 @@
       ignore_errors: true
       when: ping_check is not unreachable
 
-    # -------------------------------------------------------------------------
-    # Task 3: Store Host Status locally (No delegation to localhost)
+# -------------------------------------------------------------------------
+    # Task 3: Store Host Status locally on each host
     # -------------------------------------------------------------------------
     - name: Record host pre-check status
       ansible.builtin.set_fact:
@@ -34,15 +34,25 @@
 
 
 # -----------------------------------------------------------------------------
-# Play 2: Extract facts from ALL hosts on Localhost
+# Play 2: Map hostvars using groups['all']
 # -----------------------------------------------------------------------------
 - name: Output Pre-Check Report
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Map all host records into consolidated report
+    - name: Build consolidated pre-check report
       ansible.builtin.set_fact:
-        consolidated_precheck_report: "{{ ansible_play_hosts_all | map('extract', hostvars, 'host_precheck_summary') | list }}"
+        consolidated_precheck_report: >-
+          {% set report = [] %}
+          {% for host in groups['all'] %}
+            {% set summary = hostvars[host].host_precheck_summary | default({
+              'hostname': host,
+              'ansible_reachable': false,
+              'satellite_check': 'FAILED'
+            }) %}
+            {% set _ = report.append(summary) %}
+          {% endfor %}
+          {{ report }}
 
     - name: Display Consolidated Pre-Check Report
       ansible.builtin.debug:
