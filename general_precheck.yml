@@ -36,10 +36,10 @@
 # -----------------------------------------------------------------------------
 # Play 2: Extract and parse into a clean Ansible List
 # -----------------------------------------------------------------------------
-- name: Output Pre-Check Report
-  hosts: localhost
-  gather_facts: false
-  tasks:
+#- name: Output Pre-Check Report
+#  hosts: localhost
+#  gather_facts: false
+#  tasks:
     - name: Build consolidated pre-check report list
       ansible.builtin.set_fact:
         consolidated_precheck_report: >-

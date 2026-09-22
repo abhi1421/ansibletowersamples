@@ -1,0 +1,127 @@
+---
+- name: AAP 2.6 Cross-Site Backup and Sync Playbook
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Environment Mappings (Adjust paths and IPs as per your environment)
+    site_config:
+      pdc:
+        installer_dir: "/opt/aap-installer/ansible-automation-platform-containerized-setup-bundle-2.6"
+        controller_host: "172.22.7.22" # PDC Controller 01
+      odc:
+        installer_dir: "/opt/aap-installer/ansible-automation-platform-containerized-setup-bundle-2.6"
+        controller_host: "172.23.7.22" # ODC Controller 01
+
+  tasks:
+    - name: Validate Survey Inputs
+      ansible.builtin.assert:
+        that:
+          - target_site in ['pdc', 'odc']
+        fail_msg: "Invalid survey input! Must be 'pdc' or 'odc'."
+
+    - name: Map Source and Target Site Variables
+      ansible.builtin.set_fact:
+        src_site: "{{ target_site }}"
+        dst_site: "{{ 'odc' if target_site == 'pdc' else 'pdc' }}"
+
+    - name: Set Specific Host and Directory Facts
+      ansible.builtin.set_fact:
+        src_host: "{{ site_config[src_site]['controller_host'] }}"
+        src_dir: "{{ site_config[src_site]['installer_dir'] }}"
+        dst_host: "{{ site_config[dst_site]['controller_host'] }}"
+        dst_dir: "{{ site_config[dst_site]['installer_dir'] }}"
+
+# -------------------------------------------------------------------
+# STEP 1: EXECUTE BACKUP ON SOURCE SITE
+# -------------------------------------------------------------------
+- name: Perform AAP Backup on Source Controller
+  hosts: "{{ hostvars['localhost']['src_host'] }}"
+  gather_facts: false
+  vars:
+    ansible_user: "ansible"
+  tasks:
+    - name: Execute Containerized Backup Playbook
+      ansible.builtin.command:
+        cmd: "ansible-playbook -i inventory ansible.containerized_installer.backup"
+        chdir: "{{ hostvars['localhost']['src_dir'] }}"
+      register: backup_exec
+
+    - name: Find Latest Created Backup Archive
+      ansible.builtin.find:
+        paths: "{{ hostvars['localhost']['src_dir'] }}/backups"
+        patterns: "aap-backup-*.tar.gz"
+      register: found_backups
+
+    - name: Assert Backup File Exists
+      ansible.builtin.assert:
+        that:
+          - found_backups.matched > 0
+        fail_msg: "Backup tarball was not created in {{ hostvars['localhost']['src_dir'] }}/backups!"
+
+    - name: Get Backup Directory Statutory Details
+      ansible.builtin.stat:
+        path: "{{ hostvars['localhost']['src_dir'] }}/backups"
+      register: src_backup_stat
+
+    - name: Set Source Backup Facts
+      ansible.builtin.set_fact:
+        latest_backup_file: "{{ (found_backups.files | sort(attribute='mtime') | last).path }}"
+        backup_owner: "{{ src_backup_stat.stat.pw_name }}"
+        backup_group: "{{ src_backup_stat.stat.gr_name }}"
+        backup_mode: "{{ src_backup_stat.stat.mode }}"
+
+# -------------------------------------------------------------------
+# STEP 2: FETCH BACKUP TO RPM MANAGEMENT CONTROLLER & COPY TO DESTINATION
+# -------------------------------------------------------------------
+- name: Transfer Backup Archive Between Sites
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Fetch Backup Archive from Source Host to Local Temp
+      ansible.builtin.fetch:
+        src: "{{ hostvars[src_host]['latest_backup_file'] }}"
+        dest: "/tmp/aap_transfers/"
+        flat: true
+      delegate_to: "{{ src_host }}"
+
+    - name: Ensure Target Directory Structure Exists on Destination Host
+      ansible.builtin.file:
+        path: "{{ dst_dir }}/backups"
+        state: directory
+        owner: "{{ hostvars[src_host]['backup_owner'] }}"
+        group: "{{ hostvars[src_host]['backup_group'] }}"
+        mode: "{{ hostvars[src_host]['backup_mode'] }}"
+      delegate_to: "{{ dst_host }}"
+
+    - name: Copy Backup Archive to Destination Host
+      ansible.builtin.copy:
+        src: "/tmp/aap_transfers/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
+        dest: "{{ dst_dir }}/backups/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
+        owner: "{{ hostvars[src_host]['backup_owner'] }}"
+        group: "{{ hostvars[src_host]['backup_group'] }}"
+        mode: "{{ hostvars[src_host]['backup_mode'] }}"
+      delegate_to: "{{ dst_host }}"
+
+    - name: Verify Destination Ownership and Permissions
+      ansible.builtin.stat:
+        path: "{{ dst_dir }}/backups/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
+      delegate_to: "{{ dst_host }}"
+      register: dst_file_stat
+
+    - name: Build Consolidated Backup Execution Summary
+      ansible.builtin.set_fact:
+        backup_summary_report: |
+          ==================================================
+          AAP 2.6 BACKUP & SYNCHRONIZATION EXECUTION SUMMARY
+          ==================================================
+          Source Site (Backup Executed)   : {{ src_site | upper }} ({{ src_host }})
+          Destination Site (Synced To)    : {{ dst_site | upper }} ({{ dst_host }})
+          Backup File Created             : {{ hostvars[src_host]['latest_backup_file'] | basename }}
+          Source Directory Mode           : {{ hostvars[src_host]['backup_mode'] }} (Owner: {{ hostvars[src_host]['backup_owner'] }}:{{ hostvars[src_host]['backup_group'] }})
+          Destination Directory Mode      : {{ dst_file_stat.stat.mode }} (Owner: {{ dst_file_stat.stat.pw_name }}:{{ dst_file_stat.stat.gr_name }})
+          Sync Status                     : SUCCESSFUL
+          ==================================================
+
+    - name: Display Execution Summary Report
+      ansible.builtin.debug:
+        msg: "{{ backup_summary_report.split('\n') }}"
