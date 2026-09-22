@@ -57,6 +57,7 @@
       vars:
         parsed_report: "{{ consolidated_precheck_report | from_json }}"
       delegate_to: localhost
+      run_once: true
 
     - name: Set final parsed variable
       ansible.builtin.set_fact:
