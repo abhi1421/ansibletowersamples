@@ -56,6 +56,7 @@
       # Pipe through from_json to store as a true Ansible array
       vars:
         parsed_report: "{{ consolidated_precheck_report | from_json }}"
+      delegate_to: localhost
 
     - name: Set final parsed variable
       ansible.builtin.set_fact:
