@@ -61,10 +61,10 @@
 
     - name: Set final parsed variable
       ansible.builtin.set_fact:
-      run_once: true
         consolidated_precheck_report: "{{ consolidated_precheck_report | from_json }}"
+      run_once: true
 
     - name: Display Consolidated Pre-Check Report
       ansible.builtin.debug:
-      run_once: true
         var: consolidated_precheck_report
+      run_once: true
