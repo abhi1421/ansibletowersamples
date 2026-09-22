@@ -40,11 +40,32 @@
 #  hosts: localhost
 #  gather_facts: false
 #  tasks:
-    - name: Build consolidated pre-check report list
+#    - name: Build consolidated pre-check report list
+#      ansible.builtin.set_fact:
+#        consolidated_precheck_report: >-
+#          {% set report = [] %}
+#          {% for host in groups['all'] %}
+#            {% set summary = hostvars[host].host_precheck_summary | default({
+#              'hostname': host,
+#              'ansible_reachable': false,
+#              'satellite_check': 'FAILED'
+#            }) %}
+#            {% set _ = report.append(summary) %}
+#          {% endfor %}
+#          {{ report | to_json }}
+#      # Pipe through from_json to store as a true Ansible array
+#      vars:
+#        parsed_report: "{{ consolidated_precheck_report | from_json }}"
+#      delegate_to: localhost
+#      run_once: true
+
+
+
+    - name: Build and display consolidated report
       ansible.builtin.set_fact:
         consolidated_precheck_report: >-
           {% set report = [] %}
-          {% for host in groups['all'] %}
+          {% for host in ansible_play_batch %}
             {% set summary = hostvars[host].host_precheck_summary | default({
               'hostname': host,
               'ansible_reachable': false,
@@ -52,12 +73,13 @@
             }) %}
             {% set _ = report.append(summary) %}
           {% endfor %}
-          {{ report | to_json }}
-      # Pipe through from_json to store as a true Ansible array
-      vars:
-        parsed_report: "{{ consolidated_precheck_report | from_json }}"
-      delegate_to: localhost
+          {{ report }}
       run_once: true
+      delegate_to: localhost
+      delegate_facts: true
+
+
+
 
     - name: Set final parsed variable
       ansible.builtin.set_fact:
