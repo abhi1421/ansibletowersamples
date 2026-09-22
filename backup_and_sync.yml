@@ -1,9 +1,9 @@
 ---
 - name: AAP 2.6 Cross-Site Backup and Sync Playbook
   hosts: localhost
-  gather_facts: true
+  gather_facts: false
   vars:
-    # Environment Mappings (Adjust paths and IPs as per your environment)
+    # Site Installer & Host Mappings
     site_config:
       pdc:
         installer_dir: "/opt/aap-installer/ansible-automation-platform-containerized-setup-bundle-2.6"
@@ -19,12 +19,12 @@
           - target_site in ['pdc', 'odc']
         fail_msg: "Invalid survey input! Must be 'pdc' or 'odc'."
 
-    - name: Map Source and Target Site Variables
+    - name: Map Source and Destination Sites
       ansible.builtin.set_fact:
         src_site: "{{ target_site }}"
         dst_site: "{{ 'odc' if target_site == 'pdc' else 'pdc' }}"
 
-    - name: Set Specific Host and Directory Facts
+    - name: Set Site Execution Facts
       ansible.builtin.set_fact:
         src_host: "{{ site_config[src_site]['controller_host'] }}"
         src_dir: "{{ site_config[src_site]['installer_dir'] }}"
@@ -40,51 +40,44 @@
   vars:
     ansible_user: "ansible"
   tasks:
-    - name: Execute Containerized Backup Playbook
+    - name: Run Containerized Installer Backup Command
       ansible.builtin.command:
         cmd: "ansible-playbook -i inventory ansible.containerized_installer.backup"
         chdir: "{{ hostvars['localhost']['src_dir'] }}"
       register: backup_exec
 
-    - name: Find Latest Created Backup Archive
-      ansible.builtin.find:
-        paths: "{{ hostvars['localhost']['src_dir'] }}/backups"
-        patterns: "aap-backup-*.tar.gz"
-      register: found_backups
-
-    - name: Assert Backup File Exists
-      ansible.builtin.assert:
-        that:
-          - found_backups.matched > 0
-        fail_msg: "Backup tarball was not created in {{ hostvars['localhost']['src_dir'] }}/backups!"
-
-    - name: Get Backup Directory Statutory Details
+    - name: Verify Source Backups Directory State
       ansible.builtin.stat:
         path: "{{ hostvars['localhost']['src_dir'] }}/backups"
       register: src_backup_stat
 
-    - name: Set Source Backup Facts
+    - name: Assert Backups Directory Exists
+      ansible.builtin.assert:
+        that:
+          - src_backup_stat.stat.exists
+          - src_backup_stat.stat.isdir
+        fail_msg: "Backups directory does not exist after backup execution!"
+
+    - name: Set Backup Ownership & Permission Facts
       ansible.builtin.set_fact:
-        latest_backup_file: "{{ (found_backups.files | sort(attribute='mtime') | last).path }}"
         backup_owner: "{{ src_backup_stat.stat.pw_name }}"
         backup_group: "{{ src_backup_stat.stat.gr_name }}"
         backup_mode: "{{ src_backup_stat.stat.mode }}"
 
 # -------------------------------------------------------------------
-# STEP 2: FETCH BACKUP TO RPM MANAGEMENT CONTROLLER & COPY TO DESTINATION
+# STEP 2: TRANSFER BACKUPS DIRECTORY TO DESTINATION SITE
 # -------------------------------------------------------------------
-- name: Transfer Backup Archive Between Sites
+- name: Synchronize Backups Directory Across Sites
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Fetch Backup Archive from Source Host to Local Temp
+    - name: Fetch Backups Directory Contents to Management Node
       ansible.builtin.fetch:
-        src: "{{ hostvars[src_host]['latest_backup_file'] }}"
-        dest: "/tmp/aap_transfers/"
-        flat: true
+        src: "{{ src_dir }}/backups/"
+        dest: "/tmp/aap_backups_sync/"
       delegate_to: "{{ src_host }}"
 
-    - name: Ensure Target Directory Structure Exists on Destination Host
+    - name: Ensure Backups Directory Structure Exists on Destination
       ansible.builtin.file:
         path: "{{ dst_dir }}/backups"
         state: directory
@@ -93,35 +86,36 @@
         mode: "{{ hostvars[src_host]['backup_mode'] }}"
       delegate_to: "{{ dst_host }}"
 
-    - name: Copy Backup Archive to Destination Host
+    - name: Copy Backups Directory Contents to Destination Installer Path
       ansible.builtin.copy:
-        src: "/tmp/aap_transfers/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
-        dest: "{{ dst_dir }}/backups/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
+        src: "/tmp/aap_backups_sync/{{ src_host }}/{{ src_dir }}/backups/"
+        dest: "{{ dst_dir }}/backups/"
         owner: "{{ hostvars[src_host]['backup_owner'] }}"
         group: "{{ hostvars[src_host]['backup_group'] }}"
         mode: "{{ hostvars[src_host]['backup_mode'] }}"
       delegate_to: "{{ dst_host }}"
 
-    - name: Verify Destination Ownership and Permissions
+    - name: Verify Destination Backups Directory Permissions
       ansible.builtin.stat:
-        path: "{{ dst_dir }}/backups/{{ hostvars[src_host]['latest_backup_file'] | basename }}"
+        path: "{{ dst_dir }}/backups"
       delegate_to: "{{ dst_host }}"
-      register: dst_file_stat
+      register: dst_backup_stat
 
     - name: Build Consolidated Backup Execution Summary
       ansible.builtin.set_fact:
         backup_summary_report: |
           ==================================================
-          AAP 2.6 BACKUP & SYNCHRONIZATION EXECUTION SUMMARY
+          AAP 2.6 BACKUP & CROSS-SITE SYNC SUMMARY
           ==================================================
-          Source Site (Backup Executed)   : {{ src_site | upper }} ({{ src_host }})
-          Destination Site (Synced To)    : {{ dst_site | upper }} ({{ dst_host }})
-          Backup File Created             : {{ hostvars[src_host]['latest_backup_file'] | basename }}
-          Source Directory Mode           : {{ hostvars[src_host]['backup_mode'] }} (Owner: {{ hostvars[src_host]['backup_owner'] }}:{{ hostvars[src_host]['backup_group'] }})
-          Destination Directory Mode      : {{ dst_file_stat.stat.mode }} (Owner: {{ dst_file_stat.stat.pw_name }}:{{ dst_file_stat.stat.gr_name }})
-          Sync Status                     : SUCCESSFUL
+          Backup Executed On Site        : {{ src_site | upper }} ({{ src_host }})
+          Synced To Destination Site     : {{ dst_site | upper }} ({{ dst_host }})
+          Source Backups Directory       : {{ src_dir }}/backups
+          Source Ownership & Mode        : {{ hostvars[src_host]['backup_owner'] }}:{{ hostvars[src_host]['backup_group'] }} ({{ hostvars[src_host]['backup_mode'] }})
+          Destination Backups Directory  : {{ dst_dir }}/backups
+          Destination Ownership & Mode   : {{ dst_backup_stat.stat.pw_name }}:{{ dst_backup_stat.stat.gr_name }} ({{ dst_backup_stat.stat.mode }})
+          Sync Execution Status          : SUCCESSFUL
           ==================================================
 
-    - name: Display Execution Summary Report
+    - name: Display Backup Summary
       ansible.builtin.debug:
         msg: "{{ backup_summary_report.split('\n') }}"

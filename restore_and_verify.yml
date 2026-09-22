@@ -3,18 +3,19 @@
   hosts: localhost
   gather_facts: false
   vars:
-    # Environment Mappings
+    # Site Configuration
     site_config:
       pdc:
         installer_dir: "/opt/aap-installer/ansible-automation-platform-containerized-setup-bundle-2.6"
         controller_host: "172.22.7.22"
-        gateway_url: "https://ansible-gateway01.rbi1.rbi.org.in"
+        gateway_ip: "172.22.7.20" # PDC Gateway 01 IP
       odc:
         installer_dir: "/opt/aap-installer/ansible-automation-platform-containerized-setup-bundle-2.6"
         controller_host: "172.23.7.22"
-        gateway_url: "https://dr-gateway01.rbi1.rbi.org.in"
+        gateway_ip: "172.23.7.20" # ODC Gateway 01 IP
 
-    # API Admin Credentials (Pass as Vault variables in production)
+    # Unified Platform FQDN & API Credentials
+    unified_fqdn: "ansibleplatform.rbi.org.in"
     api_user: "admin"
     api_password: "admin_password_here"
 
@@ -25,11 +26,11 @@
           - target_site in ['pdc', 'odc']
         fail_msg: "Invalid survey input! Must be 'pdc' or 'odc'."
 
-    - name: Set Execution Variables for Restore Target
+    - name: Set Execution Facts for Restore Target
       ansible.builtin.set_fact:
         restore_host: "{{ site_config[target_site]['controller_host'] }}"
         restore_dir: "{{ site_config[target_site]['installer_dir'] }}"
-        gateway_api: "{{ site_config[target_site]['gateway_url'] }}"
+        target_gateway_ip: "{{ site_config[target_site]['gateway_ip'] }}"
 
 # -------------------------------------------------------------------
 # STEP 1: PRE-RESTORE OBJECT COUNT VERIFICATION VIA API
@@ -38,9 +39,11 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Fetch Pre-Restore Users Count
+    - name: Query Pre-Restore Users Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/users/"
+        url: "https://{{ target_gateway_ip }}/api/v2/users/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -48,9 +51,11 @@
         status_code: 200
       register: pre_users
 
-    - name: Fetch Pre-Restore Job Templates Count
+    - name: Query Pre-Restore Job Templates Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/job_templates/"
+        url: "https://{{ target_gateway_ip }}/api/v2/job_templates/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -58,9 +63,11 @@
         status_code: 200
       register: pre_job_templates
 
-    - name: Fetch Pre-Restore Inventories Count
+    - name: Query Pre-Restore Inventories Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/inventories/"
+        url: "https://{{ target_gateway_ip }}/api/v2/inventories/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -68,9 +75,9 @@
         status_code: 200
       register: pre_inventories
 
-    - name: Record Pre-Restore Metrics
+    - name: Record Pre-Restore Metrics Fact
       ansible.builtin.set_fact:
-        pre_restore_counts:
+        pre_counts:
           users: "{{ pre_users.json.count }}"
           job_templates: "{{ pre_job_templates.json.count }}"
           inventories: "{{ pre_inventories.json.count }}"
@@ -84,17 +91,17 @@
   vars:
     ansible_user: "ansible"
   tasks:
-    - name: Check Backups Directory State
+    - name: Check Backups Directory Details
       ansible.builtin.stat:
         path: "{{ hostvars['localhost']['restore_dir'] }}/backups"
-      register: target_backup_stat
+      register: restore_backup_stat
 
-    - name: Validate Backups Directory Exists and Has Correct Permissions
+    - name: Assert Backups Directory Ownership & Existence
       ansible.builtin.assert:
         that:
-          - target_backup_stat.stat.exists
-          - target_backup_stat.stat.pw_name == 'ansible'
-        fail_msg: "Backups directory does not exist or lacks correct 'ansible' owner permissions!"
+          - restore_backup_stat.stat.exists
+          - restore_backup_stat.stat.pw_name == 'ansible'
+        fail_msg: "Backups directory does not exist or lacks correct 'ansible' owner permissions on target node!"
 
     - name: Run Containerized Restore Playbook
       ansible.builtin.command:
@@ -103,20 +110,22 @@
       register: restore_exec
       ignore_errors: true
 
-    - name: Set Restore Execution Result Status
+    - name: Capture Restore Outcome
       ansible.builtin.set_fact:
         restore_status_result: "{{ 'SUCCESS' if restore_exec.rc == 0 else 'FAILED' }}"
 
 # -------------------------------------------------------------------
 # STEP 3: POST-RESTORE OBJECT COUNT VERIFICATION & REPORTING
 # -------------------------------------------------------------------
-- name: Query Post-Restore Cluster Metrics & Generate Report
+- name: Query Post-Restore Metrics & Compile Audit
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Fetch Post-Restore Users Count
+    - name: Query Post-Restore Users Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/users/"
+        url: "https://{{ target_gateway_ip }}/api/v2/users/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -124,9 +133,11 @@
         status_code: 200
       register: post_users
 
-    - name: Fetch Post-Restore Job Templates Count
+    - name: Query Post-Restore Job Templates Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/job_templates/"
+        url: "https://{{ target_gateway_ip }}/api/v2/job_templates/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -134,9 +145,11 @@
         status_code: 200
       register: post_job_templates
 
-    - name: Fetch Post-Restore Inventories Count
+    - name: Query Post-Restore Inventories Count
       ansible.builtin.uri:
-        url: "{{ gateway_api }}/api/v2/inventories/"
+        url: "https://{{ target_gateway_ip }}/api/v2/inventories/"
+        headers:
+          Host: "{{ unified_fqdn }}"
         user: "{{ api_user }}"
         password: "{{ api_password }}"
         force_basic_auth: true
@@ -144,22 +157,23 @@
         status_code: 200
       register: post_inventories
 
-    - name: Build Consolidated Restore Summary Variable
+    - name: Build Final Consolidated Summary Report
       ansible.builtin.set_fact:
         restore_summary_report: |
           ==================================================
           AAP 2.6 RESTORE AUDIT & VERIFICATION SUMMARY
           ==================================================
           Target Restore Site          : {{ target_site | upper }} ({{ restore_host }})
+          Target Gateway Endpoint      : {{ target_gateway_ip }} (Host Header: {{ unified_fqdn }})
           Restore Task Outcome         : {{ hostvars[restore_host]['restore_status_result'] }}
           --------------------------------------------------
-          METRIC COMPARISON AUDIT (BEFORE vs AFTER RESTORE):
+          OBJECT COUNT COMPARISON (BEFORE vs AFTER RESTORE):
           --------------------------------------------------
-          1. Users                     : Before = {{ pre_restore_counts.users }}  | After = {{ post_users.json.count }}  (Delta: {{ post_users.json.count - pre_restore_counts.users }})
-          2. Job Templates             : Before = {{ pre_restore_counts.job_templates }}  | After = {{ post_job_templates.json.count }}  (Delta: {{ post_job_templates.json.count - pre_restore_counts.job_templates }})
-          3. Inventories               : Before = {{ pre_restore_counts.inventories }}  | After = {{ post_inventories.json.count }}  (Delta: {{ post_inventories.json.count - pre_restore_counts.inventories }})
+          1. Users                     : Before = {{ pre_counts.users }}  | After = {{ post_users.json.count }}  (Delta: {{ post_users.json.count - pre_counts.users }})
+          2. Job Templates             : Before = {{ pre_counts.job_templates }}  | After = {{ post_job_templates.json.count }}  (Delta: {{ post_job_templates.json.count - pre_counts.job_templates }})
+          3. Inventories               : Before = {{ pre_counts.inventories }}  | After = {{ post_inventories.json.count }}  (Delta: {{ post_inventories.json.count - pre_counts.inventories }})
           ==================================================
 
-    - name: Display Final Consolidated Summary Report
+    - name: Display Execution Summary Report
       ansible.builtin.debug:
         msg: "{{ restore_summary_report.split('\n') }}"
