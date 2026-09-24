@@ -2,19 +2,37 @@
 - name: Step 04 - Publish TXT Record Notification
   hosts: localhost
   gather_facts: false
-  vars:
-    recipient_list: "{{ recipientEmails | default(['vijaymerugu@rbi.org.in', 'shamiseles@rbi.org.in', 'akmaurya@rbi.org.in']) }}"
-
+  
   tasks:
     - name: Notify DNS Support Team
       block:
-        - name: Send TXT Update Email to Support
-          community.general.mail:
-            host: "localhost"
-            port: 25
-            to: "{{ recipient_list }}"
-            subject: "[Action Required] Publish DNS TXT Record for {{ common_name_input | default('demo-cert.rbi.org.in') }}"
-            body: "Please publish DNS TXT Record Value: {{ dcv_content }}"
+        - name: Generate Consolidated Email Body Variable
+          ansible.builtin.set_fact:
+            email_body_content: |
+              Hello DNS Support Team,
+
+              A new SSL Certificate request requires DNS Control Validation (DCV).
+              Please publish the following DNS TXT record at your earliest convenience:
+
+              --------------------------------------------------
+              Domain / Common Name : {{ common_name_input | default('demo-cert.rbi.org.in') }}
+              Record Type          : TXT
+              TXT Record Name      : _dcv-challenge.{{ common_name_input | default('demo-cert.rbi.org.in') }}
+              TXT Record Value     : {{ dcv_content | default('NO_DCV_CONTENT_FOUND') }}
+              --------------------------------------------------
+
+              Once published, please confirm so the validation process can proceed.
+
+              Regards,
+              Automated Certificate Lifecycle Manager (AAP)
+
+#        - name: Send TXT Update Email to Support
+#          community.general.mail:
+#            host: "localhost"
+#            port: 25
+#            to: "{{ recipient_list | default('dns-support@rbi.org.in') }}"
+#            subject: "[Action Required] Publish DNS TXT Record for {{ common_name_input | default('demo-cert.rbi.org.in') }}"
+#            body: "{{ email_body_content }}"
 
         - name: Construct Step Success Summary & Consolidated Phase 1 Report
           ansible.builtin.set_fact:
