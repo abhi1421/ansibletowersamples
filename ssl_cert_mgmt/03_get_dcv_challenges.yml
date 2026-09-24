@@ -1,6 +1,6 @@
 ---
 - name: Step 03 - Get DCV Challenges
-  hosts: localhost
+  hosts: all
   gather_facts: false
   vars:
     v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
@@ -16,10 +16,22 @@
               Authorization: "Bearer {{ bearer_token }}"
             status_code: 200
           register: dcv_response
+          delegate_to: localhost
+
+        - name: Safely Extract DCV TXT Record Content
+          ansible.builtin.set_fact:
+            dcv_content_val: >-
+              {{
+                dcv_response.json.fileNameContent | default(
+                dcv_response.json.dcvDetails[0].value | default(
+                dcv_response.json.value | default(
+                dcv_response.json.token | default(
+                dcv_response.json | string
+                ))))
+              }}
 
         - name: Construct Step Success Summary
           ansible.builtin.set_fact:
-            dcv_content_val: "{{ dcv_response.json.fileNameContent }}"
             step_3_summary: "Step 03 [DCV Challenge]: SUCCESS | TXT Content Retrieved"
             current_report: "{{ phase_summary_report | default([]) + ['Step 03 [DCV Challenge]: SUCCESS'] }}"
 
@@ -27,8 +39,8 @@
         - name: Construct Step Failure Summary
           ansible.builtin.set_fact:
             dcv_content_val: ""
-            step_3_summary: "Step 03 [DCV Challenge]: FAILED | {{ ansible_failed_result.msg | default('DCV Fetch Error') }}"
-            current_report: "{{ phase_summary_report | default([]) + ['Step 03 [DCV Challenge]: FAILED - ' + (ansible_failed_result.msg | default('DCV Fetch Error'))] }}"
+            step_3_summary: "Step 03 [DCV Challenge]: FAILED | {{ ansible_failed_result.msg | default('DCV Fetch Failed') }}"
+            current_report: "{{ phase_summary_report | default([]) + ['Step 03 [DCV Challenge]: FAILED'] }}"
 
         - name: Fail task execution
           ansible.builtin.fail:
