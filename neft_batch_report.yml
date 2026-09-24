@@ -1,13 +1,12 @@
 ---
 - name: NEFT Batch Settlement Check
-  hosts: localhost
-  connection: local
+  hosts: all
   gather_facts: false
 
   environment:
-    ORACLE_SID: SFMS26
-    ORACLE_HOME: /orahome/app/product/26ai/dbhome_1
-    PATH: /orahome/app/product/26ai/dbhome_1/bin:/usr/bin:/bin
+    ORACLE_SID: NEFT
+    ORACLE_HOME: /orahome/app/product/19.0.0/dbhome_1
+    PATH: /orahome/app/product/19.0.0/dbhome_1/bin:$PATH:.
 
   tasks:
     # -------------------------------------------------------------------------
@@ -15,7 +14,7 @@
     # -------------------------------------------------------------------------
     - name: Get current batch index
       ansible.builtin.shell: |
-        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        sqlplus -s ansibleapp/Rbi#2026 <<EOF
         WHENEVER SQLERROR EXIT FAILURE
         WHENEVER OSERROR EXIT FAILURE
         SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
@@ -34,13 +33,13 @@
     # -------------------------------------------------------------------------
     - name: Fetch target batch status from database
       ansible.builtin.shell: |
-        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        sqlplus -s ansibleapp/Rbi#2026 <<EOF
         WHENEVER SQLERROR EXIT FAILURE
         WHENEVER OSERROR EXIT FAILURE
         SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
-        SELECT batch_id || '|' || TO_CHAR(last_mod_date, 'DD-MM-YYYY HH24:MI:SS') || '|' || status 
-        FROM TEST_BATCH 
-        WHERE batch_id = {{ target_batch_id }};
+        SELECT batch_id || '|' || BUSINESS_DATE || '|' || BATCH_STLMT_STATUS
+        FROM UNEFT.VW_BATCH_STLMT_STATUS
+        WHERE BUSINESS_DATE=TO_CHAR(SYSDATE,'YYYY-MM-DD') and batch_id = {{ target_batch_id }};
         EXIT;
         EOF
       register: db_query_result
@@ -93,3 +92,14 @@
     - name: Display Consolidated Report
       ansible.builtin.debug:
         var: consolidated_report
+
+    - name: Send consolidated Summary Email
+      community.general.mail:
+        host: 10.35.1.17
+        port: 25
+        to: "{{ email_recepients | join(', ') }}"
+        from: ansible.alerts@rbi.org.in
+        subject: "NEFT Batch {{ target_batch_id }} Status Update - {{ batch_status }}"
+        body: "{{ consolidated_report }}"
+      delegate_to: localhost
+      run_once: true

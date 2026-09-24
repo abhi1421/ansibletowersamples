@@ -1,5 +1,5 @@
-[linux_servers]
-172.24.245.22 server_hostname=VLWEBFED1
-172.24.245.23 server_hostname=VLWEBFED2
-172.24.246.111 server_hostname=VLDBXOS
-172.24.246.112 server_hostname=VLDBFED
+[all]
+172.24.245.22
+172.24.245.23
+172.24.246.111
+172.24.246.112

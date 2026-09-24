@@ -6,7 +6,7 @@
     v2_base_url: "{{ v2BaseURL | default('https://demo-api.certinext.io') }}"
     cert_type: "{{ cert_type_input | default('DV Single Domain') }}"
     common_name: "{{ common_name_input | default('demo-cert.rbi.org.in') }}"
-    san_list: "{{ san_list_input | default('demo-cert.rbi.org.in') }}"
+#    san_list: "{{ san_list_input | default('demo-cert.rbi.org.in') }}"
     
     # Domain & Date based directory structure
     base_cert_dir: "/etc/ssl/certs"
