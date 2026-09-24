@@ -1,0 +1,95 @@
+---
+- name: NEFT Batch Settlement Check
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  environment:
+    ORACLE_SID: SFMS26
+    ORACLE_HOME: /orahome/app/product/26ai/dbhome_1
+    PATH: /orahome/app/product/26ai/dbhome_1/bin:/usr/bin:/bin
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # 1. CALCULATE CURRENT BATCH NUMBER (1 to 48)
+    # -------------------------------------------------------------------------
+    - name: Get current batch index
+      ansible.builtin.shell: |
+        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        WHENEVER SQLERROR EXIT FAILURE
+        WHENEVER OSERROR EXIT FAILURE
+        SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
+        SELECT FLOOR((SYSDATE - TRUNC(SYSDATE)) * 48) FROM dual;
+        EXIT;
+        EOF
+      register: current_batch_raw
+      changed_when: false
+
+    - name: Set target batch ID
+      ansible.builtin.set_fact:
+        target_batch_id: "{{ current_batch_raw.stdout | trim | int }}"
+
+    # -------------------------------------------------------------------------
+    # 2. QUERY DB WITH 5 RETRIES (1-MINUTE DELAY)
+    # -------------------------------------------------------------------------
+    - name: Fetch target batch status from database
+      ansible.builtin.shell: |
+        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        WHENEVER SQLERROR EXIT FAILURE
+        WHENEVER OSERROR EXIT FAILURE
+        SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
+        SELECT batch_id || '|' || TO_CHAR(last_mod_date, 'DD-MM-YYYY HH24:MI:SS') || '|' || status 
+        FROM TEST_BATCH 
+        WHERE batch_id = {{ target_batch_id }};
+        EXIT;
+        EOF
+      register: db_query_result
+      changed_when: false
+      failed_when: false
+      # Retry loop: check every 60 seconds up to 5 times until output is not empty
+      until: db_query_result.stdout | trim != ""
+      retries: 5
+      delay: 60
+
+    # -------------------------------------------------------------------------
+    # 3. PARSE QUERY RESULTS & HANDLE TIMEOUT
+    # -------------------------------------------------------------------------
+    - name: Parse query output
+      ansible.builtin.set_fact:
+        batch_found: "{{ db_query_result.stdout | trim != '' }}"
+        query_fields: "{{ (db_query_result.stdout | trim).split('|') if (db_query_result.stdout | trim != '') else [] }}"
+
+    - name: Extract batch details
+      ansible.builtin.set_fact:
+        batch_id: "{{ query_fields[0] if batch_found else target_batch_id }}"
+        batch_date: "{{ query_fields[1] if batch_found else 'N/A' }}"
+        batch_status: "{{ query_fields[2] if batch_found else 'Batch Not Found (Timeout)' }}"
+
+    # -------------------------------------------------------------------------
+    # 4. CONSOLIDATED REPORT VARIABLE
+    # -------------------------------------------------------------------------
+    - name: Draft Consolidated Report Variable
+      ansible.builtin.set_fact:
+        consolidated_report: |
+          ==================================================
+                       NEFT BATCH STATUS REPORT
+          ==================================================
+          Execution Date   : {{ now(fmt='%Y-%m-%d %H:%M:%S') }}
+          Target Batch ID  : {{ batch_id }}
+          Settlement Date  : {{ batch_date }}
+          Batch Status     : {{ batch_status }}
+          ==================================================
+          Execution Summary:
+          {% if batch_found %}
+          Batch {{ batch_id }} status was retrieved successfully with status '{{ batch_status }}'.
+          {% else %}
+          Batch {{ batch_id }} record was not found in the database after 5 minutes of polling.
+          {% endif %}
+          ==================================================
+
+    # -------------------------------------------------------------------------
+    # 5. DISPLAY REPORT FOR VERIFICATION
+    # -------------------------------------------------------------------------
+    - name: Display Consolidated Report
+      ansible.builtin.debug:
+        var: consolidated_report
