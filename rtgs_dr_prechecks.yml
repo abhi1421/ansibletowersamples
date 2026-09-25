@@ -1,0 +1,152 @@
+---
+# ==============================================================================
+# PLAY 1: Global Setup - Initialize Global Report Variable on Control Node
+# ==============================================================================
+- name: Initialize Pre-Check Reporting
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Initialize report summary list
+      ansible.builtin.set_fact:
+        dr_report_lines: []
+
+# ==============================================================================
+# PLAY 2: Uptime & Reachability Check (All 16 Hosts)
+# ==============================================================================
+- name: Check Uptime & Reachability
+  hosts: all
+  gather_facts: yes
+  tasks:
+    - name: Record Host Uptime Status
+      ansible.builtin.set_fact:
+        dr_report_lines: "{{ hostvars['localhost']['dr_report_lines'] + [ '[UPTIME] ' ~ inventory_hostname ~ ' is reachable | Uptime: ' ~ (ansible_uptime_seconds | default('N/A')) ~ 's' ] }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ==============================================================================
+# PLAY 3: Inter-Tier Network Connectivity Checks (HTTP -> WAS -> DB2)
+# ==============================================================================
+- name: Inter-Tier Connectivity - HTTP to WAS
+  hosts: HTTP
+  gather_facts: no
+  vars:
+    was_ports: [9068, 9092, 9431, 9455]
+  tasks:
+    - name: Test TCP connectivity from HTTP to WAS nodes
+      ansible.builtin.wait_for:
+        host: "{{ item.0 }}"
+        port: "{{ item.1 }}"
+        state: started
+        timeout: 3
+      loop: "{{ groups['WAS'] | product(was_ports) | list }}"
+      register: http_was_check
+      ignore_errors: yes
+
+    - name: Record HTTP to WAS connectivity status
+      ansible.builtin.set_fact:
+        dr_report_lines: "{{ hostvars['localhost']['dr_report_lines'] + [ '[PORT] ' ~ inventory_hostname ~ ' -> ' ~ item.item.0 ~ ':' ~ item.item.1 ~ ' | Status: ' ~ ('SUCCESS' if item.failed is not defined or not item.failed else 'FAILED') ] }}"
+      loop: "{{ http_was_check.results }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+- name: Inter-Tier Connectivity - WAS to DB2
+  hosts: WAS
+  gather_facts: no
+  tasks:
+    - name: Test TCP connectivity from WAS to DB2
+      ansible.builtin.wait_for:
+        host: "{{ item }}"
+        port: 50000
+        state: started
+        timeout: 3
+      loop: "{{ groups['DB2'] }}"
+      register: was_db2_check
+      ignore_errors: yes
+
+    - name: Record WAS to DB2 connectivity status
+      ansible.builtin.set_fact:
+        dr_report_lines: "{{ hostvars['localhost']['dr_report_lines'] + [ '[PORT] ' ~ inventory_hostname ~ ' -> ' ~ item.item ~ ':50000 | Status: ' ~ ('SUCCESS' if item.failed is not defined or not item.failed else 'FAILED') ] }}"
+      loop: "{{ was_db2_check.results }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ==============================================================================
+# PLAY 4: Web & SLB Endpoint Checks
+# ==============================================================================
+- name: Endpoint Accessibility Check
+  hosts: localhost
+  gather_facts: no
+  vars:
+    dr_endpoints:
+      - "https://10.35.3.51/rtgs"
+      - "https://10.35.3.51/po"
+      - "https://10.35.9.135:501/rtgs"
+      - "https://10.35.9.147:501/rtgs"
+  tasks:
+    - name: Verify HTTP Response Codes
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        method: GET
+        validate_certs: no
+        status_code: [200, 302]
+      loop: "{{ dr_endpoints }}"
+      register: url_check
+      ignore_errors: yes
+
+    - name: Record Endpoint status
+      ansible.builtin.set_fact:
+        dr_report_lines: "{{ dr_report_lines + [ '[URL] ' ~ item.item ~ ' | Status: ' ~ (item.status | default('FAILED')) ] }}"
+      loop: "{{ url_check.results }}"
+
+# ==============================================================================
+# PLAY 5: IBM MQ Channel & Queue Depth Checks
+# ==============================================================================
+- name: IBM MQ Validation
+  hosts: GATEWAY
+  gather_facts: no
+  tasks:
+    - name: Query MQ Channels
+      ansible.builtin.shell: "echo 'DISPLAY CHSTATUS(*)' | runmqsc QMCENTER"
+      register: mq_channel_out
+      ignore_errors: yes
+
+    - name: Record MQ status
+      ansible.builtin.set_fact:
+        dr_report_lines: "{{ hostvars['localhost']['dr_report_lines'] + [ '[MQ] ' ~ inventory_hostname ~ ' Channel Check | Status: ' ~ ('SUCCESS' if mq_channel_out.rc == 0 else 'FAILED') ] }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ==============================================================================
+# PLAY 6: Consolidate Report Variable & Send Notification
+# ==============================================================================
+- name: Compile Summary Report
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Build Email Body Variable
+      ansible.builtin.set_fact:
+        dr_precheck_report: |
+          ==================================================
+                 RTGS DR PRE-CHECK EXECUTION SUMMARY         
+          ==================================================
+          Timestamp: {{ ansible_date_time.iso8601 | default('N/A') }}
+
+          DETAILED RESULTS:
+          --------------------------------------------------
+          {{ dr_report_lines | join('\n') }}
+          --------------------------------------------------
+          
+          End of Automated Pre-Check Execution Report.
+
+    - name: Display Final Report Variable Output
+      ansible.builtin.debug:
+        var: dr_precheck_report
+
+    # Example task using the variable in mail module
+    # - name: Send Email Report
+    #   community.general.mail:
+    #     host: smtp.yourdomain.com
+    #     port: 25
+    #     to: Ops Team <ops@yourdomain.com>
+    #     subject: "RTGS DR Pre-Check Report - {{ ansible_date_time.date | default('') }}"
+    #     body: "{{ dr_precheck_report }}"

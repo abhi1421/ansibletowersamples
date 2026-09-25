@@ -1,0 +1,191 @@
+---
+- name: NEFT Batch Settlement Check with Delegated File Persistence
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # 3rd server hostname/IP for tracking file
+    tracking_server: "Git_server"  
+    tracker_file_path: "/var/tmp/neft_batch_tracker.json"
+
+  environment:
+    ORACLE_SID: SFMS26
+    ORACLE_HOME: /orahome/app/product/26ai/dbhome_1
+    PATH: /orahome/app/product/26ai/dbhome_1/bin:/usr/bin:/bin
+
+  tasks:
+    # -------------------------------------------------------------------------
+    # 1. READ TRACKER FILE FROM 3RD SERVER (WITH FAIL-SAFE FALLBACKS)
+    # -------------------------------------------------------------------------
+    - name: Check if tracker file exists on 3rd server
+      ansible.builtin.stat:
+        path: "{{ tracker_file_path }}"
+      delegate_to: "{{ tracking_server }}"
+      register: tracker_stat
+      ignore_errors: true
+
+    - name: Initialize missing tracker file on 3rd server
+      ansible.builtin.copy:
+        content: '{"last_processed_batch_id": 0}'
+        dest: "{{ tracker_file_path }}"
+        force: false
+      delegate_to: "{{ tracking_server }}"
+      when: 
+        - tracker_stat.stat is defined
+        - not tracker_stat.stat.exists
+      ignore_errors: true
+
+    - name: Read tracker file from 3rd server
+      ansible.builtin.slurp:
+        src: "{{ tracker_file_path }}"
+      delegate_to: "{{ tracking_server }}"
+      register: tracker_raw
+      ignore_errors: true
+
+    # -------------------------------------------------------------------------
+    # 2. CALCULATE CURRENT TARGET BATCH NUMBER (1 to 48)
+    # -------------------------------------------------------------------------
+    - name: Get current batch index from Oracle
+      ansible.builtin.shell: |
+        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        WHENEVER SQLERROR EXIT FAILURE
+        WHENEVER OSERROR EXIT FAILURE
+        SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
+        SELECT FLOOR((SYSDATE - TRUNC(SYSDATE)) * 48) FROM dual;
+        EXIT;
+        EOF
+      register: current_batch_raw
+      changed_when: false
+
+    - name: Set target batch range and safe file state
+      ansible.builtin.set_fact:
+        current_batch_id: "{{ current_batch_raw.stdout | trim | int }}"
+        last_logged_batch_id: >-
+          {{
+            (tracker_raw.content | b64decode | from_json).last_processed_batch_id | default(0) | int
+            if (tracker_raw is succeeded and tracker_raw.content is defined)
+            else (current_batch_raw.stdout | trim | int - 1)
+          }}
+
+    - name: Calculate start batch ID
+      ansible.builtin.set_fact:
+        start_batch_id: "{{ (last_logged_batch_id | int) + 1 }}"
+
+    - name: Handle midnight/day reset edge case
+      ansible.builtin.set_fact:
+        start_batch_id: "{{ current_batch_id }}"
+      when: start_batch_id | int > current_batch_id | int
+
+    # -------------------------------------------------------------------------
+    # 3. QUERY VW_BATCH_STLMT_STATUS WITH 5 RETRIES (1-MIN DELAY)
+    # -------------------------------------------------------------------------
+    - name: Query VW_BATCH_STLMT_STATUS view for target range
+      ansible.builtin.shell: |
+        sqlplus -s ansibledba/Rbi#2026@SFMS26PDB2 <<EOF
+        WHENEVER SQLERROR EXIT FAILURE
+        WHENEVER OSERROR EXIT FAILURE
+        SET HEADING OFF FEEDBACK OFF PAGESIZE 0 VERIFY OFF TRIMSPOOL ON
+        SELECT BATCH_ID || '|' || TO_CHAR(BUSINESS_D, 'YYYY-MM-DD') || '|' || TO_CHAR(LST_MOD_DATE, 'YYYY-MM-DD HH24:MI:SS') || '|' || BATCH_ST
+        FROM VW_BATCH_STLMT_STATUS
+        WHERE BATCH_ID BETWEEN {{ start_batch_id }} AND {{ current_batch_id }}
+        ORDER BY BATCH_ID;
+        EXIT;
+        EOF
+      register: db_query_result
+      changed_when: false
+      failed_when: false
+      until: db_query_result.stdout | trim != ""
+      retries: 5
+      delay: 60
+
+    # -------------------------------------------------------------------------
+    # 4. PARSE MULTI-COLUMN VIEW DATA
+    # -------------------------------------------------------------------------
+    - name: Parse queried batch records matching database schema
+      ansible.builtin.set_fact:
+        parsed_batches: >-
+          {% set records = [] %}
+          {% if db_query_result.stdout | trim != '' %}
+            {% for line in db_query_result.stdout_lines %}
+              {% set parts = line.split('|') %}
+              {% set _ = records.append({
+                'batch_id': parts[0] | trim | int,
+                'business_date': parts[1] | trim,
+                'last_mod_date': parts[2] | trim,
+                'status': parts[3] | trim
+              }) %}
+            {% endfor %}
+          {% endif %}
+          {{ records }}
+
+    - name: Identify highest processed batch ID
+      ansible.builtin.set_fact:
+        highest_settled_id: >-
+          {{
+            (parsed_batches | map(attribute='batch_id') | list | max)
+            if (parsed_batches | length > 0)
+            else last_logged_batch_id
+          }}
+
+    # -------------------------------------------------------------------------
+    # 5. DRAFT CONSOLIDATED REPORT VARIABLE
+    # -------------------------------------------------------------------------
+    - name: Draft Consolidated Email Report
+      ansible.builtin.set_fact:
+        consolidated_report: |
+          ==================================================
+                 NEFT BATCH SETTLEMENT STATUS REPORT
+          ==================================================
+          Execution Date   : {{ now(fmt='%Y-%m-%d %H:%M:%S') }}
+          Current Batch ID : {{ current_batch_id }}
+          Checked Window   : Batch {{ start_batch_id }} to Batch {{ current_batch_id }}
+          Total Records    : {{ parsed_batches | length }}
+          ==================================================
+          
+          BATCH DETAILS (FROM VW_BATCH_STLMT_STATUS):
+          {% if parsed_batches | length > 0 %}
+          {% for b in parsed_batches %}
+          - Batch ID     : {{ b.batch_id }}
+            Business Date: {{ b.business_date }}
+            Last Mod Date: {{ b.last_mod_date }}
+            Status       : {{ b.status }}
+          --------------------------------------------------
+          {% endfor %}
+          {% else %}
+          - Batch {{ current_batch_id }}: Batch Not Found (Timeout / Delayed)
+          {% endif %}
+
+          ==================================================
+          EXECUTION SUMMARY:
+          {% if parsed_batches | length == 1 and start_batch_id == current_batch_id %}
+          Normal Execution: Batch {{ current_batch_id }} processed successfully with status '{{ parsed_batches[0].status }}'.
+          {% elif parsed_batches | length > 1 %}
+          Catch-Up Execution: Recovered {{ parsed_batches | length }} delayed batch(es) in this run.
+          {% else %}
+          Alert: Batch {{ current_batch_id }} record was not found in DB after 5 minutes of polling.
+          {% endif %}
+          ==================================================
+
+    # -------------------------------------------------------------------------
+    # 6. UPDATE TRACKER FILE ON 3RD SERVER WITH NEW DATA FORMAT
+    # -------------------------------------------------------------------------
+    - name: Save batch state and full reference data to 3rd server
+      ansible.builtin.copy:
+        content: |
+          {
+            "last_processed_batch_id": {{ highest_settled_id | int }},
+            "last_updated": "{{ now(fmt='%Y-%m-%d %H:%M:%S') }}",
+            "batches_logged": {{ parsed_batches | to_nice_json }}
+          }
+        dest: "{{ tracker_file_path }}"
+      delegate_to: "{{ tracking_server }}"
+      when: highest_settled_id | int > last_logged_batch_id | int
+      ignore_errors: true
+
+    # -------------------------------------------------------------------------
+    # 7. DISPLAY REPORT FOR VERIFICATION
+    # -------------------------------------------------------------------------
+    - name: Display Consolidated Report
+      ansible.builtin.debug:
+        var: consolidated_report
